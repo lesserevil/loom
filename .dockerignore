@@ -14,13 +14,7 @@ LICENSE
 *~
 
 # Build artifacts
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-*.test
-*.out
+bin/
 
 # Test coverage
 coverage.*

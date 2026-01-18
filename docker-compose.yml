@@ -15,8 +15,8 @@ services:
     networks:
       - arbiter-network
     volumes:
-      # Mount configuration if needed
-      - ./config:/app/config:ro
+      # Mount configuration if needed (create ./config directory first)
+      # - ./config:/app/config:ro
     healthcheck:
       test: ["CMD", "/app/arbiter", "version"]
       interval: 30s
