@@ -1,388 +1,482 @@
 # Arbiter
 
-An autonomous agent orchestration system for coordinating AI coding agents working on software projects.
+An AI Coding Agent Orchestrator for both on-prem and off-prem development.
 
-## Overview
+Arbiter is a lightweight AI coding agent orchestrator, dispatcher, and automatic decision maker. Instead of being just another frontend to systems like Claude or Cursor, Arbiter intelligently routes requests to multiple AI providers and presents a unified OpenAI-compatible API.
 
-Arbiter is a multi-agent coordination system that enables AI agents to work together on software projects with minimal human intervention. It uses [@steveyegge/beads](https://github.com/steveyegge/beads) for task tracking and provides sophisticated coordination mechanisms to prevent conflicts and enable autonomous decision-making.
+## Features
 
-## Key Features
+- 🤖 **Multi-Provider Support**: Configure and use multiple AI providers (Claude, OpenAI, Cursor, Factory, and more)
+- 🔒 **Secure Secret Storage**: API keys are encrypted and stored securely, never committed to git
+- 🌐 **Dual Interface**: Both OpenAI-compatible REST API and web frontend
+- 🔍 **Automatic Provider Discovery**: Looks up API endpoints for known providers or accepts custom URLs
+- ⚡ **Lightweight**: Minimal overhead, runs as a background service
+- 🎯 **Smart Routing**: Automatically routes requests to appropriate providers
 
-- **Persona System**: Flexible agent personalities defined in markdown templates
-- **Multi-Project Support**: Coordinate work across multiple repositories and branches
-- **Decision Management**: Autonomous decision-making with escalation for critical choices
-- **File Coordination**: Prevent merge conflicts through file locking
-- **Beads Integration**: Git-backed issue tracking optimized for AI agents
-- **Web UI**: Kanban board for monitoring work and claiming decision beads
-- **OpenAPI Specification**: Well-documented REST API for programmatic access
-- **HTTPS/PKI Support**: Production-ready security with TLS and PKI
-- **100% Autonomy Goal**: Minimize human intervention while maintaining quality
+## Installation
+
+### Prerequisites
+
+- Go 1.21 or higher (tested with Go 1.24)
+
+### Build from Source
+
+```bash
+git clone https://github.com/jordanhubbard/arbiter.git
+cd arbiter
+go build
+```
+
+This will create an `arbiter` binary in the current directory.
+
+## Quick Start
+
+1. **Run Arbiter**:
+   ```bash
+   ./arbiter
+   ```
+
+2. **First-time Setup**: On first run, Arbiter will interactively guide you through configuring your AI providers:
+   - Enter the names of providers you have access to (e.g., `claude, openai, cursor`)
+   - For each provider, either:
+     - Provide a specific API endpoint URL, or
+     - Let Arbiter look up the standard endpoint for known providers
+   - Enter your API key for each provider
+
+3. **Access the Interfaces**:
+   - **Web UI**: http://localhost:8080
+   - **OpenAI-compatible API**: http://localhost:8080/v1/...
+   - **Health Check**: http://localhost:8080/health
+
+## Configuration
+
+Arbiter stores configuration in two files in your home directory:
+
+- `~/.arbiter.json`: Provider configurations (endpoints, names)
+- `~/.arbiter_secrets`: Encrypted API keys (machine-specific encryption)
+
+**Security Note**: These files are never committed to git. The secrets file uses AES-GCM encryption with a machine-specific key derived from hostname and user directory.
+
+## API Endpoints
+
+Arbiter provides an OpenAI-compatible API:
+
+### Chat Completions
+```bash
+POST /v1/chat/completions
+Content-Type: application/json
+
+{
+  "model": "claude-default",
+  "messages": [
+    {"role": "user", "content": "Hello!"}
+  ]
+}
+```
+
+### Text Completions
+```bash
+POST /v1/completions
+Content-Type: application/json
+
+{
+  "model": "openai-default",
+  "prompt": "Once upon a time"
+}
+```
+
+### List Models
+```bash
+GET /v1/models
+```
+
+### Health Check
+```bash
+GET /health
+```
+
+### List Providers
+```bash
+GET /api/providers
+```
+
+## Usage Examples
+
+### Using with curl
+
+```bash
+# Chat completion
+curl -X POST http://localhost:8080/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "claude-default",
+    "messages": [{"role": "user", "content": "Write a haiku about coding"}]
+  }'
+
+# Check health
+curl http://localhost:8080/health
+```
+
+### Using with Python OpenAI Client
+
+```python
+from openai import OpenAI
+
+# Point the client to Arbiter
+client = OpenAI(
+    base_url="http://localhost:8080/v1",
+    api_key="not-needed"  # Arbiter manages keys
+)
+
+response = client.chat.completions.create(
+    model="claude-default",
+    messages=[{"role": "user", "content": "Hello!"}]
+)
+
+print(response.choices[0].message.content)
+```
+
+## Supported Providers
+
+Arbiter has built-in support for the following providers with automatic endpoint lookup:
+
+- **Claude** (Anthropic): `https://api.anthropic.com/v1`
+- **OpenAI**: `https://api.openai.com/v1`
+- **Cursor**: `https://api.cursor.sh/v1`
+- **Factory**: `https://api.factory.ai/v1`
+- **Cohere**: `https://api.cohere.ai/v1`
+- **HuggingFace**: `https://api-inference.huggingface.co`
+- **Replicate**: `https://api.replicate.com/v1`
+- **Together**: `https://api.together.xyz/v1`
+- **Mistral**: `https://api.mistral.ai/v1`
+- **Perplexity**: `https://api.perplexity.ai`
+
+For any other provider, you can manually specify the API endpoint during setup.
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│ Arbiter Orchestration System                           │
-│ ┌───────────────────────────────────────────────────┐   │
-│ │ Web UI (Kanban Board, Persona Editor)            │   │
-│ └───────────────────────────────────────────────────┘   │
-│ ┌───────────────────────────────────────────────────┐   │
-│ │ API Layer (HTTP/HTTPS, OpenAPI)                  │   │
-│ └───────────────────────────────────────────────────┘   │
-│ ┌───────────────┬─────────────┬───────────────────┐   │
-│ │ Agent Manager │ File Locks  │ Decision System   │   │
-│ └───────────────┴─────────────┴───────────────────┘   │
-│ ┌───────────────────────────────────────────────────┐   │
-│ │ Beads Integration (Task & Dependency Graph)       │   │
-│ └───────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────┘
-         │                   │                   │
-    ┌────────┐         ┌────────┐         ┌────────┐
-    │Agent 1 │         │Agent 2 │         │Agent N │
-    │(Code   │         │(Decision│         │(House- │
-    │Reviewer)│         │Maker)   │         │keeping)│
-    └────────┘         └────────┘         └────────┘
-         │                   │                   │
-    ┌─────────────────────────────────────────────────┐
-    │ Project Git Repositories & Working Branches    │
-    └─────────────────────────────────────────────────┘
+┌─────────────────────────────────────────┐
+│           User Application              │
+│  (CLI, IDE Plugin, Web Client, etc.)    │
+└───────────────┬─────────────────────────┘
+                │
+                │ OpenAI-compatible API
+                │
+┌───────────────▼─────────────────────────┐
+│           Arbiter Server                │
+│  ┌─────────────────────────────────┐   │
+│  │  Request Router & Dispatcher    │   │
+│  └─────────────────────────────────┘   │
+│  ┌─────────────────────────────────┐   │
+│  │    Encrypted Secret Store       │   │
+│  └─────────────────────────────────┘   │
+└───────────────┬─────────────────────────┘
+                │
+        ┌───────┴───────┬─────────┐
+        │               │         │
+┌───────▼──────┐ ┌──────▼─────┐ ┌▼────────┐
+│   Claude     │ │   OpenAI   │ │ Cursor  │
+│   Provider   │ │  Provider  │ │ Provider│
+└──────────────┘ └────────────┘ └─────────┘
 ```
 
-## Quick Start
+## Development
 
-### Prerequisites
-
-- Go 1.24 or later
-- [bd (beads)](https://github.com/steveyegge/beads) installed
-- Git repositories for your projects
-
-### Installation
+### Building
 
 ```bash
-# Clone the repository
-git clone https://github.com/jordanhubbard/arbiter.git
-cd arbiter
-
-# Build
-go build -o arbiter ./cmd/arbiter
-
-# Initialize configuration
-cp config.yaml.example config.yaml
-vim config.yaml  # Edit as needed
+go build
 ```
-
-### Configuration
-
-Edit `config.yaml` to configure:
-
-- Server ports (HTTP/HTTPS)
-- TLS certificates (when ready)
-- Beads integration settings
-- Agent limits and behavior
-- Project definitions
-- Security settings
 
 ### Running
 
 ```bash
-# Start the arbiter
-./arbiter -config config.yaml
-
-# Access web UI
-open http://localhost:8080
-
-# API is available at
-# http://localhost:8080/api/v1/
+./arbiter
 ```
-
-## Persona System
-
-Personas define how agents behave, what they can decide autonomously, and what requires escalation.
-
-### Persona Structure
-
-Each persona consists of two markdown files:
-
-- `PERSONA.md`: Defines character, focus areas, autonomy level, and standards
-- `AI_START_HERE.md`: Instructions for the agent on how to operate
-
-### Example Personas
-
-Three example personas are included:
-
-1. **Code Reviewer**: Security-focused code review and bug finding
-2. **Decision Maker**: Resolves decision points to unblock other agents
-3. **Housekeeping Bot**: Maintains codebase health through continuous maintenance
-
-### Creating Custom Personas
-
-```bash
-# Copy a template
-cp -r personas/templates personas/my-agent
-
-# Edit the files
-vim personas/my-agent/PERSONA.md
-vim personas/my-agent/AI_START_HERE.md
-
-# Personas are loaded automatically from the personas directory
-```
-
-### Autonomy Levels
-
-- **Full Autonomy**: Can make all non-P0 decisions independently
-- **Semi-Autonomous**: Can handle routine decisions, escalates complex ones
-- **Supervised**: Requires approval for all decisions
-
-## Agent Coordination
-
-### File Locking
-
-Agents must request file access before editing:
-
-1. Agent requests file lock via API: `POST /api/v1/file-locks`
-2. Arbiter grants or denies based on current locks
-3. Agent performs work
-4. Agent releases lock: `DELETE /api/v1/file-locks/{project}/{path}`
-
-This prevents merge conflicts when multiple agents work on the same branch.
-
-### Decision Beads
-
-When an agent encounters a decision point:
-
-1. Agent files a decision bead: `POST /api/v1/beads` (type: decision)
-2. Agent blocks its current work on the decision
-3. Decision Maker agent or user claims and resolves the decision
-4. Arbiter unblocks dependent work
-5. Original agent continues with the decision
-
-### Work Graph
-
-Arbiter maintains a dependency graph of all beads:
-
-- **Blocks**: This bead blocks another bead
-- **Parent/Child**: Hierarchical relationships (epics, tasks, subtasks)
-- **Related**: Informational relationships
-
-Query the work graph: `GET /api/v1/work-graph?project_id=xxx`
-
-## Beads Integration
-
-Arbiter uses the [beads](https://github.com/steveyegge/beads) system for:
-
-- Git-backed issue tracking
-- Dependency management
-- Agent-optimized JSON output
-- Zero-conflict multi-branch workflows
-- Semantic memory compaction
-
-### Bead Types
-
-- **Task**: Regular work items
-- **Decision**: Decision points requiring resolution
-- **Epic**: Parent items containing multiple tasks
-
-### Bead Priorities
-
-- **P0**: Critical, requires human intervention
-- **P1**: High priority
-- **P2**: Medium priority (default)
-- **P3**: Low priority (housekeeping, nice-to-have)
-
-## Web UI
-
-The web UI provides:
-
-- **Kanban Board**: Three columns (Open, In Progress, Closed)
-- **Decision Queue**: Beads requiring decisions
-- **Agent Status**: Live view of all agents and their status
-- **Persona Editor**: Live editing of persona markdown files
-- **Project Overview**: Status of all projects
-
-Access at: `http://localhost:8080/`
-
-## API
-
-### Authentication
-
-Include API key in header:
-
-```bash
-curl -H "X-API-Key: your-api-key" http://localhost:8080/api/v1/agents
-```
-
-### Key Endpoints
-
-- `GET /api/v1/personas` - List personas
-- `POST /api/v1/agents` - Spawn new agent
-- `GET /api/v1/beads` - List work items
-- `POST /api/v1/beads` - Create bead
-- `POST /api/v1/beads/{id}/claim` - Claim a bead
-- `GET /api/v1/decisions` - List decision beads
-- `POST /api/v1/decisions/{id}/decide` - Make a decision
-- `POST /api/v1/file-locks` - Request file lock
-- `GET /api/v1/work-graph` - Get dependency graph
-
-Full API documentation: See [api/openapi.yaml](api/openapi.yaml)
-
-## Security
-
-### HTTPS/TLS
-
-Configure TLS certificates in `config.yaml`:
-
-```yaml
-server:
-  enable_https: true
-  https_port: 8443
-  tls_cert_file: /path/to/cert.pem
-  tls_key_file: /path/to/key.pem
-```
-
-### PKI Support
-
-For mutual TLS authentication:
-
-```yaml
-security:
-  pki_enabled: true
-  ca_file: /path/to/ca.pem
-  require_https: true
-```
-
-### API Keys
-
-Manage API keys in config:
-
-```yaml
-security:
-  enable_auth: true
-  api_keys:
-    - "key-1-here"
-    - "key-2-here"
-```
-
-## Development
 
 ### Project Structure
 
 ```
 arbiter/
-├── api/                    # OpenAPI specifications
-├── cmd/arbiter/           # Main application entry point
-├── internal/              # Internal packages
-│   ├── agent/            # Agent management
-│   ├── arbiter/          # Core orchestration logic
-│   ├── persona/          # Persona loading and editing
-│   ├── project/          # Project management
-│   ├── decision/         # Decision bead handling
-│   ├── beads/            # Beads integration
-│   ├── api/              # HTTP API handlers
-│   └── web/              # Web UI
-├── pkg/                   # Public packages
-│   ├── models/           # Data models
-│   └── config/           # Configuration
-├── personas/              # Persona definitions
-│   ├── templates/        # Template personas
-│   └── examples/         # Example personas
-└── web/static/           # Web UI assets
+├── main.go                    # Application entry point
+├── pkg/
+│   ├── config/
+│   │   └── config.go         # Configuration management
+│   ├── secrets/
+│   │   └── store.go          # Encrypted secret storage
+│   └── server/
+│       ├── server.go         # HTTP server implementation
+│       └── types.go          # API types
+├── go.mod                     # Go module definition
+├── README.md                  # This file
+└── .gitignore                # Git ignore rules
 ```
 
-### Building
+## Security Considerations
 
-```bash
-# Build for current platform
-go build -o arbiter ./cmd/arbiter
-
-# Build for Linux
-GOOS=linux GOARCH=amd64 go build -o arbiter-linux ./cmd/arbiter
-
-# Build for macOS
-GOOS=darwin GOARCH=arm64 go build -o arbiter-macos ./cmd/arbiter
-```
-
-### Testing
-
-```bash
-# Run tests
-go test ./...
-
-# Run with coverage
-go test -cover ./...
-```
-
-## Use Cases
-
-### 1. Autonomous Code Review
-
-Deploy a code-reviewer agent with full autonomy to:
-- Review all pull requests
-- Fix obvious bugs automatically
-- File decision beads for API changes
-- Escalate security issues to P0
-
-### 2. Continuous Maintenance
-
-Deploy a housekeeping-bot to:
-- Check for dependency updates daily
-- Fix linting issues automatically
-- Update documentation
-- Remove dead code
-- File decision beads for major upgrades
-
-### 3. Feature Development
-
-Deploy multiple agents working together:
-- Feature developer agents on separate branches
-- Code reviewer checking their work
-- Decision maker resolving conflicts
-- All coordinated by Arbiter to prevent merge conflicts
-
-### 4. Human-in-the-Loop
-
-Users can act as agents:
-- Claim decision beads via web UI
-- Override agent decisions
-- Set priorities and direction
-- Let agents handle the implementation
-
-## Philosophy
-
-**100% Autonomy is the Goal**
-
-- Agents should work independently when possible
-- Decision beads enable smart escalation
-- Humans focus on high-level decisions
-- Cost is not a concern - throughput is king
-- Quality maintained through coordination and review
-
-**Collaboration Over Competition**
-
-- Agents coordinate, not compete
-- File locking prevents conflicts
-- Decision system enables consensus
-- Knowledge sharing through bead context
+- API keys are encrypted using AES-GCM with a 256-bit key
+- Encryption key is derived from machine-specific data (hostname + home directory)
+- Secrets file has restricted permissions (0600)
+- Configuration and secrets are stored in home directory, never in repository
+- No secrets are logged or exposed in API responses
 
 ## Contributing
 
-Contributions welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-See [LICENSE](LICENSE) file for details.
+See LICENSE file for details.
 
-## Credits
+## Roadmap
 
-- Built on [@steveyegge/beads](https://github.com/steveyegge/beads)
-- Inspired by [ai-code-reviewer](https://github.com/jordanhubbard/ai-code-reviewer) persona system
-- Designed for autonomous agent orchestration
+- [ ] Implement actual HTTP forwarding to providers
+- [ ] Add streaming support for real-time responses
+- [ ] Implement request/response logging and analytics
+- [ ] Add support for provider-specific features
+- [ ] Implement load balancing and failover
+- [ ] Add authentication for Arbiter API
+- [ ] Support for custom provider plugins
+- [ ] Add metrics and monitoring endpoints
+- [ ] Implement rate limiting per provider
+- [ ] Add caching layer for responses
 
 ## Support
 
-- Issues: https://github.com/jordanhubbard/arbiter/issues
-- Documentation: https://github.com/jordanhubbard/arbiter/wiki
+For issues, questions, or contributions, please use the GitHub issue tracker.
+# arbiter
+An agentic based coding orchestrator for both on-prem and off-prem development
+
+Arbiter is a web-based service that helps orchestrate and monitor AI agents working on coding tasks. It provides:
+- Work queue management for tracking tasks
+- Agent communication monitoring
+- Service endpoint tracking with cost analysis
+- Priority-based routing that favors fixed-cost (self-hosted) services
+
+## Features
+
+### Work Management
+- Submit new work items via REST API
+- Track work in progress
+- Monitor work status and assignments
+
+### Agent Monitoring
+- View active agents and their status
+- Monitor inter-agent communications
+- Track which service endpoints agents are using
+
+### Service Endpoints
+- Track multiple LLM service endpoints (OpenAI, Anthropic, Ollama, vLLM, etc.)
+- Monitor token usage and costs
+- Prioritize fixed-cost self-hosted services (Ollama, vLLM)
+- Interactive cost management UI
+- Real-time traffic monitoring
+
+### Cost Tracking
+- **Fixed-cost services**: Mark self-hosted services (Ollama, vLLM) as fixed-cost
+- **Variable-cost services**: Track per-token costs for paid APIs
+- **Automatic prioritization**: System prioritizes fixed-cost services to minimize expenses
+- **Interactive cost editing**: Click on any service in the UI to update its cost model
+
+## Getting Started
+
+### Prerequisites
+- Go 1.21 or higher
+
+### Installation
+
+1. Clone the repository:
+```bash
+git clone https://github.com/jordanhubbard/arbiter.git
+cd arbiter
+```
+
+2. Install dependencies:
+```bash
+go mod download
+```
+
+3. Build the application:
+```bash
+go build -o arbiter ./cmd/arbiter
+```
+
+4. Run the server:
+```bash
+./arbiter
+```
+
+The server will start on port 8080 by default. You can change this by setting the `PORT` environment variable:
+```bash
+PORT=3000 ./arbiter
+```
+
+### Web UI
+
+Once the server is running, open your browser to:
+- **Dashboard**: http://localhost:8080
+- **API**: http://localhost:8080/api
+
+## API Reference
+
+### Work Endpoints
+
+#### Create Work
+```http
+POST /api/work/create
+Content-Type: application/json
+
+{
+  "description": "Implement new feature X"
+}
+```
+
+#### List All Work
+```http
+GET /api/work
+```
+
+#### List Work In Progress
+```http
+GET /api/work?status=in_progress
+```
+
+### Agent Endpoints
+
+#### List Agents and Communications
+```http
+GET /api/agents
+```
+
+Returns:
+```json
+{
+  "agents": [...],
+  "communications": [...]
+}
+```
+
+### Service Endpoints
+
+#### List All Services
+```http
+GET /api/services
+```
+
+#### List Active Services Only
+```http
+GET /api/services?active=true
+```
+
+#### Get Preferred Services (Fixed-cost first)
+```http
+GET /api/services/preferred
+```
+
+#### Get Service Costs
+```http
+GET /api/services/:id/costs
+```
+
+#### Update Service Costs
+```http
+PUT /api/services/:id/costs
+Content-Type: application/json
+
+{
+  "cost_type": "fixed",
+  "fixed_cost": 0
+}
+```
+
+Or for variable cost:
+```json
+{
+  "cost_type": "variable",
+  "cost_per_token": 0.00003
+}
+```
+
+#### Record Service Usage (for simulation/testing)
+```http
+POST /api/services/:id/usage
+Content-Type: application/json
+
+{
+  "tokens_used": 1000
+}
+```
+
+## Development
+
+### Running Tests
+```bash
+go test ./...
+```
+
+### Running with Verbose Test Output
+```bash
+go test ./... -v
+```
+
+### Project Structure
+```
+arbiter/
+├── cmd/arbiter/          # Main application
+│   ├── main.go          # Entry point
+│   └── web/             # Web UI files
+│       ├── index.html   # Dashboard UI
+│       ├── style.css    # Styles
+│       └── app.js       # Frontend JavaScript
+├── internal/
+│   ├── api/             # HTTP handlers
+│   ├── models/          # Data models
+│   └── storage/         # In-memory storage
+├── go.mod
+└── README.md
+```
+
+## Service Priority System
+
+The arbiter automatically prioritizes services based on their cost model:
+
+1. **Fixed-cost services** (e.g., self-hosted Ollama/vLLM): Highest priority
+   - Zero or fixed monthly cost
+   - Marked as "fixed" cost type
+   - Always preferred when available
+
+2. **Variable-cost services** (e.g., OpenAI, Anthropic): Lower priority
+   - Pay-per-token pricing
+   - Marked as "variable" cost type
+   - Used when fixed-cost services are unavailable or overloaded
+
+The `/api/services/preferred` endpoint returns services in priority order, allowing agents to select the most cost-effective service first.
+
+## Web UI Features
+
+### Dashboard
+- Create new work items
+- View work in progress
+- Monitor active agents
+- See agent communications
+- Manage service endpoints
+
+### Service Management
+- View all services or filter by active status
+- See preferred service order (fixed-cost first)
+- Click any service to edit its cost model
+- Real-time token usage and cost tracking
+- Visual indicators for service status and cost type
+
+### Cost Editing
+Click on any service in the dashboard to:
+- Switch between fixed and variable cost models
+- Set fixed cost amounts
+- Configure per-token pricing
+- Update cost models on the fly
+
+## License
+
+See LICENSE file for details.
+
