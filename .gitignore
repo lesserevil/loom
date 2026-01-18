@@ -8,6 +8,7 @@
 *.so
 *.dylib
 bin/
+/arbiter
 
 # Test binary, built with `go test -c`
 *.test
@@ -28,6 +29,21 @@ go.work.sum
 # env file
 .env
 
+# Arbiter specific
+.arbiter.json
+.arbiter_secrets
+arbiter
+
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# Arbiter binary
+arbiter
+arbiter-*
+
+# Database
+*.db
+
+# Web UI build artifacts
+web/dist/
