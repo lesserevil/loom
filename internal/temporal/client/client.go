@@ -6,6 +6,7 @@ import (
 	"log"
 
 	"go.temporal.io/sdk/client"
+	"go.temporal.io/sdk/converter"
 	
 	"github.com/jordanhubbard/arbiter/pkg/config"
 )
@@ -83,7 +84,7 @@ func (c *Client) SignalWorkflow(ctx context.Context, workflowID, runID, signalNa
 }
 
 // QueryWorkflow sends a query to a running workflow
-func (c *Client) QueryWorkflow(ctx context.Context, workflowID, runID, queryType string, args ...interface{}) (client.QueryWorkflowResponse, error) {
+func (c *Client) QueryWorkflow(ctx context.Context, workflowID, runID, queryType string, args ...interface{}) (converter.EncodedValue, error) {
 	return c.temporal.QueryWorkflow(ctx, workflowID, runID, queryType, args...)
 }
 

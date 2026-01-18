@@ -3,6 +3,7 @@ package workflows
 import (
 	"time"
 
+	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 	
 	"github.com/jordanhubbard/arbiter/internal/temporal/eventbus"
@@ -24,7 +25,7 @@ func AgentLifecycleWorkflow(ctx workflow.Context, input AgentLifecycleWorkflowIn
 	// Set up workflow options for activities
 	activityOptions := workflow.ActivityOptions{
 		StartToCloseTimeout: 10 * time.Minute,
-		RetryPolicy: &workflow.RetryPolicy{
+		RetryPolicy: &temporal.RetryPolicy{
 			MaximumAttempts: 3,
 		},
 	}
@@ -102,7 +103,7 @@ func BeadProcessingWorkflow(ctx workflow.Context, input BeadProcessingWorkflowIn
 	// Set up workflow options
 	activityOptions := workflow.ActivityOptions{
 		StartToCloseTimeout: 30 * time.Minute,
-		RetryPolicy: &workflow.RetryPolicy{
+		RetryPolicy: &temporal.RetryPolicy{
 			MaximumAttempts: 3,
 		},
 	}

@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/workflow"
 	
 	"github.com/jordanhubbard/arbiter/pkg/config"
