@@ -21,9 +21,9 @@ type Provider struct {
 
 // Config holds the application configuration
 type Config struct {
-	Providers   []Provider         `json:"providers"`
-	ServerPort  int                `json:"server_port"`
-	SecretStore *secrets.Store     `json:"-"`
+	Providers   []Provider     `json:"providers"`
+	ServerPort  int            `json:"server_port"`
+	SecretStore *secrets.Store `json:"-"`
 }
 
 // NewConfig creates a new configuration with default values
@@ -100,16 +100,16 @@ func getConfigPath() (string, error) {
 func LookupProviderEndpoint(providerName string) (string, error) {
 	// Map of known providers to their default endpoints
 	knownProviders := map[string]string{
-		"claude":       "https://api.anthropic.com/v1",
-		"openai":       "https://api.openai.com/v1",
-		"cursor":       "https://api.cursor.sh/v1",
-		"factory":      "https://api.factory.ai/v1",
-		"cohere":       "https://api.cohere.ai/v1",
-		"huggingface":  "https://api-inference.huggingface.co",
-		"replicate":    "https://api.replicate.com/v1",
-		"together":     "https://api.together.xyz/v1",
-		"mistral":      "https://api.mistral.ai/v1",
-		"perplexity":   "https://api.perplexity.ai",
+		"claude":      "https://api.anthropic.com/v1",
+		"openai":      "https://api.openai.com/v1",
+		"cursor":      "https://api.cursor.sh/v1",
+		"factory":     "https://api.factory.ai/v1",
+		"cohere":      "https://api.cohere.ai/v1",
+		"huggingface": "https://api-inference.huggingface.co",
+		"replicate":   "https://api.replicate.com/v1",
+		"together":    "https://api.together.xyz/v1",
+		"mistral":     "https://api.mistral.ai/v1",
+		"perplexity":  "https://api.perplexity.ai",
 	}
 
 	// Check if we have a known endpoint

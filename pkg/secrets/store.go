@@ -149,7 +149,7 @@ func deriveKey() []byte {
 		// Fall back to a constant if hostname cannot be determined
 		hostname = "unknown-host"
 	}
-	
+
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		// Fall back to current working directory if home cannot be determined
@@ -158,7 +158,7 @@ func deriveKey() []byte {
 			homeDir = "unknown-home"
 		}
 	}
-	
+
 	data := hostname + homeDir
 	hash := sha256.Sum256([]byte(data))
 	return hash[:]

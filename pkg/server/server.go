@@ -31,12 +31,12 @@ func (s *Server) setupRoutes() {
 	// Web frontend
 	s.mux.HandleFunc("/", s.handleHome)
 	s.mux.HandleFunc("/api/providers", s.handleProviders)
-	
+
 	// OpenAI-compatible API
 	s.mux.HandleFunc("/v1/chat/completions", s.handleChatCompletions)
 	s.mux.HandleFunc("/v1/completions", s.handleCompletions)
 	s.mux.HandleFunc("/v1/models", s.handleModels)
-	
+
 	// Health check
 	s.mux.HandleFunc("/health", s.handleHealth)
 }
@@ -44,20 +44,20 @@ func (s *Server) setupRoutes() {
 // Start starts the HTTP server
 func (s *Server) Start() error {
 	addr := fmt.Sprintf(":%d", s.config.ServerPort)
-	
+
 	fmt.Printf("\n✓ Arbiter server started successfully!\n")
 	fmt.Printf("\n  Web Interface:  http://localhost%s\n", addr)
 	fmt.Printf("  OpenAI API:     http://localhost%s/v1/...\n", addr)
 	fmt.Printf("  Health Check:   http://localhost%s/health\n\n", addr)
 	fmt.Println("Press Ctrl+C to stop the server")
-	
+
 	server := &http.Server{
 		Addr:         addr,
 		Handler:      s.mux,
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
 	}
-	
+
 	return server.ListenAndServe()
 }
 
@@ -67,7 +67,7 @@ func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	html := getHomeHTML(s.config)
 	w.Write([]byte(html))
@@ -88,20 +88,20 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	
+
 	var req ChatCompletionRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
-	
+
 	// Route to appropriate provider based on model or default
 	provider := s.selectProvider(req.Model)
 	if provider == nil {
 		http.Error(w, "No providers configured", http.StatusServiceUnavailable)
 		return
 	}
-	
+
 	// Forward request to provider
 	resp, err := s.forwardToProvider(provider, "/chat/completions", req)
 	if err != nil {
@@ -109,7 +109,7 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Provider request failed", http.StatusBadGateway)
 		return
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
 }
@@ -120,26 +120,26 @@ func (s *Server) handleCompletions(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	
+
 	var req CompletionRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
-	
+
 	provider := s.selectProvider(req.Model)
 	if provider == nil {
 		http.Error(w, "No providers configured", http.StatusServiceUnavailable)
 		return
 	}
-	
+
 	resp, err := s.forwardToProvider(provider, "/completions", req)
 	if err != nil {
 		log.Printf("Error forwarding to provider: %v", err)
 		http.Error(w, "Provider request failed", http.StatusBadGateway)
 		return
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
 }
@@ -147,7 +147,7 @@ func (s *Server) handleCompletions(w http.ResponseWriter, r *http.Request) {
 // handleModels lists available models from all providers
 func (s *Server) handleModels(w http.ResponseWriter, r *http.Request) {
 	models := []Model{}
-	
+
 	for _, provider := range s.config.Providers {
 		// Add generic model entry for each provider
 		models = append(models, Model{
@@ -157,7 +157,7 @@ func (s *Server) handleModels(w http.ResponseWriter, r *http.Request) {
 			OwnedBy: provider.Name,
 		})
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"object": "list",
@@ -180,7 +180,7 @@ func (s *Server) selectProvider(modelName string) *config.Provider {
 	if len(s.config.Providers) == 0 {
 		return nil
 	}
-	
+
 	// Try to match provider by name in model
 	for i := range s.config.Providers {
 		providerName := s.config.Providers[i].Name
@@ -192,7 +192,7 @@ func (s *Server) selectProvider(modelName string) *config.Provider {
 			}
 		}
 	}
-	
+
 	// Default to first provider
 	return &s.config.Providers[0]
 }
@@ -205,9 +205,9 @@ func (s *Server) forwardToProvider(provider *config.Provider, endpoint string, r
 	// 2. Make an HTTP request to provider.Endpoint + endpoint
 	// 3. Forward the request with proper authentication headers
 	// 4. Return the actual provider response
-	
+
 	log.Printf("NOTE: Forwarding to %s is not yet implemented. Returning mock response.", provider.Name)
-	
+
 	return map[string]interface{}{
 		"id":      fmt.Sprintf("arbiter-%d", time.Now().Unix()),
 		"object":  "chat.completion",
@@ -242,11 +242,11 @@ func getHomeHTML(cfg *config.Config) string {
 				<td style="padding: 8px; border: 1px solid #ddd;">✓ Configured</td>
 			</tr>`, p.Name, p.Endpoint)
 	}
-	
+
 	if providersHTML == "" {
 		providersHTML = `<tr><td colspan="3" style="padding: 8px; text-align: center;">No providers configured</td></tr>`
 	}
-	
+
 	return fmt.Sprintf(`<!DOCTYPE html>
 <html>
 <head>

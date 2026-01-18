@@ -2,11 +2,11 @@ package server
 
 // ChatCompletionRequest represents an OpenAI-compatible chat completion request
 type ChatCompletionRequest struct {
-	Model       string                   `json:"model"`
-	Messages    []ChatMessage            `json:"messages"`
-	Temperature float64                  `json:"temperature,omitempty"`
-	MaxTokens   int                      `json:"max_tokens,omitempty"`
-	Stream      bool                     `json:"stream,omitempty"`
+	Model       string        `json:"model"`
+	Messages    []ChatMessage `json:"messages"`
+	Temperature float64       `json:"temperature,omitempty"`
+	MaxTokens   int           `json:"max_tokens,omitempty"`
+	Stream      bool          `json:"stream,omitempty"`
 }
 
 // ChatMessage represents a chat message
