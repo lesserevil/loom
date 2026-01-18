@@ -14,6 +14,7 @@ type Config struct {
 	Beads       BeadsConfig       `yaml:"beads"`
 	Agents      AgentsConfig      `yaml:"agents"`
 	Security    SecurityConfig    `yaml:"security"`
+	Temporal    TemporalConfig    `yaml:"temporal"`
 	Projects    []ProjectConfig   `yaml:"projects"`
 	WebUI       WebUIConfig       `yaml:"web_ui"`
 }
@@ -62,6 +63,17 @@ type SecurityConfig struct {
 	RequireHTTPS   bool     `yaml:"require_https"`
 	AllowedOrigins []string `yaml:"allowed_origins"` // CORS
 	APIKeys        []string `yaml:"api_keys,omitempty"`
+}
+
+// TemporalConfig configures Temporal workflow engine
+type TemporalConfig struct {
+	Host                     string        `yaml:"host"`
+	Namespace                string        `yaml:"namespace"`
+	TaskQueue                string        `yaml:"task_queue"`
+	WorkflowExecutionTimeout time.Duration `yaml:"workflow_execution_timeout"`
+	WorkflowTaskTimeout      time.Duration `yaml:"workflow_task_timeout"`
+	EnableEventBus           bool          `yaml:"enable_event_bus"`
+	EventBufferSize          int           `yaml:"event_buffer_size"`
 }
 
 // ProjectConfig represents a project configuration
@@ -129,6 +141,15 @@ func DefaultConfig() *Config {
 			PKIEnabled:     false,
 			RequireHTTPS:   false,
 			AllowedOrigins: []string{"*"},
+		},
+		Temporal: TemporalConfig{
+			Host:                     "localhost:7233",
+			Namespace:                "arbiter-default",
+			TaskQueue:                "arbiter-tasks",
+			WorkflowExecutionTimeout: 24 * time.Hour,
+			WorkflowTaskTimeout:      10 * time.Second,
+			EnableEventBus:           true,
+			EventBufferSize:          1000,
 		},
 		WebUI: WebUIConfig{
 			Enabled:         true,
