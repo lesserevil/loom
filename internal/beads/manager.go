@@ -412,6 +412,7 @@ func (m *Manager) LoadBeadsFromFilesystem(beadsPath string) error {
 		return fmt.Errorf("failed to read beads directory: %w", err)
 	}
 
+	loadedCount := 0
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".yaml") {
 			continue
@@ -420,17 +421,24 @@ func (m *Manager) LoadBeadsFromFilesystem(beadsPath string) error {
 		beadPath := filepath.Join(beadsDir, entry.Name())
 		data, err := os.ReadFile(beadPath)
 		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to read bead file %s: %v\n", entry.Name(), err)
 			continue // Skip files we can't read
 		}
 
 		var bead models.Bead
 		if err := yaml.Unmarshal(data, &bead); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to parse bead file %s: %v\n", entry.Name(), err)
 			continue // Skip invalid YAML
 		}
 
 		// Add to internal cache
 		m.beads[bead.ID] = &bead
 		m.workGraph.Beads[bead.ID] = &bead
+		loadedCount++
+	}
+
+	if loadedCount > 0 {
+		fmt.Fprintf(os.Stderr, "Loaded %d bead(s) from %s\n", loadedCount, beadsDir)
 	}
 
 	m.workGraph.UpdatedAt = time.Now()
