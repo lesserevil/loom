@@ -23,6 +23,7 @@ type Config struct {
 	Security    SecurityConfig    `yaml:"security" json:"security,omitempty"`
 	Projects    []ProjectConfig   `yaml:"projects" json:"projects,omitempty"`
 	WebUI       WebUIConfig       `yaml:"web_ui" json:"web_ui,omitempty"`
+	Temporal    TemporalConfig    `yaml:"temporal" json:"temporal,omitempty"`
 	
 	// JSON/User-specific configuration fields
 	Providers   []Provider        `yaml:"providers,omitempty" json:"providers"`
@@ -52,10 +53,10 @@ type DatabaseConfig struct {
 
 // BeadsConfig configures beads integration
 type BeadsConfig struct {
-	BDPath         string        `yaml:"bd_path"`           // Path to bd executable
+	BDPath         string        `yaml:"bd_path"`          // Path to bd executable
 	AutoSync       bool          `yaml:"auto_sync"`
 	SyncInterval   time.Duration `yaml:"sync_interval"`
-	CompactOldDays int           `yaml:"compact_old_days"`  // Days before compacting closed beads
+	CompactOldDays int           `yaml:"compact_old_days"` // Days before compacting closed beads
 }
 
 // AgentsConfig configures agent behavior
@@ -89,13 +90,12 @@ type TemporalConfig struct {
 
 // ProjectConfig represents a project configuration
 type ProjectConfig struct {
-	ID          string            `yaml:"id"`
-	Name        string            `yaml:"name"`
-	GitRepo     string            `yaml:"git_repo"`
-	Branch      string            `yaml:"branch"`
-	BeadsPath   string            `yaml:"beads_path"`
-	IsPerpetual bool              `yaml:"is_perpetual"` // If true, project never closes
-	Context     map[string]string `yaml:"context"`
+	ID        string            `yaml:"id"`
+	Name      string            `yaml:"name"`
+	GitRepo   string            `yaml:"git_repo"`
+	Branch    string            `yaml:"branch"`
+	BeadsPath string            `yaml:"beads_path"`
+	Context   map[string]string `yaml:"context"`
 }
 
 // WebUIConfig configures the web interface
@@ -198,84 +198,4 @@ func DefaultConfig() *Config {
 			RefreshInterval: 5,
 		},
 	}
-}
-
-const (
-	configFileName = ".arbiter.json"
-)
-
-// Provider represents an AI service provider configuration
-type Provider struct {
-	Name     string `json:"name"`
-	Endpoint string `json:"endpoint"`
-}
-
-// NewConfig creates a new configuration with default values
-func NewConfig() *Config {
-	return &Config{
-		Providers:   []Provider{},
-		ServerPort:  8080,
-		SecretStore: secrets.NewStore(),
-	}
-}
-
-// SaveConfig saves configuration to the config file
-func SaveConfig(cfg *Config) error {
-	configPath, err := getConfigPath()
-	if err != nil {
-		return err
-	}
-
-	data, err := json.MarshalIndent(cfg, "", "  ")
-	if err != nil {
-		return err
-	}
-
-	if err := os.WriteFile(configPath, data, 0600); err != nil {
-		return err
-	}
-
-	// Save secrets separately
-	if cfg.SecretStore != nil {
-		if err := cfg.SecretStore.Save(); err != nil {
-			return fmt.Errorf("failed to save secrets: %w", err)
-		}
-	}
-
-	return nil
-}
-
-// getConfigPath returns the path to the configuration file
-func getConfigPath() (string, error) {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(homeDir, configFileName), nil
-}
-
-// LookupProviderEndpoint attempts to find the API endpoint for a provider
-func LookupProviderEndpoint(providerName string) (string, error) {
-	// Map of known providers to their default endpoints
-	knownProviders := map[string]string{
-		"claude":      "https://api.anthropic.com/v1",
-		"openai":      "https://api.openai.com/v1",
-		"cursor":      "https://api.cursor.sh/v1",
-		"factory":     "https://api.factory.ai/v1",
-		"cohere":      "https://api.cohere.ai/v1",
-		"huggingface": "https://api-inference.huggingface.co",
-		"replicate":   "https://api.replicate.com/v1",
-		"together":    "https://api.together.xyz/v1",
-		"mistral":     "https://api.mistral.ai/v1",
-		"perplexity":  "https://api.perplexity.ai",
-	}
-
-	// Check if we have a known endpoint
-	if endpoint, ok := knownProviders[providerName]; ok {
-		return endpoint, nil
-	}
-
-	// For unknown providers, we would use Google's Custom Search API here
-	// For now, return an error to prompt for manual entry
-	return "", fmt.Errorf("unknown provider: %s", providerName)
 }
