@@ -11,8 +11,11 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Config represents the main configuration for the arbiter system
+// Config represents the main configuration for the arbiter system.
+// It supports both YAML-based configuration (for file-based config using LoadConfigFromFile)
+// and JSON-based configuration (for user-specific config using LoadConfig).
 type Config struct {
+	// YAML/File-based configuration fields
 	Server      ServerConfig      `yaml:"server" json:"server,omitempty"`
 	Database    DatabaseConfig    `yaml:"database" json:"database,omitempty"`
 	Beads       BeadsConfig       `yaml:"beads" json:"beads,omitempty"`
@@ -20,9 +23,11 @@ type Config struct {
 	Security    SecurityConfig    `yaml:"security" json:"security,omitempty"`
 	Projects    []ProjectConfig   `yaml:"projects" json:"projects,omitempty"`
 	WebUI       WebUIConfig       `yaml:"web_ui" json:"web_ui,omitempty"`
-	Providers   []Provider        `json:"providers"`
-	ServerPort  int               `json:"server_port"`
-	SecretStore *secrets.Store    `json:"-"`
+	
+	// JSON/User-specific configuration fields
+	Providers   []Provider        `yaml:"providers,omitempty" json:"providers"`
+	ServerPort  int               `yaml:"server_port,omitempty" json:"server_port"`
+	SecretStore *secrets.Store    `yaml:"-" json:"-"`
 }
 
 // ServerConfig configures the HTTP/HTTPS server
@@ -88,7 +93,8 @@ type WebUIConfig struct {
 	RefreshInterval int    `yaml:"refresh_interval"` // seconds
 }
 
-// LoadConfigFromFile loads configuration from a YAML file
+// LoadConfigFromFile loads configuration from a YAML file at the specified path.
+// This is typically used for loading system-wide or project-specific configuration.
 func LoadConfigFromFile(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -103,7 +109,9 @@ func LoadConfigFromFile(path string) (*Config, error) {
 	return &config, nil
 }
 
-// LoadConfig loads configuration from the default config file
+// LoadConfig loads user-specific configuration from the default JSON config file.
+// This is typically used for loading user preferences and provider settings.
+// The config file is stored at ~/.arbiter.json
 func LoadConfig() (*Config, error) {
 	configPath, err := getConfigPath()
 	if err != nil {
