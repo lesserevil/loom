@@ -33,6 +33,7 @@ type Persona struct {
 type Agent struct {
 	ID          string    `json:"id"`
 	Name        string    `json:"name"`
+	Role        string    `json:"role,omitempty"`
 	PersonaName string    `json:"persona_name"`
 	Persona     *Persona  `json:"persona,omitempty"`
 	ProviderID  string    `json:"provider_id,omitempty"`

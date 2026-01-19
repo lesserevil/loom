@@ -60,6 +60,11 @@ func (d *Database) initSchema() error {
 		type TEXT NOT NULL,
 		endpoint TEXT NOT NULL,
 		model TEXT,
+		configured_model TEXT,
+		selected_model TEXT,
+		selection_reason TEXT,
+		model_score REAL,
+		selected_gpu TEXT,
 		description TEXT,
 		requires_key BOOLEAN NOT NULL DEFAULT 0,
 		key_id TEXT,
@@ -84,6 +89,7 @@ func (d *Database) initSchema() error {
 	CREATE TABLE IF NOT EXISTS agents (
 		id TEXT PRIMARY KEY,
 		name TEXT NOT NULL,
+		role TEXT,
 		persona_name TEXT,
 		provider_id TEXT,
 		status TEXT NOT NULL DEFAULT 'idle',
@@ -105,7 +111,13 @@ func (d *Database) initSchema() error {
 	// Best-effort migrations for existing databases.
 	// SQLite doesn't support IF NOT EXISTS on ADD COLUMN.
 	_, _ = d.db.Exec("ALTER TABLE providers ADD COLUMN model TEXT")
+	_, _ = d.db.Exec("ALTER TABLE providers ADD COLUMN configured_model TEXT")
+	_, _ = d.db.Exec("ALTER TABLE providers ADD COLUMN selected_model TEXT")
+	_, _ = d.db.Exec("ALTER TABLE providers ADD COLUMN selection_reason TEXT")
+	_, _ = d.db.Exec("ALTER TABLE providers ADD COLUMN model_score REAL")
+	_, _ = d.db.Exec("ALTER TABLE providers ADD COLUMN selected_gpu TEXT")
 	_, _ = d.db.Exec("ALTER TABLE agents ADD COLUMN provider_id TEXT")
+	_, _ = d.db.Exec("ALTER TABLE agents ADD COLUMN role TEXT")
 
 	return nil
 }
@@ -270,10 +282,11 @@ func (d *Database) UpsertAgent(agent *models.Agent) error {
 	}
 
 	query := `
-		INSERT INTO agents (id, name, persona_name, provider_id, status, current_bead, project_id, started_at, last_active)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO agents (id, name, role, persona_name, provider_id, status, current_bead, project_id, started_at, last_active)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			name = excluded.name,
+			role = excluded.role,
 			persona_name = excluded.persona_name,
 			provider_id = excluded.provider_id,
 			status = excluded.status,
@@ -285,6 +298,7 @@ func (d *Database) UpsertAgent(agent *models.Agent) error {
 	_, err := d.db.Exec(query,
 		agent.ID,
 		agent.Name,
+		agent.Role,
 		agent.PersonaName,
 		agent.ProviderID,
 		agent.Status,
@@ -301,7 +315,7 @@ func (d *Database) UpsertAgent(agent *models.Agent) error {
 
 func (d *Database) ListAgents() ([]*models.Agent, error) {
 	query := `
-		SELECT id, name, persona_name, provider_id, status, current_bead, project_id, started_at, last_active
+		SELECT id, name, role, persona_name, provider_id, status, current_bead, project_id, started_at, last_active
 		FROM agents
 		ORDER BY started_at DESC
 	`
@@ -317,6 +331,7 @@ func (d *Database) ListAgents() ([]*models.Agent, error) {
 		err := rows.Scan(
 			&a.ID,
 			&a.Name,
+			&a.Role,
 			&a.PersonaName,
 			&a.ProviderID,
 			&a.Status,
@@ -391,13 +406,18 @@ func (d *Database) UpsertProvider(provider *internalmodels.Provider) error {
 	provider.UpdatedAt = time.Now()
 
 	query := `
-		INSERT INTO providers (id, name, type, endpoint, model, description, requires_key, key_id, status, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO providers (id, name, type, endpoint, model, configured_model, selected_model, selection_reason, model_score, selected_gpu, description, requires_key, key_id, status, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			name = excluded.name,
 			type = excluded.type,
 			endpoint = excluded.endpoint,
 			model = excluded.model,
+			configured_model = excluded.configured_model,
+			selected_model = excluded.selected_model,
+			selection_reason = excluded.selection_reason,
+			model_score = excluded.model_score,
+			selected_gpu = excluded.selected_gpu,
 			description = excluded.description,
 			requires_key = excluded.requires_key,
 			key_id = excluded.key_id,
@@ -411,6 +431,11 @@ func (d *Database) UpsertProvider(provider *internalmodels.Provider) error {
 		provider.Type,
 		provider.Endpoint,
 		provider.Model,
+		provider.ConfiguredModel,
+		provider.SelectedModel,
+		provider.SelectionReason,
+		provider.ModelScore,
+		provider.SelectedGPU,
 		provider.Description,
 		provider.RequiresKey,
 		provider.KeyID,
@@ -452,7 +477,7 @@ func (d *Database) DeleteAllAgents() error {
 // GetProvider retrieves a provider by ID
 func (d *Database) GetProvider(id string) (*internalmodels.Provider, error) {
 	query := `
-		SELECT id, name, type, endpoint, model, description, requires_key, key_id, status, created_at, updated_at
+		SELECT id, name, type, endpoint, model, configured_model, selected_model, selection_reason, model_score, selected_gpu, description, requires_key, key_id, status, created_at, updated_at
 		FROM providers
 		WHERE id = ?
 	`
@@ -464,6 +489,11 @@ func (d *Database) GetProvider(id string) (*internalmodels.Provider, error) {
 		&provider.Type,
 		&provider.Endpoint,
 		&provider.Model,
+		&provider.ConfiguredModel,
+		&provider.SelectedModel,
+		&provider.SelectionReason,
+		&provider.ModelScore,
+		&provider.SelectedGPU,
 		&provider.Description,
 		&provider.RequiresKey,
 		&provider.KeyID,
@@ -485,7 +515,7 @@ func (d *Database) GetProvider(id string) (*internalmodels.Provider, error) {
 // ListProviders retrieves all providers
 func (d *Database) ListProviders() ([]*internalmodels.Provider, error) {
 	query := `
-		SELECT id, name, type, endpoint, model, description, requires_key, key_id, status, created_at, updated_at
+		SELECT id, name, type, endpoint, model, configured_model, selected_model, selection_reason, model_score, selected_gpu, description, requires_key, key_id, status, created_at, updated_at
 		FROM providers
 		ORDER BY created_at DESC
 	`
@@ -505,6 +535,11 @@ func (d *Database) ListProviders() ([]*internalmodels.Provider, error) {
 			&provider.Type,
 			&provider.Endpoint,
 			&provider.Model,
+			&provider.ConfiguredModel,
+			&provider.SelectedModel,
+			&provider.SelectionReason,
+			&provider.ModelScore,
+			&provider.SelectedGPU,
 			&provider.Description,
 			&provider.RequiresKey,
 			&provider.KeyID,

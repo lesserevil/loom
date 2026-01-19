@@ -377,6 +377,9 @@ function renderProjectViewer() {
         <div><strong>Branch:</strong> ${escapeHtml(project.branch || '')}</div>
         <div><strong>Beads path:</strong> ${escapeHtml(project.beads_path || '')}</div>
         <div><strong>Agents assigned:</strong> ${(project.agents || []).length}</div>
+        <div style="margin-top: 0.75rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            <button type="button" class="secondary" onclick="assignAgentToProject('${escapeHtml(project.id)}')">Assign agent</button>
+        </div>
     `;
 
     const beads = (state.beads || []).filter((b) => b.project_id === project.id);
@@ -415,11 +418,49 @@ function renderProjectViewer() {
                             <div class="small"><strong>Persona:</strong> ${escapeHtml(a.persona_name || '')}</div>
                             <div class="small"><strong>Bead:</strong> ${a.current_bead ? escapeHtml(a.current_bead) : '<em>none</em>'}</div>
                             ${beadTitle ? `<div class="small"><strong>Bead title:</strong> ${escapeHtml(beadTitle)}</div>` : ''}
+                            <div style="margin-top: 0.5rem;">
+                                <button class="secondary" onclick="unassignAgentFromProject('${escapeHtml(project.id)}', '${escapeHtml(a.id)}')">Unassign</button>
+                            </div>
                         </div>
                     `;
                 })
                 .join('');
         }
+    }
+}
+
+async function assignAgentToProject(projectId) {
+    try {
+        const res = await formModal({
+            title: 'Assign agent to project',
+            submitText: 'Assign',
+            fields: [{ id: 'agent_id', label: 'Agent ID', type: 'text', required: true, placeholder: 'agent-123' }]
+        });
+        if (!res) return;
+
+        await apiCall(`/projects/${projectId}/agents`, {
+            method: 'POST',
+            body: JSON.stringify({ agent_id: res.agent_id, action: 'assign' })
+        });
+
+        showToast('Agent assigned', 'success');
+        loadAll();
+    } catch (error) {
+        // Error already handled
+    }
+}
+
+async function unassignAgentFromProject(projectId, agentId) {
+    try {
+        await apiCall(`/projects/${projectId}/agents`, {
+            method: 'POST',
+            body: JSON.stringify({ agent_id: agentId, action: 'unassign' })
+        });
+
+        showToast('Agent unassigned', 'success');
+        loadAll();
+    } catch (error) {
+        // Error already handled
     }
 }
 
@@ -477,8 +518,14 @@ function renderProviders() {
             const name = escapeHtml(p.name || p.id || '');
             const endpoint = escapeHtml(p.endpoint || '');
             const model = escapeHtml(p.model || '');
+            const configuredModel = escapeHtml(p.configured_model || p.model || '');
+            const selectedModel = escapeHtml(p.selected_model || p.model || '');
+            const selectionReason = escapeHtml(p.selection_reason || '');
+            const modelScore = p.model_score ?? null;
+            const selectedGpu = escapeHtml(p.selected_gpu || '');
             const modelsKey = `providerModels:${id}`;
             const deleteKey = `deleteProvider:${id}`;
+            const negotiateKey = `providerNegotiate:${id}`;
 
             return `
                 <div class="provider-card">
@@ -487,9 +534,14 @@ function renderProviders() {
                         <div><span class="badge">${escapeHtml(p.type || '')}</span></div>
                     </div>
                     <div class="small"><strong>Endpoint:</strong> ${endpoint}</div>
-                    <div class="small"><strong>Model:</strong> ${model || '<em>unset</em>'}</div>
+                    <div class="small"><strong>Configured model:</strong> ${configuredModel || '<em>unset</em>'}</div>
+                    <div class="small"><strong>Selected model:</strong> ${selectedModel || '<em>unset</em>'}</div>
+                    <div class="small"><strong>Selection reason:</strong> ${selectionReason || '<em>pending</em>'}</div>
+                    <div class="small"><strong>Model score:</strong> ${modelScore !== null ? escapeHtml(modelScore.toFixed(2)) : '<em>n/a</em>'}</div>
+                    <div class="small"><strong>Selected GPU:</strong> ${selectedGpu || '<em>n/a</em>'}</div>
                     <div class="provider-actions">
                         <button type="button" class="secondary" onclick="fetchProviderModels('${id}')" ${isBusy(modelsKey) ? 'disabled' : ''}>${isBusy(modelsKey) ? 'Loading…' : 'Models'}</button>
+                        <button type="button" class="secondary" onclick="renegotiateProvider('${id}')" ${isBusy(negotiateKey) ? 'disabled' : ''}>${isBusy(negotiateKey) ? 'Negotiating…' : 'Re-negotiate model'}</button>
                         <button type="button" class="secondary" onclick="deleteProvider('${id}')" ${isBusy(deleteKey) ? 'disabled' : ''}>${isBusy(deleteKey) ? 'Deleting…' : 'Delete'}</button>
                     </div>
                 </div>
@@ -582,6 +634,7 @@ function renderAgents() {
                     ${agent.current_bead ? `<strong>Working on:</strong> ${agent.current_bead}` : ''}
                 </div>
                 <div style="margin-top: 1rem;">
+                    <button class="secondary" onclick="cloneAgentPersona('${agent.id}')" ${isBusy(`cloneAgent:${agent.id}`) ? 'disabled' : ''}>${isBusy(`cloneAgent:${agent.id}`) ? 'Cloning…' : 'Clone Persona'}</button>
                     <button class="danger" onclick="stopAgent('${agent.id}')" ${isBusy(`stopAgent:${agent.id}`) ? 'disabled' : ''}>${isBusy(`stopAgent:${agent.id}`) ? 'Stopping…' : 'Stop Agent'}</button>
                 </div>
             </div>
@@ -636,6 +689,49 @@ function renderPersonas() {
     
     document.getElementById('persona-list').innerHTML =
         html || renderEmptyState('No personas available', 'Add personas under ./personas to populate this list.');
+}
+
+async function cloneAgentPersona(agentId) {
+    const agent = state.agents.find((a) => a.id === agentId);
+    if (!agent) return;
+
+    try {
+        const res = await formModal({
+            title: 'Clone agent persona',
+            submitText: 'Clone',
+            fields: [
+                { id: 'new_persona_name', label: 'New persona name', type: 'text', required: true, placeholder: 'custom-qa-engineer' },
+                { id: 'new_agent_name', label: 'New agent name (optional)', type: 'text', required: false, placeholder: `${agent.name}-custom` },
+                { id: 'source_persona', label: 'Source persona (optional)', type: 'text', required: false, placeholder: 'default/qa-engineer' }
+            ]
+        });
+        if (!res) return;
+
+        const replace = await confirmModal({
+            title: 'Replace current agent?',
+            body: 'Replace this agent with the cloned persona? (Recommended to avoid duplicates.)',
+            confirmText: 'Replace',
+            cancelText: 'Keep both'
+        });
+
+        setBusy(`cloneAgent:${agentId}`, true);
+        await apiCall(`/agents/${agentId}/clone`, {
+            method: 'POST',
+            body: JSON.stringify({
+                new_persona_name: res.new_persona_name,
+                new_agent_name: res.new_agent_name || '',
+                source_persona: res.source_persona || '',
+                replace: replace
+            })
+        });
+
+        showToast('Persona cloned', 'success');
+        loadAll();
+    } catch (error) {
+        // Error already handled
+    } finally {
+        setBusy(`cloneAgent:${agentId}`, false);
+    }
 }
 
 function renderDecisions() {
@@ -775,6 +871,20 @@ async function fetchProviderModels(providerId) {
         // handled
     } finally {
         setBusy(`providerModels:${providerId}`, false);
+    }
+}
+
+async function renegotiateProvider(providerId) {
+    try {
+        setBusy(`providerNegotiate:${providerId}`, true);
+        await apiCall(`/providers/${providerId}/negotiate`, { method: 'POST' });
+        showToast('Provider negotiation complete', 'success');
+        await loadProviders();
+        render();
+    } catch (e) {
+        // handled
+    } finally {
+        setBusy(`providerNegotiate:${providerId}`, false);
     }
 }
 

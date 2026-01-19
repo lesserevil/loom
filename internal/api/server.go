@@ -81,6 +81,9 @@ func (s *Server) SetupRoutes() http.Handler {
 	mux.HandleFunc("/api/v1/providers", s.handleProviders)
 	mux.HandleFunc("/api/v1/providers/", s.handleProvider)
 
+	// Models
+	mux.HandleFunc("/api/v1/models/recommended", s.handleRecommendedModels)
+
 	// System
 	mux.HandleFunc("/api/v1/system/status", s.handleSystemStatus)
 

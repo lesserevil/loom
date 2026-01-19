@@ -5,15 +5,15 @@ import (
 )
 
 func TestLoadQAEngineerPersona(t *testing.T) {
-	manager := NewManager("../../personas/examples")
+	manager := NewManager("../../personas")
 
-	persona, err := manager.LoadPersona("qa-engineer")
+	persona, err := manager.LoadPersona("default/qa-engineer")
 	if err != nil {
 		t.Fatalf("Failed to load qa-engineer persona: %v", err)
 	}
 
-	if persona.Name != "qa-engineer" {
-		t.Errorf("Expected name 'qa-engineer', got '%s'", persona.Name)
+	if persona.Name != "default/qa-engineer" {
+		t.Errorf("Expected name 'default/qa-engineer', got '%s'", persona.Name)
 	}
 
 	if len(persona.FocusAreas) == 0 {
@@ -26,15 +26,15 @@ func TestLoadQAEngineerPersona(t *testing.T) {
 }
 
 func TestLoadProjectManagerPersona(t *testing.T) {
-	manager := NewManager("../../personas/examples")
+	manager := NewManager("../../personas")
 
-	persona, err := manager.LoadPersona("project-manager")
+	persona, err := manager.LoadPersona("default/project-manager")
 	if err != nil {
 		t.Fatalf("Failed to load project-manager persona: %v", err)
 	}
 
-	if persona.Name != "project-manager" {
-		t.Errorf("Expected name 'project-manager', got '%s'", persona.Name)
+	if persona.Name != "default/project-manager" {
+		t.Errorf("Expected name 'default/project-manager', got '%s'", persona.Name)
 	}
 
 	if len(persona.FocusAreas) == 0 {
@@ -47,7 +47,7 @@ func TestLoadProjectManagerPersona(t *testing.T) {
 }
 
 func TestListPersonas(t *testing.T) {
-	manager := NewManager("../../personas/examples")
+	manager := NewManager("../../personas")
 
 	personas, err := manager.ListPersonas()
 	if err != nil {
@@ -55,7 +55,7 @@ func TestListPersonas(t *testing.T) {
 	}
 
 	// Should have at least the 5 personas we know about
-	expectedPersonas := []string{"code-reviewer", "decision-maker", "housekeeping-bot", "qa-engineer", "project-manager"}
+	expectedPersonas := []string{"default/code-reviewer", "default/decision-maker", "default/housekeeping-bot", "default/qa-engineer", "default/project-manager"}
 
 	for _, expected := range expectedPersonas {
 		found := false

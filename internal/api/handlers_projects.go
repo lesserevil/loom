@@ -19,9 +19,54 @@ func (s *Server) handleProjectStateEndpoints(w http.ResponseWriter, r *http.Requ
 		s.handleProjectComments(w, r, id)
 	case "state":
 		s.handleProjectState(w, r, id)
+	case "agents":
+		s.handleProjectAgents(w, r, id)
 	default:
 		s.respondError(w, http.StatusNotFound, "Unknown action")
 	}
+}
+
+// handleProjectAgents handles POST /api/v1/projects/{id}/agents
+func (s *Server) handleProjectAgents(w http.ResponseWriter, r *http.Request, id string) {
+	if r.Method != http.MethodPost {
+		s.respondError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	var req struct {
+		AgentID string `json:"agent_id"`
+		Action  string `json:"action"`
+	}
+	if err := s.parseJSON(r, &req); err != nil {
+		s.respondError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	if req.AgentID == "" {
+		s.respondError(w, http.StatusBadRequest, "agent_id is required")
+		return
+	}
+	if req.Action == "" {
+		req.Action = "assign"
+	}
+
+	switch req.Action {
+	case "assign":
+		if err := s.arbiter.AssignAgentToProject(req.AgentID, id); err != nil {
+			s.respondError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	case "unassign":
+		if err := s.arbiter.UnassignAgentFromProject(req.AgentID, id); err != nil {
+			s.respondError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	default:
+		s.respondError(w, http.StatusBadRequest, "action must be assign or unassign")
+		return
+	}
+
+	project, _ := s.arbiter.GetProjectManager().GetProject(id)
+	s.respondJSON(w, http.StatusOK, project)
 }
 
 // handleCloseProject handles POST /api/v1/projects/{id}/close

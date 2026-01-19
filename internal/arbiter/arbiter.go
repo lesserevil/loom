@@ -2,7 +2,10 @@ package arbiter
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"path"
 	"strings"
 	"time"
 
@@ -11,6 +14,7 @@ import (
 	"github.com/jordanhubbard/arbiter/internal/database"
 	"github.com/jordanhubbard/arbiter/internal/decision"
 	"github.com/jordanhubbard/arbiter/internal/dispatch"
+	"github.com/jordanhubbard/arbiter/internal/modelcatalog"
 	internalmodels "github.com/jordanhubbard/arbiter/internal/models"
 	"github.com/jordanhubbard/arbiter/internal/persona"
 	"github.com/jordanhubbard/arbiter/internal/project"
@@ -36,6 +40,7 @@ type Arbiter struct {
 	dispatcher       *dispatch.Dispatcher
 	eventBus         *eventbus.EventBus
 	temporalManager  *temporal.Manager
+	modelCatalog     *modelcatalog.Catalog
 }
 
 // New creates a new Arbiter instance
@@ -75,6 +80,16 @@ func New(cfg *config.Config) (*Arbiter, error) {
 		}
 	}
 
+	modelCatalog := modelcatalog.DefaultCatalog()
+	if db != nil {
+		if raw, ok, err := db.GetConfigValue(modelCatalogKey); err == nil && ok {
+			var specs []internalmodels.ModelSpec
+			if err := json.Unmarshal([]byte(raw), &specs); err == nil && len(specs) > 0 {
+				modelCatalog.Replace(specs)
+			}
+		}
+	}
+
 	agentMgr := agent.NewWorkerManager(cfg.Agents.MaxConcurrent, providerRegistry, eb)
 	if db != nil {
 		agentMgr.SetAgentPersister(db)
@@ -92,6 +107,7 @@ func New(cfg *config.Config) (*Arbiter, error) {
 		database:         db,
 		eventBus:         eb,
 		temporalManager:  temporalMgr,
+		modelCatalog:     modelCatalog,
 	}
 
 	arb.dispatcher = dispatch.NewDispatcher(arb.beadsManager, arb.projectManager, arb.agentManager, arb.providerRegistry, eb)
@@ -169,13 +185,23 @@ func (a *Arbiter) Initialize(ctx context.Context) error {
 			return fmt.Errorf("failed to load providers: %w", err)
 		}
 		for _, p := range providers {
+			selected := p.SelectedModel
+			if selected == "" {
+				selected = p.Model
+			}
+			if selected == "" {
+				selected = p.ConfiguredModel
+			}
 			_ = a.providerRegistry.Upsert(&provider.ProviderConfig{
-				ID:       p.ID,
-				Name:     p.Name,
-				Type:     p.Type,
-				Endpoint: normalizeProviderEndpoint(p.Endpoint),
-				APIKey:   "",
-				Model:    p.Model,
+				ID:              p.ID,
+				Name:            p.Name,
+				Type:            p.Type,
+				Endpoint:        normalizeProviderEndpoint(p.Endpoint),
+				APIKey:          "",
+				Model:           selected,
+				ConfiguredModel: p.ConfiguredModel,
+				SelectedModel:   selected,
+				SelectedGPU:     p.SelectedGPU,
 			})
 		}
 
@@ -205,6 +231,14 @@ func (a *Arbiter) Initialize(ctx context.Context) error {
 			_, _ = a.agentManager.RestoreAgentWorker(ctx, ag)
 			_ = a.projectManager.AddAgentToProject(ag.ProjectID, ag.ID)
 		}
+	}
+
+	// Ensure default agents are assigned for each project.
+	for _, p := range projectValues {
+		if p.ID == "" {
+			continue
+		}
+		_ = a.ensureDefaultAgents(ctx, p.ID)
 	}
 
 	// Register dispatch activities and start the Temporal worker if configured.
@@ -284,11 +318,12 @@ func (a *Arbiter) GetDecisionManager() *decision.Manager {
 
 // Project management helpers
 
-func (a *Arbiter) CreateProject(name, gitRepo, branch, beadsPath string, context map[string]string) (*models.Project, error) {
-	p, err := a.projectManager.CreateProject(name, gitRepo, branch, beadsPath, context)
+func (a *Arbiter) CreateProject(name, gitRepo, branch, beadsPath string, ctxMap map[string]string) (*models.Project, error) {
+	p, err := a.projectManager.CreateProject(name, gitRepo, branch, beadsPath, ctxMap)
 	if err != nil {
 		return nil, err
 	}
+	_ = a.ensureDefaultAgents(context.Background(), p.ID)
 	if a.database != nil {
 		_ = a.database.UpsertProject(p)
 	}
@@ -304,6 +339,122 @@ func (a *Arbiter) CreateProject(name, gitRepo, branch, beadsPath string, context
 		})
 	}
 	return p, nil
+}
+
+func (a *Arbiter) ensureDefaultAgents(ctx context.Context, projectID string) error {
+	project, err := a.projectManager.GetProject(projectID)
+	if err != nil {
+		return err
+	}
+	if len(project.Agents) > 0 {
+		return nil
+	}
+
+	providers := a.providerRegistry.List()
+	if len(providers) == 0 {
+		return nil
+	}
+
+	personaNames, err := a.personaManager.ListPersonas()
+	if err != nil {
+		return err
+	}
+
+	for _, personaName := range personaNames {
+		if !strings.HasPrefix(personaName, "default/") {
+			continue
+		}
+		roleName := strings.TrimPrefix(personaName, "default/")
+		if roleName == "" {
+			continue
+		}
+		_, err := a.SpawnAgent(ctx, roleName, personaName, projectID, providers[0].Config.ID)
+		if err != nil {
+			continue
+		}
+	}
+
+	return nil
+}
+
+// CloneAgentPersona clones a default persona into a project-specific persona and spawns a new agent.
+func (a *Arbiter) CloneAgentPersona(ctx context.Context, agentID, newPersonaName, newAgentName, sourcePersona string, replace bool) (*models.Agent, error) {
+	agent, err := a.agentManager.GetAgent(agentID)
+	if err != nil {
+		return nil, err
+	}
+	if newPersonaName == "" {
+		return nil, errors.New("new persona name is required")
+	}
+
+	roleName := ""
+	if strings.HasPrefix(agent.PersonaName, "default/") {
+		roleName = strings.TrimPrefix(agent.PersonaName, "default/")
+	}
+	if roleName == "" {
+		roleName = path.Base(agent.PersonaName)
+	}
+
+	if sourcePersona == "" {
+		sourcePersona = fmt.Sprintf("default/%s", roleName)
+	}
+
+	clonedPersona := fmt.Sprintf("projects/%s/%s/%s", agent.ProjectID, roleName, newPersonaName)
+	_, err = a.personaManager.ClonePersona(sourcePersona, clonedPersona)
+	if err != nil {
+		return nil, err
+	}
+
+	if newAgentName == "" {
+		newAgentName = fmt.Sprintf("%s-%s", roleName, newPersonaName)
+	}
+	newAgent, err := a.SpawnAgent(ctx, newAgentName, clonedPersona, agent.ProjectID, agent.ProviderID)
+	if err != nil {
+		return nil, err
+	}
+
+	if replace {
+		_ = a.StopAgent(ctx, agent.ID)
+	}
+
+	return newAgent, nil
+}
+
+// AssignAgentToProject assigns an existing agent to a project.
+func (a *Arbiter) AssignAgentToProject(agentID, projectID string) error {
+	agent, err := a.agentManager.GetAgent(agentID)
+	if err != nil {
+		return err
+	}
+	if _, err := a.projectManager.GetProject(projectID); err != nil {
+		return err
+	}
+
+	if agent.ProjectID != "" && agent.ProjectID != projectID {
+		_ = a.projectManager.RemoveAgentFromProject(agent.ProjectID, agentID)
+		a.PersistProject(agent.ProjectID)
+	}
+
+	if err := a.agentManager.UpdateAgentProject(agentID, projectID); err != nil {
+		return err
+	}
+	_ = a.projectManager.AddAgentToProject(projectID, agentID)
+	a.PersistProject(projectID)
+
+	return nil
+}
+
+// UnassignAgentFromProject removes an agent from the project without deleting the agent.
+func (a *Arbiter) UnassignAgentFromProject(agentID, projectID string) error {
+	if _, err := a.projectManager.GetProject(projectID); err != nil {
+		return err
+	}
+	if err := a.projectManager.RemoveAgentFromProject(projectID, agentID); err != nil {
+		return err
+	}
+	_ = a.agentManager.UpdateAgentProject(agentID, "")
+	a.PersistProject(projectID)
+	return nil
 }
 
 func (a *Arbiter) PersistProject(projectID string) {
@@ -445,20 +596,30 @@ func (a *Arbiter) RegisterProvider(ctx context.Context, p *internalmodels.Provid
 		p.Status = "active"
 	}
 	p.Endpoint = normalizeProviderEndpoint(p.Endpoint)
-	if p.Model == "" {
-		p.Model = "NVIDIA-Nemotron-3-Nano-30B-A3B-BF16"
+	if p.ConfiguredModel == "" {
+		p.ConfiguredModel = p.Model
 	}
+	if p.ConfiguredModel == "" {
+		p.ConfiguredModel = "NVIDIA-Nemotron-3-Nano-30B-A3B-BF16"
+	}
+	if p.SelectedModel == "" {
+		p.SelectedModel = p.ConfiguredModel
+	}
+	p.Model = p.SelectedModel
 
 	if err := a.database.UpsertProvider(p); err != nil {
 		return nil, err
 	}
 
 	_ = a.providerRegistry.Upsert(&provider.ProviderConfig{
-		ID:       p.ID,
-		Name:     p.Name,
-		Type:     p.Type,
-		Endpoint: p.Endpoint,
-		Model:    p.Model,
+		ID:              p.ID,
+		Name:            p.Name,
+		Type:            p.Type,
+		Endpoint:        p.Endpoint,
+		Model:           p.SelectedModel,
+		ConfiguredModel: p.ConfiguredModel,
+		SelectedModel:   p.SelectedModel,
+		SelectedGPU:     p.SelectedGPU,
 	})
 	if a.eventBus != nil {
 		_ = a.eventBus.Publish(&eventbus.Event{
@@ -468,7 +629,8 @@ func (a *Arbiter) RegisterProvider(ctx context.Context, p *internalmodels.Provid
 				"provider_id": p.ID,
 				"name":        p.Name,
 				"endpoint":    p.Endpoint,
-				"model":       p.Model,
+				"model":       p.SelectedModel,
+				"configured":  p.ConfiguredModel,
 			},
 		})
 	}
@@ -496,20 +658,30 @@ func (a *Arbiter) UpdateProvider(ctx context.Context, p *internalmodels.Provider
 		p.Status = "active"
 	}
 	p.Endpoint = normalizeProviderEndpoint(p.Endpoint)
-	if p.Model == "" {
-		p.Model = "NVIDIA-Nemotron-3-Nano-30B-A3B-BF16"
+	if p.ConfiguredModel == "" {
+		p.ConfiguredModel = p.Model
 	}
+	if p.ConfiguredModel == "" {
+		p.ConfiguredModel = "NVIDIA-Nemotron-3-Nano-30B-A3B-BF16"
+	}
+	if p.SelectedModel == "" {
+		p.SelectedModel = p.ConfiguredModel
+	}
+	p.Model = p.SelectedModel
 
 	if err := a.database.UpsertProvider(p); err != nil {
 		return nil, err
 	}
 
 	_ = a.providerRegistry.Upsert(&provider.ProviderConfig{
-		ID:       p.ID,
-		Name:     p.Name,
-		Type:     p.Type,
-		Endpoint: p.Endpoint,
-		Model:    p.Model,
+		ID:              p.ID,
+		Name:            p.Name,
+		Type:            p.Type,
+		Endpoint:        p.Endpoint,
+		Model:           p.SelectedModel,
+		ConfiguredModel: p.ConfiguredModel,
+		SelectedModel:   p.SelectedModel,
+		SelectedGPU:     p.SelectedGPU,
 	})
 	if a.eventBus != nil {
 		_ = a.eventBus.Publish(&eventbus.Event{
@@ -519,7 +691,8 @@ func (a *Arbiter) UpdateProvider(ctx context.Context, p *internalmodels.Provider
 				"provider_id": p.ID,
 				"name":        p.Name,
 				"endpoint":    p.Endpoint,
-				"model":       p.Model,
+				"model":       p.SelectedModel,
+				"configured":  p.ConfiguredModel,
 			},
 		})
 	}
@@ -547,6 +720,106 @@ func (a *Arbiter) DeleteProvider(ctx context.Context, providerID string) error {
 
 func (a *Arbiter) GetProviderModels(ctx context.Context, providerID string) ([]provider.Model, error) {
 	return a.providerRegistry.GetModels(ctx, providerID)
+}
+
+// NegotiateProviderModel selects the best available model from the catalog for a provider.
+func (a *Arbiter) NegotiateProviderModel(ctx context.Context, providerID string) (*internalmodels.Provider, error) {
+	if a.database == nil {
+		return nil, fmt.Errorf("database not configured")
+	}
+	if providerID == "" {
+		return nil, fmt.Errorf("provider id is required")
+	}
+	providerRecord, err := a.database.GetProvider(providerID)
+	if err != nil {
+		return nil, err
+	}
+
+	models, err := a.providerRegistry.GetModels(ctx, providerID)
+	if err != nil {
+		providerRecord.SelectionReason = fmt.Sprintf("failed to load models: %s", err.Error())
+		providerRecord.SelectedModel = providerRecord.ConfiguredModel
+		providerRecord.Model = providerRecord.SelectedModel
+		_ = a.database.UpsertProvider(providerRecord)
+		return providerRecord, err
+	}
+	available := make([]string, 0, len(models))
+	for _, m := range models {
+		if m.ID != "" {
+			available = append(available, m.ID)
+		}
+	}
+
+	if providerRecord.ConfiguredModel == "" {
+		providerRecord.ConfiguredModel = providerRecord.Model
+	}
+	if providerRecord.ConfiguredModel == "" {
+		providerRecord.ConfiguredModel = "NVIDIA-Nemotron-3-Nano-30B-A3B-BF16"
+	}
+
+	if providerRecord.ConfiguredModel != "" {
+		for _, modelName := range available {
+			if strings.EqualFold(modelName, providerRecord.ConfiguredModel) {
+				providerRecord.SelectedModel = providerRecord.ConfiguredModel
+				providerRecord.SelectionReason = "configured model available"
+				providerRecord.ModelScore = 0
+				break
+			}
+		}
+	}
+
+	if providerRecord.SelectedModel == "" && a.modelCatalog != nil {
+		if best, score, ok := a.modelCatalog.SelectBest(available); ok {
+			providerRecord.SelectedModel = best.Name
+			providerRecord.SelectionReason = "matched recommended catalog"
+			providerRecord.ModelScore = score
+		}
+	}
+
+	if providerRecord.SelectedModel == "" {
+		providerRecord.SelectedModel = providerRecord.ConfiguredModel
+		providerRecord.SelectionReason = "fallback to configured model"
+	}
+
+	providerRecord.Model = providerRecord.SelectedModel
+
+	if err := a.database.UpsertProvider(providerRecord); err != nil {
+		return nil, err
+	}
+	_ = a.providerRegistry.Upsert(&provider.ProviderConfig{
+		ID:              providerRecord.ID,
+		Name:            providerRecord.Name,
+		Type:            providerRecord.Type,
+		Endpoint:        providerRecord.Endpoint,
+		Model:           providerRecord.SelectedModel,
+		ConfiguredModel: providerRecord.ConfiguredModel,
+		SelectedModel:   providerRecord.SelectedModel,
+		SelectedGPU:     providerRecord.SelectedGPU,
+	})
+	if a.eventBus != nil {
+		_ = a.eventBus.Publish(&eventbus.Event{
+			Type:   eventbus.EventTypeProviderUpdated,
+			Source: "provider-manager",
+			Data: map[string]interface{}{
+				"provider_id": providerRecord.ID,
+				"name":        providerRecord.Name,
+				"endpoint":    providerRecord.Endpoint,
+				"model":       providerRecord.SelectedModel,
+				"configured":  providerRecord.ConfiguredModel,
+				"score":       providerRecord.ModelScore,
+			},
+		})
+	}
+
+	return providerRecord, nil
+}
+
+// ListModelCatalog returns the recommended model catalog.
+func (a *Arbiter) ListModelCatalog() []internalmodels.ModelSpec {
+	if a.modelCatalog == nil {
+		return nil
+	}
+	return a.modelCatalog.List()
 }
 
 func normalizeProviderEndpoint(endpoint string) string {

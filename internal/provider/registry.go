@@ -13,7 +13,10 @@ type ProviderConfig struct {
 	Type     string `json:"type"` // openai, anthropic, local, etc.
 	Endpoint string `json:"endpoint"`
 	APIKey   string `json:"api_key,omitempty"`
-	Model    string `json:"model"` // default model to use
+	Model          string `json:"model"` // effective model to use
+	ConfiguredModel string `json:"configured_model,omitempty"`
+	SelectedModel   string `json:"selected_model,omitempty"`
+	SelectedGPU     string `json:"selected_gpu,omitempty"`
 }
 
 // Registry manages registered AI providers

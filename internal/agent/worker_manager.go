@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -78,6 +79,7 @@ func (m *WorkerManager) SpawnAgentWorker(ctx context.Context, name, personaName,
 	agent := &models.Agent{
 		ID:          agentID,
 		Name:        name,
+		Role:        deriveRoleFromPersonaName(personaName),
 		PersonaName: personaName,
 		Persona:     persona,
 		ProviderID:  providerID,
@@ -109,6 +111,40 @@ func (m *WorkerManager) SpawnAgentWorker(ctx context.Context, name, personaName,
 	return agent, nil
 }
 
+func (m *WorkerManager) UpdateAgentProject(id, projectID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	agent, ok := m.agents[id]
+	if !ok {
+		return fmt.Errorf("agent not found: %s", id)
+	}
+
+	agent.ProjectID = projectID
+	agent.LastActive = time.Now()
+	m.persistAgent(agent)
+
+	return nil
+}
+
+func deriveRoleFromPersonaName(personaName string) string {
+	personaName = strings.TrimSpace(personaName)
+	if strings.HasPrefix(personaName, "default/") {
+		return strings.TrimPrefix(personaName, "default/")
+	}
+	if strings.HasPrefix(personaName, "projects/") {
+		parts := strings.Split(personaName, "/")
+		if len(parts) >= 3 {
+			return parts[2]
+		}
+	}
+	if strings.Contains(personaName, "/") {
+		parts := strings.Split(personaName, "/")
+		return parts[len(parts)-1]
+	}
+	return personaName
+}
+
 // RestoreAgentWorker restores an already-persisted agent and ensures it has a worker attached.
 func (m *WorkerManager) RestoreAgentWorker(ctx context.Context, agent *models.Agent) (*models.Agent, error) {
 	m.mu.Lock()
@@ -116,6 +152,9 @@ func (m *WorkerManager) RestoreAgentWorker(ctx context.Context, agent *models.Ag
 
 	if agent == nil {
 		return nil, fmt.Errorf("agent cannot be nil")
+	}
+	if agent.Role == "" {
+		agent.Role = deriveRoleFromPersonaName(agent.PersonaName)
 	}
 
 	if len(m.agents) >= m.maxAgents {

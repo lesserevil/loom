@@ -121,7 +121,15 @@ func (s *Server) handleAgents(w http.ResponseWriter, r *http.Request) {
 
 // handleAgent handles GET/DELETE /api/v1/agents/{id}
 func (s *Server) handleAgent(w http.ResponseWriter, r *http.Request) {
-	id := s.extractID(r.URL.Path, "/api/v1/agents")
+	path := strings.TrimPrefix(r.URL.Path, "/api/v1/agents/")
+	parts := strings.Split(path, "/")
+	id := parts[0]
+
+	if len(parts) > 1 {
+		action := parts[1]
+		s.handleAgentAction(w, r, id, action)
+		return
+	}
 
 	switch r.Method {
 	case http.MethodGet:
@@ -142,6 +150,50 @@ func (s *Server) handleAgent(w http.ResponseWriter, r *http.Request) {
 	default:
 		s.respondError(w, http.StatusMethodNotAllowed, "Method not allowed")
 	}
+}
+
+func (s *Server) handleAgentAction(w http.ResponseWriter, r *http.Request, id, action string) {
+	switch action {
+	case "clone":
+		s.handleCloneAgent(w, r, id)
+	default:
+		s.respondError(w, http.StatusNotFound, "Unknown action")
+	}
+}
+
+func (s *Server) handleCloneAgent(w http.ResponseWriter, r *http.Request, id string) {
+	if r.Method != http.MethodPost {
+		s.respondError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	var req struct {
+		NewPersonaName string `json:"new_persona_name"`
+		NewAgentName   string `json:"new_agent_name"`
+		SourcePersona  string `json:"source_persona"`
+		Replace        *bool  `json:"replace"`
+	}
+	if err := s.parseJSON(r, &req); err != nil {
+		s.respondError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	if req.NewPersonaName == "" {
+		s.respondError(w, http.StatusBadRequest, "new_persona_name is required")
+		return
+	}
+
+	replace := true
+	if req.Replace != nil {
+		replace = *req.Replace
+	}
+
+	agent, err := s.arbiter.CloneAgentPersona(context.Background(), id, req.NewPersonaName, req.NewAgentName, req.SourcePersona, replace)
+	if err != nil {
+		s.respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	s.respondJSON(w, http.StatusCreated, agent)
 }
 
 // handleProjects handles GET/POST /api/v1/projects

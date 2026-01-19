@@ -1,9 +1,13 @@
 package persona
 
 import (
+	"errors"
 	"fmt"
+	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -318,27 +322,135 @@ func (m *Manager) generateInstructionsContent(p *models.Persona) string {
 
 // ListPersonas returns all available persona names
 func (m *Manager) ListPersonas() ([]string, error) {
-	entries, err := os.ReadDir(m.personaDir)
+	var personas []string
+	err := filepath.WalkDir(m.personaDir, func(path string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if !d.IsDir() {
+			return nil
+		}
+		if path == m.personaDir {
+			return nil
+		}
+
+		personaFile := filepath.Join(path, "PERSONA.md")
+		instructionsFile := filepath.Join(path, "AI_START_HERE.md")
+		if _, err := os.Stat(personaFile); err != nil {
+			return nil
+		}
+		if _, err := os.Stat(instructionsFile); err != nil {
+			return nil
+		}
+
+		rel, err := filepath.Rel(m.personaDir, path)
+		if err != nil {
+			return err
+		}
+		personas = append(personas, filepath.ToSlash(rel))
+		return filepath.SkipDir
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	var personas []string
-	for _, entry := range entries {
-		if entry.IsDir() {
-			// Check if it has the required files
-			personaFile := filepath.Join(m.personaDir, entry.Name(), "PERSONA.md")
-			instructionsFile := filepath.Join(m.personaDir, entry.Name(), "AI_START_HERE.md")
+	sort.Strings(personas)
+	return personas, nil
+}
 
-			if _, err := os.Stat(personaFile); err == nil {
-				if _, err := os.Stat(instructionsFile); err == nil {
-					personas = append(personas, entry.Name())
-				}
-			}
-		}
+// ClonePersona copies a persona directory to a new location under the persona root.
+func (m *Manager) ClonePersona(sourceName, destName string) (*models.Persona, error) {
+	if sourceName == "" || destName == "" {
+		return nil, errors.New("source and destination persona names are required")
+	}
+	if filepath.IsAbs(destName) || strings.Contains(destName, "..") {
+		return nil, errors.New("invalid destination persona name")
+	}
+	cleanDest := filepath.Clean(destName)
+	if cleanDest == "." {
+		return nil, errors.New("invalid destination persona name")
 	}
 
-	return personas, nil
+	sourcePath := filepath.Join(m.personaDir, filepath.FromSlash(sourceName))
+	destPath := filepath.Join(m.personaDir, filepath.FromSlash(cleanDest))
+
+	if _, err := os.Stat(destPath); err == nil {
+		return nil, fmt.Errorf("destination persona already exists: %s", destName)
+	}
+
+	if err := copyDir(sourcePath, destPath); err != nil {
+		return nil, err
+	}
+
+	name := filepath.ToSlash(cleanDest)
+	persona, err := m.LoadPersona(name)
+	if err != nil {
+		return nil, err
+	}
+	return persona, nil
+}
+
+func copyDir(source, dest string) error {
+	info, err := os.Stat(source)
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("source is not a directory: %s", source)
+	}
+
+	if err := os.MkdirAll(dest, info.Mode()); err != nil {
+		return err
+	}
+
+	return filepath.WalkDir(source, func(path string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if path == source {
+			return nil
+		}
+		rel, err := filepath.Rel(source, path)
+		if err != nil {
+			return err
+		}
+		destPath := filepath.Join(dest, rel)
+		if d.IsDir() {
+			info, err := d.Info()
+			if err != nil {
+				return err
+			}
+			return os.MkdirAll(destPath, info.Mode())
+		}
+
+		return copyFile(path, destPath)
+	})
+}
+
+func copyFile(source, dest string) error {
+	input, err := os.Open(source)
+	if err != nil {
+		return err
+	}
+	defer input.Close()
+
+	info, err := input.Stat()
+	if err != nil {
+		return err
+	}
+
+	if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
+		return err
+	}
+
+	output, err := os.OpenFile(dest, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, info.Mode())
+	if err != nil {
+		return err
+	}
+	defer output.Close()
+
+	_, err = io.Copy(output, input)
+	return err
 }
 
 // InvalidateCache removes a persona from cache, forcing reload
