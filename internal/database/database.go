@@ -118,6 +118,7 @@ func (d *Database) initSchema() error {
 	_, _ = d.db.Exec("ALTER TABLE providers ADD COLUMN model_score REAL")
 	_, _ = d.db.Exec("ALTER TABLE providers ADD COLUMN selected_gpu TEXT")
 	_, _ = d.db.Exec("ALTER TABLE projects ADD COLUMN is_sticky BOOLEAN")
+	_, _ = d.db.Exec("UPDATE projects SET is_sticky = 0 WHERE is_sticky IS NULL")
 	_, _ = d.db.Exec("ALTER TABLE agents ADD COLUMN provider_id TEXT")
 	_, _ = d.db.Exec("ALTER TABLE agents ADD COLUMN role TEXT")
 
@@ -226,6 +227,7 @@ func (d *Database) ListProjects() ([]*models.Project, error) {
 		p := &models.Project{}
 		var status string
 		var contextJSON sql.NullString
+		var isSticky sql.NullBool
 		err := rows.Scan(
 			&p.ID,
 			&p.Name,
@@ -233,7 +235,7 @@ func (d *Database) ListProjects() ([]*models.Project, error) {
 			&p.Branch,
 			&p.BeadsPath,
 			&p.IsPerpetual,
-			&p.IsSticky,
+			&isSticky,
 			&status,
 			&contextJSON,
 			&p.CreatedAt,
@@ -241,6 +243,9 @@ func (d *Database) ListProjects() ([]*models.Project, error) {
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan project: %w", err)
+		}
+		if isSticky.Valid {
+			p.IsSticky = isSticky.Bool
 		}
 		p.Status = models.ProjectStatus(status)
 		if contextJSON.Valid && contextJSON.String != "" {
