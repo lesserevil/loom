@@ -85,9 +85,10 @@ services:
       - TEMPORAL_NAMESPACE=arbiter-default
     networks:
       - arbiter-network
-    volumes:
-      # Mount configuration if needed (create ./config directory first)
-      # - ./config:/app/config:ro
+    # Mount configuration if needed (create ./config directory first)
+    # volumes:
+    #   - ./config:/app/config:ro
+    volumes: []
     healthcheck:
       test: ["CMD", "/app/arbiter", "version"]
       interval: 30s

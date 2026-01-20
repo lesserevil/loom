@@ -464,7 +464,7 @@ section h2 {
     margin-bottom: 1rem;
 }
 
-button {
+button:not(.bead-card) {
     background-color: var(--primary-color);
     color: white;
     border: none;
@@ -475,35 +475,35 @@ button {
     transition: background-color 0.3s;
 }
 
-button,
+button:not(.bead-card),
 nav a,
 input[type="text"],
 select {
     min-height: 44px;
 }
 
-button[disabled] {
+button:not(.bead-card)[disabled] {
     opacity: 0.7;
     cursor: not-allowed;
 }
 
-button:hover {
+button:not(.bead-card):hover {
     background-color: #2980b9;
 }
 
-button.secondary {
+button:not(.bead-card).secondary {
     background-color: var(--secondary-color);
 }
 
-button.secondary:hover {
+button:not(.bead-card).secondary:hover {
     background-color: #27ae60;
 }
 
-button.danger {
+button:not(.bead-card).danger {
     background-color: var(--danger-color);
 }
 
-button.danger:hover {
+button:not(.bead-card).danger:hover {
     background-color: #c0392b;
 }
 
