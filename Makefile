@@ -1,4 +1,4 @@
-.PHONY: all build build-all run test coverage fmt vet deps clean install config dev-setup docker-build docker-run docker-stop docker-clean help lint lint-yaml
+.PHONY: all build build-all run restart test coverage fmt vet deps clean distclean install config dev-setup docker-build docker-run docker-stop docker-clean help lint lint-yaml
 
 # Build variables
 BINARY_NAME=arbiter
@@ -20,7 +20,7 @@ define run_with_failure_bead
 		bead_id="bd-$${target}-failure-$$(date -u +%Y%m%d%H%M%S)"; \
 		bead_file="$(BEADS_DIR)/$${bead_id}.yaml"; \
 		timestamp=$$(date -u +%Y-%m-%dT%H:%M:%SZ); \
-		output_body=$$(sed 's/^/    /' "$$output"); \
+		output_body=$$(LC_ALL=C sed 's/[[:cntrl:]]//g' "$$output" | sed 's/^/    /'); \
 		mkdir -p "$(BEADS_DIR)"; \
 		printf "%s\n" \
 			"id: $${bead_id}" \
@@ -77,6 +77,11 @@ build-all: lint-yaml
 run: build
 	$(call run_with_failure_bead,run,docker compose up --build)
 
+# Restart: build, stop running containers, then run
+restart: build
+	@docker compose down
+	$(call run_with_failure_bead,run,docker compose up --build)
+
 # Run tests
 test:
 	$(call run_with_failure_bead,test,bash -c "docker compose up -d --build && docker compose run --rm arbiter-test; status=$$?; docker compose down; exit $$status")
@@ -101,11 +106,23 @@ deps:
 
 # Clean build artifacts
 clean:
-	@echo "Cleaning..."
+	@echo "Cleaning build artifacts..."
 	rm -f $(BINARY_NAME)
 	rm -f $(BINARY_NAME)-*
 	rm -f coverage.out coverage.html
 	rm -f *.db
+
+# Deep clean: stop containers, remove images, prune docker, clean all artifacts
+distclean: clean
+	@echo "Stopping containers..."
+	@docker compose down -v --remove-orphans 2>/dev/null || true
+	@echo "Removing arbiter docker images..."
+	@docker rmi arbiter:latest arbiter-arbiter-test:latest 2>/dev/null || true
+	@echo "Pruning dangling docker images..."
+	@docker image prune -f
+	@echo "Removing Go build cache for this module..."
+	@go clean -cache -testcache
+	@echo "Clean complete. Next build will start fresh."
 
 # Run linters
 lint: fmt vet lint-yaml
@@ -159,6 +176,7 @@ help:
 	@echo "  make build        - Build the application"
 	@echo "  make build-all    - Build for multiple platforms"
 	@echo "  make run          - Build and run the application"
+	@echo "  make restart      - Build, stop containers, and run"
 	@echo "  make test         - Run tests"
 	@echo "  make coverage     - Run tests with coverage report"
 	@echo "  make fmt          - Format code"
@@ -167,6 +185,7 @@ help:
 	@echo "  make lint-yaml    - Validate YAML files"
 	@echo "  make deps         - Download and tidy dependencies"
 	@echo "  make clean        - Clean build artifacts"
+	@echo "  make distclean    - Deep clean: prune docker, remove all artifacts"
 	@echo "  make install      - Install binary to GOPATH/bin"
 	@echo "  make config       - Create config.yaml from example"
 	@echo "  make dev-setup    - Set up development environment"

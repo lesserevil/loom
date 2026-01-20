@@ -333,7 +333,70 @@ func (a *Arbiter) Initialize(ctx context.Context) error {
 		_ = a.startProviderHeartbeats(ctx)
 	}
 
+	// Kick-start work on all open beads across registered projects.
+	a.kickstartOpenBeads(ctx)
+
 	return nil
+}
+
+// kickstartOpenBeads starts Temporal workflows for all open beads in registered projects.
+// This ensures that when Arbiter starts (or restarts), all pending work is queued for processing.
+func (a *Arbiter) kickstartOpenBeads(ctx context.Context) {
+	projects := a.projectManager.ListProjects()
+	if len(projects) == 0 {
+		return
+	}
+
+	var totalKickstarted int
+	for _, p := range projects {
+		if p == nil || p.ID == "" {
+			continue
+		}
+
+		beadsList, err := a.beadsManager.GetReadyBeads(p.ID)
+		if err != nil {
+			continue
+		}
+
+		for _, b := range beadsList {
+			if b == nil {
+				continue
+			}
+			// Skip decision beads - they require human/CEO input
+			if b.Type == "decision" {
+				continue
+			}
+			// Skip beads that are already in progress with an assigned agent
+			if b.Status == models.BeadStatusInProgress && b.AssignedTo != "" {
+				continue
+			}
+
+			// Publish event to signal work is available
+			if a.eventBus != nil {
+				_ = a.eventBus.PublishBeadEvent(eventbus.EventTypeBeadCreated, b.ID, p.ID, map[string]interface{}{
+					"title":       b.Title,
+					"type":        b.Type,
+					"priority":    b.Priority,
+					"kickstarted": true,
+				})
+			}
+
+			// Start Temporal workflow for the bead if Temporal is enabled
+			if a.temporalManager != nil {
+				if err := a.temporalManager.StartBeadWorkflow(ctx, b.ID, p.ID, b.Title, b.Description, int(b.Priority), b.Type); err != nil {
+					// Log error but continue with other beads
+					fmt.Printf("Warning: failed to kickstart bead workflow %s: %v\n", b.ID, err)
+					continue
+				}
+			}
+
+			totalKickstarted++
+		}
+	}
+
+	if totalKickstarted > 0 {
+		fmt.Printf("Kickstarted %d open bead(s) across %d project(s)\n", totalKickstarted, len(projects))
+	}
 }
 
 // Shutdown gracefully shuts down the arbiter

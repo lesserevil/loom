@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # PostgreSQL database for Temporal
   temporal-postgresql:
@@ -90,7 +88,7 @@ services:
     #   - ./config:/app/config:ro
     volumes: []
     healthcheck:
-      test: ["CMD", "/app/arbiter", "version"]
+      test: ["CMD", "/app/arbiter", "-version"]
       interval: 30s
       timeout: 10s
       retries: 3

@@ -153,7 +153,10 @@ func (eb *EventBus) processEvents() {
 		select {
 		case <-eb.ctx.Done():
 			return
-		case event := <-eb.buffer:
+		case event, ok := <-eb.buffer:
+			if !ok || event == nil {
+				return
+			}
 			eb.distributeEvent(event)
 		}
 	}
