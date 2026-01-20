@@ -62,6 +62,9 @@ func (s *Server) SetupRoutes() http.Handler {
 	mux.HandleFunc("/api/v1/projects", s.handleProjects)
 	mux.HandleFunc("/api/v1/projects/", s.handleProject)
 
+	// Org Charts
+	mux.HandleFunc("/api/v1/org-charts/", s.handleOrgChart)
+
 	// Beads
 	mux.HandleFunc("/api/v1/beads", s.handleBeads)
 	mux.HandleFunc("/api/v1/beads/", s.handleBead)

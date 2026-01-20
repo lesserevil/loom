@@ -48,12 +48,14 @@ func (d *Database) Close() error {
 // initSchema creates the database tables
 func (d *Database) initSchema() error {
 	schema := `
+	-- Global configuration key-value store
 	CREATE TABLE IF NOT EXISTS config_kv (
 		key TEXT PRIMARY KEY,
 		value TEXT NOT NULL,
 		updated_at DATETIME NOT NULL
 	);
 
+	-- Global providers (shared across all projects)
 	CREATE TABLE IF NOT EXISTS providers (
 		id TEXT PRIMARY KEY,
 		name TEXT NOT NULL,
@@ -72,24 +74,64 @@ func (d *Database) initSchema() error {
 		last_heartbeat_at DATETIME,
 		last_heartbeat_latency_ms INTEGER,
 		last_heartbeat_error TEXT,
+		schema_version TEXT NOT NULL DEFAULT '1.0',
+		attributes_json TEXT,
 		created_at DATETIME NOT NULL,
 		updated_at DATETIME NOT NULL
 	);
 
+	-- Projects with hierarchy support (parent_id for sub-projects)
 	CREATE TABLE IF NOT EXISTS projects (
 		id TEXT PRIMARY KEY,
 		name TEXT NOT NULL,
 		git_repo TEXT NOT NULL,
 		branch TEXT NOT NULL,
 		beads_path TEXT NOT NULL,
+		parent_id TEXT,
 		is_perpetual BOOLEAN NOT NULL DEFAULT 0,
 		is_sticky BOOLEAN NOT NULL DEFAULT 0,
 		status TEXT NOT NULL DEFAULT 'open',
 		context_json TEXT,
+		schema_version TEXT NOT NULL DEFAULT '1.0',
+		attributes_json TEXT,
 		created_at DATETIME NOT NULL,
-		updated_at DATETIME NOT NULL
+		updated_at DATETIME NOT NULL,
+		closed_at DATETIME,
+		FOREIGN KEY (parent_id) REFERENCES projects(id) ON DELETE SET NULL
 	);
 
+	-- Org charts define the team structure for each project
+	CREATE TABLE IF NOT EXISTS org_charts (
+		id TEXT PRIMARY KEY,
+		project_id TEXT NOT NULL,
+		name TEXT NOT NULL,
+		is_template BOOLEAN NOT NULL DEFAULT 0,
+		parent_id TEXT,
+		schema_version TEXT NOT NULL DEFAULT '1.0',
+		attributes_json TEXT,
+		created_at DATETIME NOT NULL,
+		updated_at DATETIME NOT NULL,
+		FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+		FOREIGN KEY (parent_id) REFERENCES org_charts(id) ON DELETE SET NULL
+	);
+
+	-- Positions within an org chart (role slots)
+	CREATE TABLE IF NOT EXISTS org_chart_positions (
+		id TEXT PRIMARY KEY,
+		org_chart_id TEXT NOT NULL,
+		role_name TEXT NOT NULL,
+		persona_path TEXT NOT NULL,
+		required BOOLEAN NOT NULL DEFAULT 0,
+		max_instances INTEGER NOT NULL DEFAULT 0,
+		reports_to TEXT,
+		schema_version TEXT NOT NULL DEFAULT '1.0',
+		attributes_json TEXT,
+		created_at DATETIME NOT NULL,
+		FOREIGN KEY (org_chart_id) REFERENCES org_charts(id) ON DELETE CASCADE,
+		FOREIGN KEY (reports_to) REFERENCES org_chart_positions(id) ON DELETE SET NULL
+	);
+
+	-- Agent instances assigned to positions
 	CREATE TABLE IF NOT EXISTS agents (
 		id TEXT PRIMARY KEY,
 		name TEXT NOT NULL,
@@ -99,13 +141,24 @@ func (d *Database) initSchema() error {
 		status TEXT NOT NULL DEFAULT 'idle',
 		current_bead TEXT,
 		project_id TEXT,
+		position_id TEXT,
+		schema_version TEXT NOT NULL DEFAULT '1.0',
+		attributes_json TEXT,
 		started_at DATETIME NOT NULL,
-		last_active DATETIME NOT NULL
+		last_active DATETIME NOT NULL,
+		FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL,
+		FOREIGN KEY (position_id) REFERENCES org_chart_positions(id) ON DELETE SET NULL,
+		FOREIGN KEY (provider_id) REFERENCES providers(id) ON DELETE SET NULL
 	);
 
+	-- Indexes for performance
 	CREATE INDEX IF NOT EXISTS idx_agents_status ON agents(status);
 	CREATE INDEX IF NOT EXISTS idx_agents_project_id ON agents(project_id);
+	CREATE INDEX IF NOT EXISTS idx_agents_position_id ON agents(position_id);
 	CREATE INDEX IF NOT EXISTS idx_providers_status ON providers(status);
+	CREATE INDEX IF NOT EXISTS idx_projects_parent_id ON projects(parent_id);
+	CREATE INDEX IF NOT EXISTS idx_org_charts_project_id ON org_charts(project_id);
+	CREATE INDEX IF NOT EXISTS idx_positions_org_chart_id ON org_chart_positions(org_chart_id);
 	`
 
 	if _, err := d.db.Exec(schema); err != nil {
@@ -114,6 +167,8 @@ func (d *Database) initSchema() error {
 
 	// Best-effort migrations for existing databases.
 	// SQLite doesn't support IF NOT EXISTS on ADD COLUMN.
+	
+	// Provider migrations
 	_, _ = d.db.Exec("ALTER TABLE providers ADD COLUMN model TEXT")
 	_, _ = d.db.Exec("ALTER TABLE providers ADD COLUMN configured_model TEXT")
 	_, _ = d.db.Exec("ALTER TABLE providers ADD COLUMN selected_model TEXT")
@@ -123,10 +178,36 @@ func (d *Database) initSchema() error {
 	_, _ = d.db.Exec("ALTER TABLE providers ADD COLUMN last_heartbeat_at DATETIME")
 	_, _ = d.db.Exec("ALTER TABLE providers ADD COLUMN last_heartbeat_latency_ms INTEGER")
 	_, _ = d.db.Exec("ALTER TABLE providers ADD COLUMN last_heartbeat_error TEXT")
+	_, _ = d.db.Exec("ALTER TABLE providers ADD COLUMN schema_version TEXT DEFAULT '1.0'")
+	_, _ = d.db.Exec("ALTER TABLE providers ADD COLUMN attributes_json TEXT")
+	_, _ = d.db.Exec("UPDATE providers SET schema_version = '1.0' WHERE schema_version IS NULL")
+
+	// Project migrations
 	_, _ = d.db.Exec("ALTER TABLE projects ADD COLUMN is_sticky BOOLEAN")
 	_, _ = d.db.Exec("UPDATE projects SET is_sticky = 0 WHERE is_sticky IS NULL")
+	_, _ = d.db.Exec("ALTER TABLE projects ADD COLUMN parent_id TEXT")
+	_, _ = d.db.Exec("ALTER TABLE projects ADD COLUMN closed_at DATETIME")
+	_, _ = d.db.Exec("ALTER TABLE projects ADD COLUMN schema_version TEXT DEFAULT '1.0'")
+	_, _ = d.db.Exec("ALTER TABLE projects ADD COLUMN attributes_json TEXT")
+	_, _ = d.db.Exec("UPDATE projects SET schema_version = '1.0' WHERE schema_version IS NULL")
+
+	// Agent migrations
 	_, _ = d.db.Exec("ALTER TABLE agents ADD COLUMN provider_id TEXT")
 	_, _ = d.db.Exec("ALTER TABLE agents ADD COLUMN role TEXT")
+	_, _ = d.db.Exec("ALTER TABLE agents ADD COLUMN position_id TEXT")
+	_, _ = d.db.Exec("ALTER TABLE agents ADD COLUMN schema_version TEXT DEFAULT '1.0'")
+	_, _ = d.db.Exec("ALTER TABLE agents ADD COLUMN attributes_json TEXT")
+	_, _ = d.db.Exec("UPDATE agents SET schema_version = '1.0' WHERE schema_version IS NULL")
+
+	// Org chart migrations
+	_, _ = d.db.Exec("ALTER TABLE org_charts ADD COLUMN schema_version TEXT DEFAULT '1.0'")
+	_, _ = d.db.Exec("ALTER TABLE org_charts ADD COLUMN attributes_json TEXT")
+	_, _ = d.db.Exec("UPDATE org_charts SET schema_version = '1.0' WHERE schema_version IS NULL")
+
+	// Position migrations
+	_, _ = d.db.Exec("ALTER TABLE org_chart_positions ADD COLUMN schema_version TEXT DEFAULT '1.0'")
+	_, _ = d.db.Exec("ALTER TABLE org_chart_positions ADD COLUMN attributes_json TEXT")
+	_, _ = d.db.Exec("UPDATE org_chart_positions SET schema_version = '1.0' WHERE schema_version IS NULL")
 
 	return nil
 }

@@ -140,6 +140,47 @@ func (s *Server) handleAgent(w http.ResponseWriter, r *http.Request) {
 		}
 		s.respondJSON(w, http.StatusOK, agent)
 
+	case http.MethodPut:
+		var req struct {
+			Name    string          `json:"name"`
+			Persona *models.Persona `json:"persona"`
+		}
+		if err := s.parseJSON(r, &req); err != nil {
+			s.respondError(w, http.StatusBadRequest, "Invalid request body")
+			return
+		}
+
+		agent, err := s.agenticorp.GetAgentManager().GetAgent(id)
+		if err != nil {
+			s.respondError(w, http.StatusNotFound, "Agent not found")
+			return
+		}
+
+		// Update agent fields
+		if req.Name != "" {
+			agent.Name = req.Name
+		}
+		if req.Persona != nil {
+			if agent.Persona == nil {
+				agent.Persona = req.Persona
+			} else {
+				if req.Persona.Mission != "" {
+					agent.Persona.Mission = req.Persona.Mission
+				}
+				if req.Persona.Character != "" {
+					agent.Persona.Character = req.Persona.Character
+				}
+				if req.Persona.Tone != "" {
+					agent.Persona.Tone = req.Persona.Tone
+				}
+				if req.Persona.AutonomyLevel != "" {
+					agent.Persona.AutonomyLevel = req.Persona.AutonomyLevel
+				}
+			}
+		}
+
+		s.respondJSON(w, http.StatusOK, agent)
+
 	case http.MethodDelete:
 		if err := s.agenticorp.StopAgent(context.Background(), id); err != nil {
 			s.respondError(w, http.StatusNotFound, "Agent not found")
@@ -320,6 +361,33 @@ func (s *Server) handleProject(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
+
+	default:
+		s.respondError(w, http.StatusMethodNotAllowed, "Method not allowed")
+	}
+}
+
+// handleOrgChart handles GET /api/v1/org-charts/{projectId}
+func (s *Server) handleOrgChart(w http.ResponseWriter, r *http.Request) {
+	projectID := s.extractID(r.URL.Path, "/api/v1/org-charts")
+
+	switch r.Method {
+	case http.MethodGet:
+		chart, err := s.agenticorp.GetOrgChartManager().GetByProject(projectID)
+		if err != nil {
+			// If no org chart exists, create one from the project
+			project, projErr := s.agenticorp.GetProjectManager().GetProject(projectID)
+			if projErr != nil {
+				s.respondError(w, http.StatusNotFound, "Project not found")
+				return
+			}
+			chart, err = s.agenticorp.GetOrgChartManager().CreateForProject(projectID, project.Name)
+			if err != nil {
+				s.respondError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+		}
+		s.respondJSON(w, http.StatusOK, chart)
 
 	default:
 		s.respondError(w, http.StatusMethodNotAllowed, "Method not allowed")

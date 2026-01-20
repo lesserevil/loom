@@ -368,6 +368,10 @@ section h2 {
     border-color: var(--danger-color);
 }
 
+.agent-card.paused {
+    border-color: var(--warning-color, #f0ad4e);
+}
+
 .agent-header {
     display: flex;
     justify-content: space-between;
@@ -400,6 +404,16 @@ section h2 {
 
 .agent-status.blocked {
     background-color: var(--danger-color);
+    color: white;
+}
+
+.agent-status.paused {
+    background-color: var(--warning-color, #f0ad4e);
+    color: white;
+}
+
+.badge.paused {
+    background-color: var(--warning-color, #f0ad4e);
     color: white;
 }
 

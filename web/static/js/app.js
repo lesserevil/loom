@@ -441,30 +441,73 @@ function renderProjectViewer() {
     }
 }
 
+// Org chart hierarchy order for sorting agents
+const ORG_CHART_ORDER = [
+    'ceo', 'cfo', 'product-manager', 'engineering-manager', 'project-manager',
+    'qa-engineer', 'devops-engineer', 'code-reviewer', 'web-designer',
+    'web-designer-engineer', 'documentation-manager', 'public-relations-manager',
+    'decision-maker', 'housekeeping-bot'
+];
+
+function getOrgChartRank(agent) {
+    const role = agent.role || extractRoleKey(agent.persona_name);
+    const idx = ORG_CHART_ORDER.indexOf(role);
+    return idx >= 0 ? idx : 999;
+}
+
+function extractRoleKey(personaName) {
+    if (!personaName) return '';
+    const parts = personaName.split('/');
+    if (parts.length >= 2 && parts[0] === 'default') {
+        return parts[1];
+    } else if (parts.length >= 3 && parts[0] === 'projects') {
+        return parts[2];
+    }
+    return parts[parts.length - 1];
+}
+
+function sortAgentsByOrgChart(agents) {
+    return [...agents].sort((a, b) => getOrgChartRank(a) - getOrgChartRank(b));
+}
+
 function renderProjectAgentsList(agents, projectId) {
     if (agents.length === 0) {
         return `<div class="empty-state" style="padding: 1rem;"><p>No agents assigned yet.</p><p class="small">Add an agent from the org chart to get started.</p></div>`;
     }
 
-    return agents.map((a) => {
+    const sortedAgents = sortAgentsByOrgChart(agents);
+
+    return sortedAgents.map((a) => {
         const bead = a.current_bead ? (state.beads || []).find((b) => b.id === a.current_bead) : null;
-        const statusClass = a.status === 'working' ? 'working' : (a.status === 'blocked' ? 'blocked' : 'idle');
+        const statusClass = a.status === 'working' ? 'working' : (a.status === 'blocked' ? 'blocked' : (a.status === 'paused' ? 'paused' : 'idle'));
         const roleName = extractRoleName(a.persona_name || a.name);
         
         return `
             <div class="agent-assignment-row" style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem; border-bottom: 1px solid var(--border-color); background: var(--card-bg);">
-                <div>
-                    <strong style="color: var(--text-color);">${escapeHtml(a.name || roleName)}</strong>
+                <div style="flex: 1;">
+                    <strong style="color: var(--text-color);">${escapeHtml(formatAgentDisplayName(a.name || roleName))}</strong>
                     <span class="badge ${statusClass}" style="margin-left: 0.5rem;">${escapeHtml(a.status || 'idle')}</span>
-                    <div class="small">
+                    <div class="small" style="color: var(--text-muted);">
                         ${escapeHtml(a.persona_name || '')}
                         ${bead ? ` • Working on: ${escapeHtml(bead.title.substring(0, 30))}...` : ''}
                     </div>
                 </div>
-                <button type="button" class="danger" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="removeAgentFromProject('${escapeHtml(projectId)}', '${escapeHtml(a.id)}')">Remove</button>
+                <div style="display: flex; gap: 0.25rem;">
+                    <button type="button" class="secondary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" onclick="showEditAgentModal('${escapeHtml(a.id)}')" title="Edit">Edit</button>
+                    <button type="button" class="secondary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" onclick="showCloneAgentModal('${escapeHtml(a.id)}')" title="Clone">Clone</button>
+                    <button type="button" class="danger" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" onclick="removeAgentFromProject('${escapeHtml(projectId)}', '${escapeHtml(a.id)}')">Remove</button>
+                </div>
             </div>
         `;
     }).join('');
+}
+
+function formatAgentDisplayName(name) {
+    if (!name) return 'Agent';
+    // Capitalize CEO and CFO as acronyms
+    return name
+        .replace(/\bCeo\b/gi, 'CEO')
+        .replace(/\bCfo\b/gi, 'CFO');
 }
 
 function extractRoleName(personaName) {
@@ -477,8 +520,9 @@ function extractRoleName(personaName) {
     } else if (parts.length >= 3 && parts[0] === 'projects') {
         role = parts[2];
     }
-    // Convert kebab-case to Title Case
-    return role.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    // Convert kebab-case to Title Case, then fix acronyms
+    const titleCase = role.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    return formatAgentDisplayName(titleCase);
 }
 
 async function showAddAgentToProjectModal(projectId) {
@@ -592,6 +636,155 @@ async function removeAgentFromProject(projectId, agentId) {
         // Error already handled
     } finally {
         setBusy(`removeAgent:${agentId}`, false);
+    }
+}
+
+async function showEditAgentModal(agentId) {
+    const agent = (state.agents || []).find(a => a.id === agentId);
+    if (!agent) {
+        showToast('Agent not found', 'error');
+        return;
+    }
+
+    const persona = agent.persona || {};
+    const displayName = formatAgentDisplayName(agent.name || extractRoleName(agent.persona_name));
+
+    try {
+        const res = await formModal({
+            title: `Edit Agent: ${displayName}`,
+            submitText: 'Save Changes',
+            fields: [
+                {
+                    id: 'name',
+                    label: 'Agent Name',
+                    type: 'text',
+                    required: true,
+                    value: agent.name || ''
+                },
+                {
+                    id: 'mission',
+                    label: 'Mission (Job Description)',
+                    type: 'textarea',
+                    required: false,
+                    value: persona.mission || '',
+                    placeholder: 'Describe what this agent does...'
+                },
+                {
+                    id: 'character',
+                    label: 'Character',
+                    type: 'textarea',
+                    required: false,
+                    value: persona.character || '',
+                    placeholder: 'Describe the agent\'s character...'
+                },
+                {
+                    id: 'tone',
+                    label: 'Tone',
+                    type: 'textarea',
+                    required: false,
+                    value: persona.tone || '',
+                    placeholder: 'e.g., Professional, friendly, direct...'
+                },
+                {
+                    id: 'autonomy_level',
+                    label: 'Autonomy Level',
+                    type: 'select',
+                    required: true,
+                    value: persona.autonomy_level || 'semi',
+                    options: [
+                        { value: 'full', label: 'Full - Can make all non-P0 decisions' },
+                        { value: 'semi', label: 'Semi - Can make routine decisions' },
+                        { value: 'supervised', label: 'Supervised - Requires approval for all decisions' }
+                    ]
+                }
+            ]
+        });
+
+        if (!res) return;
+
+        // Update agent persona via API
+        setBusy(`editAgent:${agentId}`, true);
+        await apiCall(`/agents/${agentId}`, {
+            method: 'PUT',
+            body: JSON.stringify({
+                name: res.name,
+                persona: {
+                    ...persona,
+                    mission: res.mission,
+                    character: res.character,
+                    tone: res.tone,
+                    autonomy_level: res.autonomy_level
+                }
+            })
+        });
+        showToast('Agent updated', 'success');
+        await loadAll();
+    } catch (error) {
+        // Error already handled by apiCall
+    } finally {
+        setBusy(`editAgent:${agentId}`, false);
+    }
+}
+
+async function showCloneAgentModal(agentId) {
+    const agent = (state.agents || []).find(a => a.id === agentId);
+    if (!agent) {
+        showToast('Agent not found', 'error');
+        return;
+    }
+
+    const displayName = formatAgentDisplayName(agent.name || extractRoleName(agent.persona_name));
+    const roleName = agent.role || extractRoleKey(agent.persona_name);
+
+    try {
+        const res = await formModal({
+            title: `Clone Agent: ${displayName}`,
+            submitText: 'Create Clone',
+            fields: [
+                {
+                    id: 'new_name',
+                    label: 'New Agent Name',
+                    type: 'text',
+                    required: true,
+                    value: `${agent.name || roleName} (Copy)`,
+                    placeholder: 'Enter name for the cloned agent'
+                },
+                {
+                    id: 'new_persona_name',
+                    label: 'New Persona Name',
+                    type: 'text',
+                    required: true,
+                    value: `${roleName}-copy`,
+                    placeholder: 'e.g., custom-reviewer'
+                },
+                {
+                    id: 'replace_original',
+                    label: 'Replace Original',
+                    type: 'checkbox',
+                    required: false,
+                    value: false,
+                    description: 'Stop the original agent after cloning'
+                }
+            ]
+        });
+
+        if (!res) return;
+
+        setBusy(`cloneAgent:${agentId}`, true);
+        await apiCall(`/agents/${agentId}/clone`, {
+            method: 'POST',
+            body: JSON.stringify({
+                new_agent_name: res.new_name,
+                new_persona_name: res.new_persona_name,
+                replace: res.replace_original || false
+            })
+        });
+        showToast('Agent cloned successfully', 'success');
+        await loadAll();
+    } catch (error) {
+        // Error already handled by apiCall
+    } finally {
+        setBusy(`cloneAgent:${agentId}`, false);
     }
 }
 

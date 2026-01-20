@@ -2,22 +2,276 @@
 
 ## Overview
 
-The AgentiCorp is a secure orchestration system that manages interactions between AI agents and providers. It maintains its own database and is the sole reader/writer to ensure data integrity.
+AgentiCorp is a secure AI agent orchestration system that manages hierarchical teams of AI agents working on projects. It provides a complete framework for organizing, coordinating, and monitoring AI agents with different roles and capabilities.
+
+## Conceptual Model
+
+AgentiCorp follows a hierarchical organizational model:
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        AgentiCorp (Global State)                        │
+│                                                                         │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │                     Global Providers                             │   │
+│  │  (OpenAI, Anthropic, vLLM, local models - shared across all)    │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+│                                                                         │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │                        Projects                                  │   │
+│  │  ┌───────────────────────────────────────────────────────────┐  │   │
+│  │  │  Project A (can have sub-projects via parent_id)          │  │   │
+│  │  │  ┌─────────────────────────────────────────────────────┐  │  │   │
+│  │  │  │              Org Chart                              │  │  │   │
+│  │  │  │  ┌─────────────────────────────────────────────┐    │  │  │   │
+│  │  │  │  │  Position: CEO ──► Agent Instance           │    │  │  │   │
+│  │  │  │  │  Position: CFO ──► Agent Instance           │    │  │  │   │
+│  │  │  │  │  Position: PM  ──► Agent Instance           │    │  │  │   │
+│  │  │  │  │  Position: EM  ──► Agent Instance           │    │  │  │   │
+│  │  │  │  │  ...                                        │    │  │  │   │
+│  │  │  │  └─────────────────────────────────────────────┘    │  │  │   │
+│  │  │  └─────────────────────────────────────────────────────┘  │  │   │
+│  │  └───────────────────────────────────────────────────────────┘  │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Key Concepts
+
+| Concept | Scope | Description |
+|---------|-------|-------------|
+| **Provider** | Global | AI backend (OpenAI, Anthropic, vLLM). Shared across all projects. |
+| **Project** | Global | Work context with git repo, beads, and team. Can have sub-projects. |
+| **Org Chart** | Per-Project | Defines team structure and role hierarchy. |
+| **Position** | Per-Org Chart | A "slot" for a role (CEO, PM, Engineer). Has persona and reports-to. |
+| **Agent** | Per-Project | Instance of an AI filling a position. Uses a provider for inference. |
+| **Persona** | Template | Role definition (mission, character, tone) loaded from filesystem. |
+
+### Hierarchy
+
+```
+Provider (global)
+    └── Used by Agents across all projects
+
+Project
+    ├── parent_id → Project (sub-project support)
+    ├── Org Chart
+    │       ├── Position (CEO)
+    │       │       └── Agent Instance ──uses──► Provider
+    │       ├── Position (CFO)
+    │       │       └── Agent Instance ──uses──► Provider
+    │       └── Position (PM) reports_to CEO
+    │               └── Agent Instance ──uses──► Provider
+    └── Beads (work items)
+```
 
 ## Core Concepts
 
-### Agents
-An **Agent** is an LLM (Large Language Model) wrapped in glue code that performs tasks. Agents are configured to use a specific provider and can have custom configurations.
-
 ### Providers
-A **Provider** is an AI engine running on-premise or in the cloud (e.g., OpenAI, Anthropic, local models). Providers may require API credentials (keys) to communicate.
 
-### Key Manager
-The **Key Manager** securely stores provider credentials with strong encryption. Keys are encrypted at rest and only accessible when the key store is unlocked with a password.
+A **Provider** is an AI inference backend. Providers are global resources shared across all projects.
+
+- **Types**: OpenAI, Anthropic, vLLM, local models
+- **Credentials**: API keys stored encrypted in Key Manager
+- **Health**: Monitored via heartbeats (latency, availability)
+- **Selection**: Best provider chosen based on quality score and latency
+
+### Projects
+
+A **Project** represents a body of work with its own git repository, work items (beads), and team.
+
+- **Hierarchy**: Projects can have sub-projects via `parent_id`
+- **Lifecycle**: open → closed (can be reopened)
+- **Perpetual**: Some projects (like AgentiCorp itself) never close
+- **Context**: Build/test/lint commands for agent awareness
+
+### Org Charts
+
+An **Org Chart** defines the team structure for a project. Each project has one org chart that specifies which positions exist and how they relate.
+
+- **Template**: Default org chart cloned for new projects
+- **Positions**: Role slots that agents fill
+- **Hierarchy**: Positions can have `reports_to` relationships
+
+### Positions
+
+A **Position** is a role slot within an org chart. It defines:
+
+- **Role Name**: e.g., "ceo", "product-manager", "qa-engineer"
+- **Persona Path**: Template for the role's behavior
+- **Required**: Whether the position must be filled
+- **Max Instances**: How many agents can fill this role (0 = unlimited)
+- **Reports To**: Hierarchical relationship to another position
+
+### Agents
+
+An **Agent** is an AI instance that fills a position and performs work.
+
+- **Status**: paused, idle, working, blocked
+- **Paused**: Created without a provider (awaiting assignment)
+- **Provider**: The AI backend used for inference
+- **Current Bead**: The work item currently assigned
+
+### Personas
+
+A **Persona** is a template that defines an agent's behavior:
+
+- **Mission**: What the agent is trying to accomplish
+- **Character**: Personality traits and approach
+- **Tone**: Communication style
+- **Autonomy Level**: How much independence the agent has
+
+Default personas are stored in `personas/default/`.
+
+## Database Schema
+
+### Entity Relationship Diagram
+
+```
+┌─────────────────┐
+│   providers     │  (global)
+│─────────────────│
+│ id              │
+│ name            │
+│ type            │
+│ endpoint        │
+│ status          │
+│ key_id          │
+└────────┬────────┘
+         │
+         │ provider_id (optional)
+         ▼
+┌─────────────────┐       ┌─────────────────┐
+│    projects     │       │   org_charts    │
+│─────────────────│       │─────────────────│
+│ id              │◄──────│ project_id      │
+│ name            │       │ id              │
+│ git_repo        │       │ name            │
+│ parent_id ──────┼───┐   │ is_template     │
+│ status          │   │   └────────┬────────┘
+│ closed_at       │   │            │
+└─────────────────┘   │            │ org_chart_id
+         ▲            │            ▼
+         └────────────┘   ┌─────────────────┐
+                          │ org_chart_      │
+                          │ positions       │
+                          │─────────────────│
+                          │ id              │
+                          │ role_name       │
+                          │ persona_path    │
+                          │ reports_to ─────┼───┐
+                          │ required        │   │
+                          │ max_instances   │   │
+                          └────────┬────────┘   │
+                                   │            │
+                                   └────────────┘
+                                   │
+                                   │ position_id
+                                   ▼
+                          ┌─────────────────┐
+                          │    agents       │
+                          │─────────────────│
+                          │ id              │
+                          │ name            │
+                          │ role            │
+                          │ project_id      │
+                          │ provider_id ────┼──► providers.id
+                          │ status          │
+                          │ current_bead    │
+                          └─────────────────┘
+```
+
+### Tables
+
+#### providers (Global)
+```sql
+CREATE TABLE providers (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    type TEXT NOT NULL,              -- openai, anthropic, vllm, local
+    endpoint TEXT NOT NULL,
+    model TEXT,
+    requires_key BOOLEAN NOT NULL,
+    key_id TEXT,                     -- Reference to Key Manager
+    status TEXT NOT NULL,            -- active, inactive, error
+    last_heartbeat_at DATETIME,
+    last_heartbeat_latency_ms INTEGER,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL
+);
+```
+
+#### projects (Hierarchical)
+```sql
+CREATE TABLE projects (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    git_repo TEXT NOT NULL,
+    branch TEXT NOT NULL,
+    beads_path TEXT NOT NULL,
+    parent_id TEXT,                  -- Sub-project support
+    is_perpetual BOOLEAN NOT NULL,
+    status TEXT NOT NULL,            -- open, closed
+    closed_at DATETIME,
+    context_json TEXT,               -- Build/test commands
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    FOREIGN KEY (parent_id) REFERENCES projects(id) ON DELETE SET NULL
+);
+```
+
+#### org_charts (Per-Project)
+```sql
+CREATE TABLE org_charts (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    is_template BOOLEAN NOT NULL,
+    parent_id TEXT,                  -- Inherit from another org chart
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+    FOREIGN KEY (parent_id) REFERENCES org_charts(id) ON DELETE SET NULL
+);
+```
+
+#### org_chart_positions (Role Slots)
+```sql
+CREATE TABLE org_chart_positions (
+    id TEXT PRIMARY KEY,
+    org_chart_id TEXT NOT NULL,
+    role_name TEXT NOT NULL,
+    persona_path TEXT NOT NULL,
+    required BOOLEAN NOT NULL,
+    max_instances INTEGER NOT NULL,  -- 0 = unlimited
+    reports_to TEXT,                 -- Hierarchical relationship
+    created_at DATETIME NOT NULL,
+    FOREIGN KEY (org_chart_id) REFERENCES org_charts(id) ON DELETE CASCADE,
+    FOREIGN KEY (reports_to) REFERENCES org_chart_positions(id) ON DELETE SET NULL
+);
+```
+
+#### agents (Per-Project Instances)
+```sql
+CREATE TABLE agents (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    role TEXT,
+    persona_name TEXT,
+    provider_id TEXT,                -- NULL = paused (no provider)
+    status TEXT NOT NULL,            -- paused, idle, working, blocked
+    current_bead TEXT,
+    project_id TEXT,
+    position_id TEXT,                -- Link to org chart position
+    started_at DATETIME NOT NULL,
+    last_active DATETIME NOT NULL,
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL,
+    FOREIGN KEY (position_id) REFERENCES org_chart_positions(id) ON DELETE SET NULL,
+    FOREIGN KEY (provider_id) REFERENCES providers(id) ON DELETE SET NULL
+);
+```
 
 ## Architecture Diagram
-
-Last updated: 2026-01-19
 
 ```mermaid
 flowchart LR
@@ -31,12 +285,12 @@ flowchart LR
     EB[Event Bus]
     DISP[Dispatcher]
     WM[WorkerManager]
+    OCM[OrgChartManager]
     PR[Provider Registry]
     HB[Provider Heartbeats]
-    REPL[CEO REPL Handler]
     KM[Key Manager]
     CFG[Config DB (SQLite)]
-    BM[Beads Manager (.beads)]
+    BM[Beads Manager]
     PM[Project Manager]
     DM[Decision Manager]
   end
@@ -44,8 +298,6 @@ flowchart LR
   subgraph Temporal[Temporal (optional)]
     TW[Temporal Worker]
     TS[Temporal Server]
-    PHW[Provider Heartbeat WF]
-    PQW[Provider Query WF]
   end
 
   subgraph Providers[Model Providers]
@@ -59,14 +311,14 @@ flowchart LR
 
   API --> CFG
   API --> PM
+  API --> OCM
   API --> BM
   API --> DM
   API --> WM
   API --> PR
-  API --> REPL
-  REPL -->|query| TW
   API --> KM
 
+  OCM --> WM
   DISP --> BM
   DISP --> WM
   WM --> PR
@@ -76,679 +328,300 @@ flowchart LR
 
   EB -. signal .-> TW
   TW --> TS
-  DISP -. activity .-> TW
-  HB -. activity .-> TW
-  TW --> PHW
-  TW --> PQW
 ```
 
+## Default Org Chart
+
+When a new project is created, it receives a default org chart with these positions:
+
+| Position | Role | Reports To | Required |
+|----------|------|------------|----------|
+| CEO | ceo | - | Yes |
+| CFO | cfo | CEO | No |
+| Product Manager | product-manager | CEO | Yes |
+| Project Manager | project-manager | CEO | No |
+| Engineering Manager | engineering-manager | CEO | Yes |
+| Code Reviewer | code-reviewer | EM | No |
+| QA Engineer | qa-engineer | EM | No |
+| DevOps Engineer | devops-engineer | EM | No |
+| Documentation Manager | documentation-manager | PM | No |
+| Web Designer | web-designer | PM | No |
+| Web Designer Engineer | web-designer-engineer | PM | No |
+| Public Relations Manager | public-relations-manager | CEO | No |
+| Decision Maker | decision-maker | CEO | No |
+| Housekeeping Bot | housekeeping-bot | - | No |
+
+## Agent Lifecycle
+
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        AgentiCorp                               │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │              Main Orchestrator                       │   │
-│  │  - Manages Agent/Provider lifecycle                  │   │
-│  │  - Coordinates operations                            │   │
-│  │  - Ensures security and data integrity               │   │
-│  └────────────┬──────────────────────┬──────────────────┘   │
-│               │                      │                       │
-│  ┌────────────▼──────────┐  ┌───────▼────────────────┐    │
-│  │    Database Layer      │  │   Key Manager          │    │
-│  │                        │  │                        │    │
-│  │  - Agents table        │  │  - Encrypted storage   │    │
-│  │  - Providers table     │  │  - AES-256-GCM         │    │
-│  │  - SQLite backend      │  │  - PBKDF2 (100k iter)  │    │
-│  │  - Foreign keys        │  │  - Per-key salt/nonce  │    │
-│  └────────────────────────┘  └────────────────────────┘    │
-│                                                              │
-│  ┌──────────────────────────────────────────────────────┐  │
-│  │             Configuration                             │  │
-│  │  - Password from env or secure prompt                │  │
-│  │  - Data directory management                         │  │
-│  │  - No password storage                               │  │
-│  └──────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────┘
+                    ┌──────────┐
+    Create Agent    │  paused  │  No provider assigned
+    (org chart      └────┬─────┘
+     bootstrap)          │
+                         │ Assign Provider
+                         ▼
+                    ┌──────────┐
+                    │   idle   │  Ready for work
+                    └────┬─────┘
+                         │
+              ┌──────────┴──────────┐
+              │ Assign Bead         │ Blocked (waiting)
+              ▼                     ▼
+         ┌──────────┐         ┌──────────┐
+         │ working  │────────►│ blocked  │
+         └────┬─────┘         └────┬─────┘
+              │                    │
+              │ Complete Bead      │ Unblocked
+              ▼                    ▼
+         ┌──────────┐         ┌──────────┐
+         │   idle   │◄────────│ working  │
+         └────┬─────┘         └──────────┘
+              │
+              │ Stop Agent
+              ▼
+         ┌──────────┐
+         │ shutdown │
+         └──────────┘
 ```
 
-## Data Flow
+## Entity Versioning System
 
-### 1. Initialization
-```
-User starts AgentiCorp
-  ↓
-Check AGENTICORP_PASSWORD env variable
-  ↓
-If not found, prompt user (hidden input)
-  ↓
-Initialize database connection
-  ↓
-Unlock key manager with password
-  ↓
-Ready to orchestrate
-```
+AgentiCorp uses a robust entity versioning system to handle schema evolution without breaking backward compatibility.
 
-### 2. Creating a Provider with Credentials
-```
-User creates provider with API key
-  ↓
-AgentiCorp encrypts API key with key manager
-  ↓
-Store encrypted key with unique ID
-  ↓
-Store provider record in database with key_id reference
-  ↓
-Provider ready for use
-```
+### Core Concepts
 
-### 3. Creating an Agent
-```
-User creates agent with provider reference
-  ↓
-AgentiCorp verifies provider exists
-  ↓
-Store agent record in database
-  ↓
-Foreign key ensures referential integrity
-  ↓
-Agent ready to use provider
+Every entity (Agent, Project, Provider, OrgChart, Position, Persona, Bead) includes:
+
+1. **SchemaVersion**: Tracks the schema version (e.g., "1.0", "1.1")
+2. **Attributes**: Extensible `map[string]any` for adding fields without schema changes
+3. **MigrationRegistry**: Handles version-to-version transformations
+
+### When to Use Each Approach
+
+| Change Type | Approach | Requires Migration |
+|-------------|----------|-------------------|
+| Add optional field | Use `Attributes` map | No |
+| Add required field | Bump schema version | Yes |
+| Rename field | Bump schema version | Yes (breaking) |
+| Delete field | Move to Attributes, bump version | Yes |
+| Change field type | Bump schema version | Yes (breaking) |
+| Add behavior | Use feature flag in Attributes | No |
+
+### Attributes
+
+The `Attributes` map provides extensible storage for optional fields:
+
+```go
+// Set an attribute
+agent.SetAttribute("ui.color", "#FF5733")
+agent.SetAttribute("metrics.run_count", 42)
+
+// Get typed attributes with defaults
+color := agent.GetStringAttribute("ui.color", "#000000")
+count := agent.GetIntAttribute("metrics.run_count", 0)
+enabled := agent.GetBoolAttribute("feature.beta", false)
 ```
 
-### 4. Using an Agent
-```
-Retrieve agent by ID
-  ↓
-Get associated provider
-  ↓
-If provider requires key, decrypt from key manager
-  ↓
-Return agent, provider, and decrypted API key
-  ↓
-Use credentials to communicate with provider
+Standard attribute namespaces:
+- `ui.*` - UI display hints (color, icon, display_name)
+- `metrics.*` - Runtime statistics
+- `feature.*` - Feature flags
+- `behavior.*` - Behavioral configuration
+- `legacy.*` - Deprecated fields preserved for compatibility
+
+### Migration Registry
+
+Migrations transform entities from one schema version to another:
+
+```go
+// Register a migration
+RegisterMigration(
+    EntityTypeAgent, "1.0", "1.1",
+    "Add default tags and rename role to job_title",
+    true, // Breaking change
+    func(entity VersionedEntity) error {
+        agent := entity.(*Agent)
+        // Preserve old value
+        agent.SetAttribute("legacy.role", agent.Role)
+        // Set defaults for new fields
+        if !agent.HasAttribute("tags") {
+            agent.SetAttribute("tags", []string{})
+        }
+        return nil
+    },
+)
 ```
 
-### 5. Provider Heartbeats
-```
-Temporal schedules provider heartbeat workflow
-  ↓
-Provider activity calls /models to validate responsiveness
-  ↓
-Provider status + latency persisted in DB
-  ↓
-Registry updated and dispatch skips disabled providers
+### Migration on Load
+
+Entities are automatically migrated when loaded from the database:
+
+```go
+// Ensure entity is at latest version
+if err := EnsureMigrated(agent); err != nil {
+    log.Printf("Migration failed: %v", err)
+}
 ```
 
-### 6. CEO REPL Query
+### Database Schema
+
+All entity tables include versioning columns:
+
+```sql
+-- Added to every entity table
+schema_version TEXT NOT NULL DEFAULT '1.0',
+attributes_json TEXT
 ```
-CEO submits REPL prompt
-  ↓
-API selects best active provider (quality + latency)
-  ↓
-Temporal runs provider query workflow
-  ↓
-Response returned with provider/model metadata
-```
+
+### Best Practices
+
+1. **Never remove fields** - Move to Attributes with `legacy.*` prefix
+2. **Use Attributes for optional data** - Avoids schema changes
+3. **Mark breaking migrations** - Set `breaking: true` for field renames/deletes
+4. **Test migrations** - Write tests for each migration path
+5. **Document changes** - Add description to each migration
 
 ## Security Model
 
-### Encryption at Rest
+### Key Manager
+
+The Key Manager securely stores provider API credentials:
+
 - **Algorithm**: AES-256-GCM (Galois/Counter Mode)
-- **Key Derivation**: PBKDF2 with SHA-256
-- **Iterations**: 100,000 (protects against brute force)
+- **Key Derivation**: PBKDF2 with SHA-256 (100,000 iterations)
 - **Salt**: 32 bytes per key (unique)
 - **Nonce**: 12 bytes per key (unique)
 
 ### Password Handling
+
 - **Never stored**: Password exists only in memory
-- **Environment variable**: `AGENTICORP_PASSWORD` (for automation)
-- **Interactive prompt**: Hidden input using `golang.org/x/term`
+- **Environment variable**: `AGENTICORP_PASSWORD` for automation
+- **Interactive prompt**: Hidden input for security
 - **Memory clearing**: Password cleared when key manager locks
 
-### File Permissions
-- **Key store**: `0600` (owner read/write only)
-- **Database**: Default SQLite permissions
-- **Data directory**: `0700` (owner access only)
+## Temporal Workflow Integration
 
-### Key Store Structure
-```json
-{
-  "keys": {
-    "key_openai-gpt4": {
-      "id": "key_openai-gpt4",
-      "name": "OpenAI GPT-4",
-      "description": "API Key for OpenAI GPT-4",
-      "encrypted_data": "base64-encoded-encrypted-key",
-      "created_at": "2026-01-18T17:00:00Z",
-      "updated_at": "2026-01-18T17:00:00Z"
-    }
-  }
-}
+AgentiCorp uses [Temporal](https://temporal.io) for durable workflow orchestration:
+
+### Workflows
+
+| Workflow | Purpose |
+|----------|---------|
+| Agent Lifecycle | Manages agent state (spawned → working → idle → shutdown) |
+| Bead Processing | Tracks work item lifecycle (open → in_progress → closed) |
+| Decision | Handles approval workflows with timeout |
+| Event Aggregator | Collects and distributes events |
+| Provider Heartbeat | Monitors provider health |
+
+### Event Bus
+
+Real-time event streaming via SSE:
+
 ```
-
-## Database Schema
-
-### Providers Table
-```sql
-CREATE TABLE providers (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    type TEXT NOT NULL,              -- openai, anthropic, local, etc.
-    endpoint TEXT NOT NULL,          -- URL or path
-    model TEXT,
-    configured_model TEXT,
-    selected_model TEXT,
-    selection_reason TEXT,
-    model_score REAL,
-    selected_gpu TEXT,
-    description TEXT,
-    requires_key BOOLEAN NOT NULL,   -- Does it need credentials?
-    key_id TEXT,                     -- Reference to key manager
-    status TEXT NOT NULL,            -- active, inactive, etc.
-    last_heartbeat_at DATETIME,
-    last_heartbeat_latency_ms INTEGER,
-    last_heartbeat_error TEXT,
-    created_at DATETIME NOT NULL,
-    updated_at DATETIME NOT NULL
-);
-```
-
-### Agents Table
-```sql
-CREATE TABLE agents (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    description TEXT,
-    provider_id TEXT NOT NULL,       -- Foreign key to providers
-    status TEXT NOT NULL,            -- active, inactive, etc.
-    config TEXT,                     -- JSON configuration
-    created_at DATETIME NOT NULL,
-    updated_at DATETIME NOT NULL,
-    FOREIGN KEY (provider_id) REFERENCES providers(id) ON DELETE CASCADE
-);
-```
-
-## API Usage Examples
-
-### Creating a Provider
-```go
-provider := &models.Provider{
-    ID:          "openai-gpt4",
-    Name:        "OpenAI GPT-4",
-    Type:        "openai",
-    Endpoint:    "https://api.openai.com/v1",
-    Description: "OpenAI GPT-4 API",
-    RequiresKey: true,
-    Status:      "active",
-}
-
-apiKey := "sk-..."
-err := agenticorp.CreateProvider(provider, apiKey)
-```
-
-### Creating an Agent
-```go
-agent := &models.Agent{
-    ID:          "coding-agent",
-    Name:        "Coding Assistant",
-    Description: "AI coding assistant",
-    ProviderID:  "openai-gpt4",
-    Status:      "active",
-    Config:      `{"model": "gpt-4", "temperature": 0.7}`,
-}
-
-err := agenticorp.CreateAgent(agent)
-```
-
-### Using an Agent
-```go
-agent, provider, apiKey, err := agenticorp.GetAgentWithProvider("coding-agent")
-if err != nil {
-    log.Fatal(err)
-}
-
-// Use agent, provider, and apiKey to make AI requests
-// The apiKey is decrypted and ready to use
+Event Types:
+- agent.spawned        - New agent created
+- agent.status_change  - Agent status updated
+- bead.created         - New work item created
+- bead.assigned        - Work assigned to agent
+- decision.created     - Decision point created
+- decision.resolved    - Decision made
 ```
 
 ## Directory Structure
 
 ```
 agenticorp/
-├── cmd/agenticorp/              # Main application
-│   └── main.go              # Entry point and orchestrator
+├── cmd/agenticorp/          # Main application entry point
 ├── internal/
-│   ├── config/              # Configuration management
-│   │   └── config.go        # Password handling, data paths
-│   ├── database/            # Database layer
-│   │   ├── database.go      # SQLite operations
-│   │   └── database_test.go # Database tests
-│   ├── keymanager/          # Key management
-│   │   ├── keymanager.go    # Encryption/decryption
-│   │   └── keymanager_test.go # Key manager tests
-│   └── models/              # Data models
-│       ├── agent.go         # Agent model
-│       └── provider.go      # Provider model
-├── go.mod                   # Go module definition
-├── go.sum                   # Dependency checksums
-├── README.md               # User documentation
-├── ARCHITECTURE.md         # This file
-└── LICENSE                 # License information
+│   ├── agent/               # Agent management
+│   ├── agenticorp/          # Core orchestrator
+│   ├── api/                 # HTTP API handlers
+│   ├── beads/               # Work item management
+│   ├── database/            # SQLite database layer
+│   ├── decision/            # Decision framework
+│   ├── keymanager/          # Credential encryption
+│   ├── orgchart/            # Org chart management
+│   ├── project/             # Project management
+│   ├── provider/            # Provider registry
+│   └── temporal/            # Temporal integration
+├── pkg/
+│   ├── config/              # Configuration
+│   └── models/              # Shared data models
+├── personas/
+│   ├── agenticorp/          # Self-improvement persona
+│   └── default/             # Default role personas
+├── web/
+│   └── static/              # Web UI (HTML, CSS, JS)
+├── config.yaml              # Configuration file
+├── docker-compose.yml       # Container orchestration
+└── Dockerfile               # Multi-stage Docker build
 ```
 
-## Design Decisions
+## API Overview
 
-### Why SQLite?
-- **Embedded**: No separate database server needed
-- **ACID**: Full transaction support
-- **Portable**: Single file database
-- **Lightweight**: Perfect for local orchestration
-- **Mature**: Well-tested and reliable
+### Projects
+- `GET /api/v1/projects` - List all projects
+- `GET /api/v1/projects/{id}` - Get project details
+- `POST /api/v1/projects/{id}/close` - Close project
+- `POST /api/v1/projects/{id}/reopen` - Reopen project
 
-### Why AES-256-GCM?
-- **Authenticated encryption**: Detects tampering
-- **NIST approved**: Widely trusted standard
-- **Fast**: Hardware acceleration on modern CPUs
-- **Secure**: No known practical attacks
+### Agents
+- `GET /api/v1/agents` - List all agents
+- `POST /api/v1/agents` - Spawn new agent
+- `GET /api/v1/agents/{id}` - Get agent details
+- `PUT /api/v1/agents/{id}` - Update agent
+- `DELETE /api/v1/agents/{id}` - Stop agent
+- `POST /api/v1/agents/{id}/clone` - Clone agent with new persona
 
-### Why PBKDF2?
-- **Standard**: NIST and IETF approved
-- **Tunable**: Iteration count can increase over time
-- **Well-understood**: Extensively analyzed
-- **Compatible**: Wide library support
+### Providers
+- `GET /api/v1/providers` - List all providers
+- `POST /api/v1/providers` - Create provider
+- `GET /api/v1/providers/{id}` - Get provider details
+- `PUT /api/v1/providers/{id}` - Update provider
+- `DELETE /api/v1/providers/{id}` - Delete provider
 
-### Why No Password Storage?
-- **Security**: Reduces attack surface
-- **Best practice**: Password should only exist in user's mind
-- **Ephemeral**: Process memory is temporary
-- **User control**: User must be present to unlock
+### Events
+- `GET /api/v1/events/stream` - SSE event stream
+- `GET /api/v1/events/stats` - Event statistics
 
-## Future Considerations
+### Work Items
+- `GET /api/v1/beads` - List beads
+- `POST /api/v1/beads` - Create bead
+- `GET /api/v1/beads/{id}` - Get bead
+- `PUT /api/v1/beads/{id}` - Update bead
 
-### Possible Enhancements
-- Add agent execution engine
-- Implement provider communication layer
-- Add task queuing and scheduling
-- Support for agent chaining
-- Monitoring and logging system
-- Web UI for management
-- Multi-user support with RBAC
-- Backup and restore functionality
+## Configuration
 
-### Security Enhancements
-- Hardware security module (HSM) support
-- Biometric authentication
-- Two-factor authentication
-- Audit logging
-- Key rotation
-- Certificate-based authentication for providers
+Configuration is managed via `config.yaml`:
 
-### Scalability
-- Distributed orchestration
-- Provider pooling
-- Load balancing
-- High availability
-- Horizontal scaling
+```yaml
+server:
+  http_port: 8080
 
-## Temporal Workflow Architecture
+temporal:
+  host: localhost:7233
+  namespace: agenticorp-default
+  task_queue: agenticorp-tasks
 
-### Overview
+agents:
+  max_concurrent: 20
+  default_persona_path: ./personas
+  heartbeat_interval: 30s
 
-AgentiCorp uses [Temporal](https://temporal.io) as its workflow orchestration engine. Temporal provides durable execution, automatic retries, and a complete audit trail for all workflows.
-
-### Architecture Diagram
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                        AgentiCorp                               │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │         AgentiCorp Orchestrator                         │   │
-│  │  - Spawns agents with personas                       │   │
-│  │  - Creates beads (work items)                        │   │
-│  │  - Manages decisions                                 │   │
-│  └────────┬──────────────────────┬─────────────────────┘   │
-│           │                      │                           │
-│  ┌────────▼──────────┐  ┌───────▼────────────────┐         │
-│  │  Temporal Manager  │  │   Event Bus            │         │
-│  │  - Workflow starter│  │   - Pub/Sub messaging  │         │
-│  │  - Signal sender   │  │   - Event filtering    │         │
-│  │  - Query executor  │  │   - SSE streaming      │         │
-│  └────────┬───────────┘  └───────┬────────────────┘         │
-└───────────┼──────────────────────┼──────────────────────────┘
-            │                      │
-            │  gRPC (7233)         │  HTTP/SSE (8080)
-            │                      │
-┌───────────▼──────────────────────▼──────────────────────────┐
-│                     Temporal Server                          │
-│  ┌──────────────────────────────────────────────────────┐  │
-│  │  Temporal Worker (in AgentiCorp process)                 │  │
-│  │  - AgentLifecycleWorkflow                            │  │
-│  │  - BeadProcessingWorkflow                            │  │
-│  │  - DecisionWorkflow                                  │  │
-│  │  - EventAggregatorWorkflow                           │  │
-│  │  - Activities (event publishing, notifications)      │  │
-│  └──────────────────────────────────────────────────────┘  │
-│                                                              │
-│  ┌──────────────────────────────────────────────────────┐  │
-│  │  Temporal Core Services                               │  │
-│  │  - History Service (workflow state)                  │  │
-│  │  - Matching Service (task routing)                   │  │
-│  │  - Frontend Service (gRPC API)                       │  │
-│  └─────────────────────┬────────────────────────────────┘  │
-└────────────────────────┼─────────────────────────────────────┘
-                         │
-                         │  SQL
-                         │
-              ┌──────────▼──────────┐
-              │    PostgreSQL       │
-              │  - Workflow history │
-              │  - Task queues      │
-              │  - Timers           │
-              └─────────────────────┘
+projects:
+  - id: agenticorp
+    name: AgentiCorp
+    git_repo: https://github.com/jordanhubbard/agenticorp
+    branch: main
+    beads_path: .beads
+    is_perpetual: true
 ```
 
-### Workflow Patterns
+## Future Enhancements
 
-#### 1. Agent Lifecycle Workflow
-
-Manages the complete lifecycle of an agent from spawn to shutdown.
-
-**Workflow ID**: `agent-{agentID}`
-
-**State Machine**:
-```
-spawned → idle ⟷ working → shutdown
-                    ↓
-                 blocked
-```
-
-**Signals**:
-- `updateStatus`: Change agent status
-- `assignBead`: Assign work to agent
-- `shutdown`: Gracefully stop agent
-
-**Queries**:
-- `getStatus`: Get current agent status
-- `getCurrentBead`: Get currently assigned work
-
-**Use Cases**:
-- Track agent activity
-- Monitor agent health
-- Coordinate agent tasks
-- Graceful shutdown
-
-**Example**:
-```go
-// Start agent workflow
-err := temporalManager.StartAgentWorkflow(
-    ctx, 
-    agentID, 
-    projectID, 
-    personaName, 
-    agentName,
-)
-
-// Query agent status
-status, err := temporalManager.QueryAgentWorkflow(
-    ctx,
-    agentID,
-    "getStatus",
-)
-
-// Signal agent to shutdown
-err := temporalManager.SignalAgentWorkflow(
-    ctx,
-    agentID,
-    "shutdown",
-    "maintenance",
-)
-```
-
-#### 2. Bead Processing Workflow
-
-Manages the lifecycle of a work item (bead) from creation to completion.
-
-**Workflow ID**: `bead-{beadID}`
-
-**State Machine**:
-```
-open → in_progress → closed
-  ↓         ↓
-blocked   blocked
-```
-
-**Updates** (Workflow Updates API):
-- `assignToAgent`: Assign bead to agent
-- `updateStatus`: Change bead status
-- `complete`: Mark bead as done
-
-**Queries**:
-- `getStatus`: Get current bead status
-- `getAssignedAgent`: Get assigned agent ID
-
-**Signals**:
-- `statusChange`: External status change
-
-**Use Cases**:
-- Track work progress
-- Manage dependencies
-- Prevent merge conflicts
-- Audit work history
-
-**Example**:
-```go
-// Start bead workflow
-err := temporalManager.StartBeadWorkflow(
-    ctx,
-    beadID,
-    projectID,
-    title,
-    description,
-    priority,
-    beadType,
-)
-
-// Update bead status
-err := temporalManager.SignalBeadWorkflow(
-    ctx,
-    beadID,
-    "statusChange",
-    "in_progress",
-)
-```
-
-#### 3. Decision Workflow
-
-Handles approval workflows with timeout for agent decisions.
-
-**Workflow ID**: `decision-{decisionID}`
-
-**State Machine**:
-```
-pending → resolved
-   ↓
-timeout (after 48h)
-```
-
-**Updates**:
-- `resolve`: Resolve decision with choice
-
-**Queries**:
-- `getStatus`: Get decision status
-- `getDecision`: Get decision result
-
-**Timeout**: 48 hours (configurable)
-
-**Use Cases**:
-- Agent approval requests
-- Human-in-the-loop decisions
-- P0 priority items
-- Critical path decisions
-
-**Example**:
-```go
-// Start decision workflow
-err := temporalManager.StartDecisionWorkflow(
-    ctx,
-    decisionID,
-    projectID,
-    question,
-    requesterID,
-    options,
-)
-
-// Wait for decision (in separate goroutine)
-workflowRun := client.GetWorkflow(ctx, "decision-"+decisionID, "")
-var decision string
-err := workflowRun.Get(ctx, &decision)
-```
-
-#### 4. Event Aggregator Workflow
-
-Long-running workflow that aggregates events for a project.
-
-**Workflow ID**: `events-{projectID}`
-
-**Features**:
-- Receives event signals
-- Maintains event history
-- Supports continue-as-new for long histories
-- Provides event queries
-
-**Signals**:
-- `event`: Publish event to aggregator
-
-**Use Cases**:
-- Event history tracking
-- Metrics aggregation
-- Audit logging
-- Timeline reconstruction
-
-### Event Bus Architecture
-
-The event bus provides real-time pub/sub messaging using Go channels backed by Temporal workflows.
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                     Event Bus                            │
-│                                                          │
-│  ┌──────────────┐      ┌──────────────────────────┐   │
-│  │   Publisher  │─────▶│  Event Buffer (chan)     │   │
-│  │  (Managers)  │      │  Capacity: 1000          │   │
-│  └──────────────┘      └──────────┬───────────────┘   │
-│                                   │                     │
-│                        ┌──────────▼──────────┐         │
-│                        │  Event Distributor  │         │
-│                        │  - Apply filters    │         │
-│                        │  - Non-blocking     │         │
-│                        └──────────┬──────────┘         │
-│                                   │                     │
-│         ┌─────────────────────────┼─────────────┐      │
-│         │                         │             │      │
-│    ┌────▼─────┐            ┌─────▼────┐  ┌────▼────┐ │
-│    │Subscriber│            │Subscriber│  │Subscriber│ │
-│    │ (UI/SSE) │            │ (Logger) │  │ (Metrics)│ │
-│    └──────────┘            └──────────┘  └──────────┘ │
-└─────────────────────────────────────────────────────────┘
-```
-
-**Event Types**:
-- `agent.spawned`: New agent created
-- `agent.status_change`: Agent status updated
-- `agent.completed`: Agent finished
-- `bead.created`: Work item created
-- `bead.assigned`: Work assigned
-- `bead.status_change`: Status updated
-- `bead.completed`: Work finished
-- `decision.created`: Decision requested
-- `decision.resolved`: Decision made
-- `log.message`: System log
-
-**Subscriber Filters**:
-```go
-// Filter by project
-filter := func(event *Event) bool {
-    return event.ProjectID == "my-project"
-}
-
-// Filter by event type
-filter := func(event *Event) bool {
-    return event.Type == "agent.spawned"
-}
-
-// Combined filter
-filter := func(event *Event) bool {
-    return event.ProjectID == "my-project" && 
-           strings.HasPrefix(string(event.Type), "bead.")
-}
-```
-
-### API Event Streaming
-
-Server-Sent Events (SSE) endpoint for real-time updates:
-
-**Endpoint**: `GET /api/v1/events/stream`
-
-**Query Parameters**:
-- `project_id`: Filter by project
-- `type`: Filter by event type
-
-**Response Format**:
-```
-event: agent.spawned
-data: {"id":"evt-123","type":"agent.spawned","timestamp":"...","data":{...}}
-
-event: bead.created
-data: {"id":"evt-124","type":"bead.created","timestamp":"...","data":{...}}
-```
-
-**Client Example**:
-```javascript
-const eventSource = new EventSource(
-    '/api/v1/events/stream?project_id=my-project'
-);
-
-eventSource.addEventListener('agent.spawned', (e) => {
-    const event = JSON.parse(e.data);
-    console.log('Agent spawned:', event);
-});
-```
-
-### Workflow Best Practices
-
-1. **Idempotency**: All activities should be idempotent
-2. **Timeouts**: Set appropriate timeouts for all operations
-3. **Retries**: Configure retry policies for transient failures
-4. **Continue-As-New**: Use for long-running workflows
-5. **Signals vs Updates**: Use Updates for synchronous operations
-6. **Query State**: Use queries for read-only state access
-7. **Event Publishing**: Publish events for all state changes
-
-### Deployment Considerations
-
-1. **Worker Scaling**: Workers can be scaled horizontally
-2. **Task Queues**: Use separate queues for different workflow types
-3. **Namespaces**: Use different namespaces per environment
-4. **Retention**: Configure workflow history retention
-5. **Monitoring**: Use Temporal UI and metrics
-6. **Backup**: Regular PostgreSQL backups
-
-### Monitoring and Observability
-
-**Temporal UI** (http://localhost:8088):
-- View all workflow executions
-- Inspect workflow history
-- Query workflow state
-- Monitor active workflows
-- Debug workflow failures
-
-**Metrics**:
-- Workflow start/completion rates
-- Activity success/failure rates
-- Task queue depth
-- Worker utilization
-- Event bus throughput
-
-**Logging**:
-- Workflow execution logs
-- Activity execution logs
-- Event bus logs
-- Integration point logs
+- [ ] Sub-project inheritance of org charts
+- [ ] Org chart visual editor in UI
+- [ ] Position-based access control
+- [ ] Multi-tenancy support
+- [ ] Agent performance metrics
+- [ ] Automated provider selection based on task type

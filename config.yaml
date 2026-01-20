@@ -22,7 +22,7 @@ beads:
   compact_old_days: 90  # Compact closed beads older than 90 days
 
 agents:
-  max_concurrent: 10
+  max_concurrent: 20
   default_persona_path: ./personas
   heartbeat_interval: 30s
   file_lock_timeout: 10m

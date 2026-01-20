@@ -4,6 +4,8 @@ import "time"
 
 // Persona represents an agent's personality, capabilities, and behavioral guidelines
 type Persona struct {
+	EntityMetadata `json:",inline" yaml:",inline"`
+
 	Name                 string   `json:"name" yaml:"name"`
 	Character            string   `json:"character" yaml:"character"`
 	Tone                 string   `json:"tone" yaml:"tone"`
@@ -29,20 +31,37 @@ type Persona struct {
 	UpdatedAt time.Time `json:"updated_at" yaml:"updated_at"`
 }
 
+// VersionedEntity interface implementation for Persona
+func (p *Persona) GetEntityType() EntityType         { return EntityTypePersona }
+func (p *Persona) GetSchemaVersion() SchemaVersion   { return p.EntityMetadata.SchemaVersion }
+func (p *Persona) SetSchemaVersion(v SchemaVersion)  { p.EntityMetadata.SchemaVersion = v }
+func (p *Persona) GetEntityMetadata() *EntityMetadata { return &p.EntityMetadata }
+func (p *Persona) GetID() string                     { return p.Name }
+
 // Agent represents a running agent instance with a specific persona
 type Agent struct {
+	EntityMetadata `json:",inline"`
+
 	ID          string    `json:"id"`
 	Name        string    `json:"name"`
 	Role        string    `json:"role,omitempty"`
 	PersonaName string    `json:"persona_name"`
 	Persona     *Persona  `json:"persona,omitempty"`
 	ProviderID  string    `json:"provider_id,omitempty"`
-	Status      string    `json:"status"` // "idle", "working", "deciding", "blocked"
+	Status      string    `json:"status"` // "paused", "idle", "working", "deciding", "blocked"
 	CurrentBead string    `json:"current_bead,omitempty"`
 	ProjectID   string    `json:"project_id"`
+	PositionID  string    `json:"position_id,omitempty"` // Link to org chart position
 	StartedAt   time.Time `json:"started_at"`
 	LastActive  time.Time `json:"last_active"`
 }
+
+// VersionedEntity interface implementation for Agent
+func (a *Agent) GetEntityType() EntityType          { return EntityTypeAgent }
+func (a *Agent) GetSchemaVersion() SchemaVersion    { return a.EntityMetadata.SchemaVersion }
+func (a *Agent) SetSchemaVersion(v SchemaVersion)   { a.EntityMetadata.SchemaVersion = v }
+func (a *Agent) GetEntityMetadata() *EntityMetadata { return &a.EntityMetadata }
+func (a *Agent) GetID() string                      { return a.ID }
 
 // ProjectStatus represents the current state of a project
 type ProjectStatus string
@@ -64,11 +83,14 @@ type ProjectComment struct {
 
 // Project represents a project that agents work on
 type Project struct {
+	EntityMetadata `json:",inline"`
+
 	ID          string            `json:"id"`
 	Name        string            `json:"name"`
 	GitRepo     string            `json:"git_repo"`
 	Branch      string            `json:"branch"`
 	BeadsPath   string            `json:"beads_path"`   // Path to .beads directory
+	ParentID    string            `json:"parent_id,omitempty"` // For sub-projects
 	Context     map[string]string `json:"context"`      // Additional context for agents
 	Status      ProjectStatus     `json:"status"`       // Current project status
 	IsPerpetual bool              `json:"is_perpetual"` // If true, project never closes
@@ -79,6 +101,13 @@ type Project struct {
 	ClosedAt    *time.Time        `json:"closed_at,omitempty"`
 	Agents      []string          `json:"agents"` // Agent IDs working on this project
 }
+
+// VersionedEntity interface implementation for Project
+func (p *Project) GetEntityType() EntityType          { return EntityTypeProject }
+func (p *Project) GetSchemaVersion() SchemaVersion    { return p.EntityMetadata.SchemaVersion }
+func (p *Project) SetSchemaVersion(v SchemaVersion)   { p.EntityMetadata.SchemaVersion = v }
+func (p *Project) GetEntityMetadata() *EntityMetadata { return &p.EntityMetadata }
+func (p *Project) GetID() string                      { return p.ID }
 
 // BeadStatus represents the status of a bead
 type BeadStatus string
@@ -102,6 +131,8 @@ const (
 
 // Bead represents a work item or decision point
 type Bead struct {
+	EntityMetadata `json:",inline"`
+
 	ID          string            `json:"id"`
 	Type        string            `json:"type"` // "task", "decision", "epic"
 	Title       string            `json:"title"`
@@ -121,6 +152,13 @@ type Bead struct {
 	UpdatedAt   time.Time         `json:"updated_at"`
 	ClosedAt    *time.Time        `json:"closed_at,omitempty"`
 }
+
+// VersionedEntity interface implementation for Bead
+func (b *Bead) GetEntityType() EntityType          { return EntityTypeBead }
+func (b *Bead) GetSchemaVersion() SchemaVersion    { return b.EntityMetadata.SchemaVersion }
+func (b *Bead) SetSchemaVersion(v SchemaVersion)   { b.EntityMetadata.SchemaVersion = v }
+func (b *Bead) GetEntityMetadata() *EntityMetadata { return &b.EntityMetadata }
+func (b *Bead) GetID() string                      { return b.ID }
 
 // DecisionBead represents a specific decision point that needs resolution
 type DecisionBead struct {

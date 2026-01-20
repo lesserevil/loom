@@ -58,6 +58,58 @@ func (m *WorkerManager) persistAgent(agent *models.Agent) {
 	_ = p.UpsertAgent(&copy)
 }
 
+// CreateAgent creates an agent without a worker (paused state until provider available)
+func (m *WorkerManager) CreateAgent(ctx context.Context, name, personaName, projectID, role string, persona *models.Persona) (*models.Agent, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Check if we've reached max agents
+	if len(m.agents) >= m.maxAgents {
+		return nil, fmt.Errorf("maximum number of agents (%d) reached", m.maxAgents)
+	}
+
+	// Generate agent ID
+	agentID := fmt.Sprintf("agent-%d-%s", time.Now().Unix(), name)
+
+	// Use persona name as agent name if custom name not provided
+	if name == "" {
+		name = personaName
+	}
+
+	// Derive role if not provided
+	if role == "" {
+		role = deriveRoleFromPersonaName(personaName)
+	}
+
+	agent := &models.Agent{
+		ID:          agentID,
+		Name:        name,
+		Role:        role,
+		PersonaName: personaName,
+		Persona:     persona,
+		ProviderID:  "", // No provider yet - agent is paused
+		Status:      "paused",
+		ProjectID:   projectID,
+		StartedAt:   time.Now(),
+		LastActive:  time.Now(),
+	}
+
+	m.agents[agentID] = agent
+	m.persistAgent(agent)
+
+	log.Printf("Created paused agent %s (role: %s) - waiting for provider", agent.Name, role)
+	if m.eventBus != nil {
+		_ = m.eventBus.PublishAgentEvent(eventbus.EventTypeAgentSpawned, agent.ID, projectID, map[string]interface{}{
+			"name":         agent.Name,
+			"role":         role,
+			"persona_name": personaName,
+			"status":       "paused",
+		})
+	}
+
+	return agent, nil
+}
+
 // SpawnAgentWorker creates and starts a new agent with a worker
 func (m *WorkerManager) SpawnAgentWorker(ctx context.Context, name, personaName, projectID, providerID string, persona *models.Persona) (*models.Agent, error) {
 	m.mu.Lock()

@@ -26,8 +26,8 @@ RUN CGO_ENABLED=1 GOOS=linux go build \
 # Runtime stage
 FROM alpine:latest
 
-# Install runtime dependencies
-RUN apk add --no-cache ca-certificates tzdata
+# Install runtime dependencies including git and openssh for git operations
+RUN apk add --no-cache ca-certificates tzdata git openssh-client
 
 # Create non-root user
 RUN addgroup -g 1000 agenticorp && \
@@ -45,11 +45,25 @@ COPY --from=builder /build/config.yaml /app/config.yaml
 # Copy personas directory
 COPY --from=builder /build/personas /app/personas
 
+# Copy web static files
+COPY --from=builder /build/web/static /app/web/static
+
+# Create SSH directory for mounted keys and set permissions
+RUN mkdir -p /home/agenticorp/.ssh && \
+    chown -R agenticorp:agenticorp /home/agenticorp/.ssh && \
+    chmod 700 /home/agenticorp/.ssh
+
+# Create source mount point
+RUN mkdir -p /app/src && chown agenticorp:agenticorp /app/src
+
 # Change ownership
 RUN chown -R agenticorp:agenticorp /app
 
 # Switch to non-root user
 USER agenticorp
+
+# Configure git to use SSH
+RUN git config --global core.sshCommand "ssh -i /home/agenticorp/.ssh/id_ecdsa -o UserKnownHostsFile=/home/agenticorp/.ssh/known_hosts"
 
 # Expose port (if needed in future)
 EXPOSE 8080

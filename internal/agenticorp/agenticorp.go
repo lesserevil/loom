@@ -19,6 +19,7 @@ import (
 	"github.com/jordanhubbard/agenticorp/internal/dispatch"
 	"github.com/jordanhubbard/agenticorp/internal/modelcatalog"
 	internalmodels "github.com/jordanhubbard/agenticorp/internal/models"
+	"github.com/jordanhubbard/agenticorp/internal/orgchart"
 	"github.com/jordanhubbard/agenticorp/internal/persona"
 	"github.com/jordanhubbard/agenticorp/internal/project"
 	"github.com/jordanhubbard/agenticorp/internal/provider"
@@ -39,6 +40,7 @@ type AgentiCorp struct {
 	beadsManager     *beads.Manager
 	decisionManager  *decision.Manager
 	fileLockManager  *FileLockManager
+	orgChartManager  *orgchart.Manager
 	providerRegistry *provider.Registry
 	database         *database.Database
 	dispatcher       *dispatch.Dispatcher
@@ -107,6 +109,7 @@ func New(cfg *config.Config) (*AgentiCorp, error) {
 		beadsManager:     beads.NewManager(cfg.Beads.BDPath),
 		decisionManager:  decision.NewManager(),
 		fileLockManager:  NewFileLockManager(cfg.Agents.FileLockTimeout),
+		orgChartManager:  orgchart.NewManager(),
 		providerRegistry: providerRegistry,
 		database:         db,
 		eventBus:         eb,
@@ -458,6 +461,11 @@ func (a *AgentiCorp) GetDecisionManager() *decision.Manager {
 	return a.decisionManager
 }
 
+// GetOrgChartManager returns the org chart manager
+func (a *AgentiCorp) GetOrgChartManager() *orgchart.Manager {
+	return a.orgChartManager
+}
+
 // Project management helpers
 
 func (a *AgentiCorp) CreateProject(name, gitRepo, branch, beadsPath string, ctxMap map[string]string) (*models.Project, error) {
@@ -484,49 +492,64 @@ func (a *AgentiCorp) CreateProject(name, gitRepo, branch, beadsPath string, ctxM
 }
 
 func (a *AgentiCorp) ensureDefaultAgents(ctx context.Context, projectID string) error {
+	return a.ensureOrgChart(ctx, projectID)
+}
+
+// ensureOrgChart creates an org chart for a project and fills all positions with agents
+func (a *AgentiCorp) ensureOrgChart(ctx context.Context, projectID string) error {
 	project, err := a.projectManager.GetProject(projectID)
 	if err != nil {
 		return err
 	}
 
-	providers := a.providerRegistry.ListActive()
-	if len(providers) == 0 {
-		return nil
-	}
-
-	personaNames, err := a.personaManager.ListPersonas()
+	// Create or get the org chart for this project
+	chart, err := a.orgChartManager.CreateForProject(projectID, project.Name)
 	if err != nil {
 		return err
 	}
 
-	existing := map[string]struct{}{}
+	// Map existing agents to their roles
+	existingByRole := map[string]string{} // role -> agentID
 	for _, agent := range a.agentManager.ListAgentsByProject(project.ID) {
 		role := agent.Role
 		if role == "" {
 			role = roleFromPersonaName(agent.PersonaName)
 		}
 		if role != "" {
-			existing[role] = struct{}{}
+			existingByRole[role] = agent.ID
 		}
 	}
 
-	for _, personaName := range personaNames {
-		if !strings.HasPrefix(personaName, "default/") {
+	// Fill positions from existing agents first
+	for i := range chart.Positions {
+		pos := &chart.Positions[i]
+		if agentID, ok := existingByRole[pos.RoleName]; ok {
+			if !pos.HasAgent(agentID) && pos.CanAddAgent() {
+				pos.AgentIDs = append(pos.AgentIDs, agentID)
+			}
+		}
+	}
+
+	// Create agents for ALL positions that are still vacant (agents start paused without a provider)
+	for _, pos := range chart.Positions {
+		if pos.IsFilled() {
 			continue
 		}
-		roleName := strings.TrimPrefix(personaName, "default/")
-		if roleName == "" {
-			continue
+
+		// Check if persona exists
+		_, err := a.personaManager.LoadPersona(pos.PersonaPath)
+		if err != nil {
+			continue // Skip if persona doesn't exist
 		}
-		if _, ok := existing[roleName]; ok {
-			continue
-		}
-		// Format agent name as "Role Name (Persona Type)" for clarity
-		agentName := formatAgentName(roleName, "Default")
-		_, err := a.SpawnAgent(ctx, agentName, personaName, projectID, providers[0].Config.ID)
+
+		agentName := formatAgentName(pos.RoleName, "Default")
+		agent, err := a.CreateAgent(ctx, agentName, pos.PersonaPath, projectID, pos.RoleName)
 		if err != nil {
 			continue
 		}
+
+		// Assign agent to position in org chart
+		_ = a.orgChartManager.AssignAgentToRole(projectID, pos.RoleName, agent.ID)
 	}
 
 	return nil
@@ -560,25 +583,51 @@ func formatAgentName(roleName, personaType string) string {
 		}
 	}
 	titleRole := strings.Join(words, " ")
+	// Capitalize acronyms like CEO, CFO
+	titleRole = capitalizeAcronyms(titleRole)
 	return fmt.Sprintf("%s (%s)", titleRole, personaType)
+}
+
+// capitalizeAcronyms capitalizes known acronyms like CEO, CFO
+func capitalizeAcronyms(name string) string {
+	// Only replace whole words (space-bounded or at start/end)
+	words := strings.Split(name, " ")
+	acronyms := map[string]string{
+		"Ceo": "CEO",
+		"Cfo": "CFO",
+		"Qa":  "QA",
+	}
+	for i, word := range words {
+		if replacement, ok := acronyms[word]; ok {
+			words[i] = replacement
+		}
+	}
+	return strings.Join(words, " ")
 }
 
 func normalizeBeadsPath(path string) string {
 	trimmed := strings.TrimSpace(path)
 	if trimmed == "" {
-		return ".beads"
+		trimmed = ".beads"
 	}
-	if beadsPathExists(trimmed) {
-		return trimmed
+
+	// Check paths in order of priority
+	candidates := []string{
+		trimmed,
+		// Container mount path (source mounted at /app/src)
+		filepath.Join("/app/src", trimmed),
+		// Relative path with dot prefix
+		"." + strings.TrimPrefix(trimmed, "/"),
+		filepath.Join("/app/src", "."+strings.TrimPrefix(trimmed, "/")),
+		// Fallbacks
+		".beads",
+		"/app/src/.beads",
 	}
-	if !strings.HasPrefix(trimmed, ".") {
-		candidate := "." + strings.TrimPrefix(trimmed, "/")
+
+	for _, candidate := range candidates {
 		if beadsPathExists(candidate) {
 			return candidate
 		}
-	}
-	if beadsPathExists(".beads") {
-		return ".beads"
 	}
 	return trimmed
 }
@@ -717,6 +766,38 @@ func (a *AgentiCorp) DeleteProject(projectID string) error {
 }
 
 // SpawnAgent spawns a new agent with a given persona
+// CreateAgent creates an agent without requiring a provider (agent will be "paused" until provider available)
+func (a *AgentiCorp) CreateAgent(ctx context.Context, name, personaName, projectID, role string) (*models.Agent, error) {
+	// Load persona
+	persona, err := a.personaManager.LoadPersona(personaName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load persona: %w", err)
+	}
+
+	// Verify project exists
+	if _, err := a.projectManager.GetProject(projectID); err != nil {
+		return nil, fmt.Errorf("project not found: %w", err)
+	}
+
+	// Create agent record without a worker
+	agent, err := a.agentManager.CreateAgent(ctx, name, personaName, projectID, role, persona)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create agent: %w", err)
+	}
+
+	// Add agent to project
+	if err := a.projectManager.AddAgentToProject(projectID, agent.ID); err != nil {
+		return nil, fmt.Errorf("failed to add agent to project: %w", err)
+	}
+
+	// Persist agent to the configuration database
+	if a.database != nil {
+		_ = a.database.UpsertAgent(agent)
+	}
+
+	return agent, nil
+}
+
 func (a *AgentiCorp) SpawnAgent(ctx context.Context, name, personaName, projectID string, providerID string) (*models.Agent, error) {
 	// Load persona
 	persona, err := a.personaManager.LoadPersona(personaName)
@@ -777,6 +858,7 @@ func (a *AgentiCorp) StopAgent(ctx context.Context, agentID string) error {
 	}
 	_ = a.fileLockManager.ReleaseAgentLocks(agentID)
 	_ = a.projectManager.RemoveAgentFromProject(ag.ProjectID, ag.ID)
+	_ = a.orgChartManager.RemoveAgentFromAll(ag.ProjectID, agentID)
 	a.PersistProject(ag.ProjectID)
 	if a.database != nil {
 		_ = a.database.DeleteAgent(agentID)

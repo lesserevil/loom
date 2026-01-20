@@ -1,4 +1,4 @@
-.PHONY: all build build-all run restart test coverage fmt vet deps clean distclean install config dev-setup docker-build docker-run docker-stop docker-clean help lint lint-yaml
+.PHONY: all build build-all run restart test test-api coverage fmt vet deps clean distclean install config dev-setup docker-build docker-run docker-stop docker-clean help lint lint-yaml
 
 # Build variables
 BINARY_NAME=agenticorp
@@ -91,6 +91,11 @@ coverage:
 	go test -v -coverprofile=coverage.out ./...
 	go tool cover -html=coverage.out -o coverage.html
 
+# Run post-flight API tests (validates all APIs are responding)
+test-api:
+	@echo "Running post-flight API tests..."
+	@./tests/postflight/api_test.sh $(BASE_URL)
+
 # Format code
 fmt:
 	go fmt ./...
@@ -177,7 +182,8 @@ help:
 	@echo "  make build-all    - Build for multiple platforms"
 	@echo "  make run          - Build and run the application"
 	@echo "  make restart      - Build, stop containers, and run"
-	@echo "  make test         - Run tests"
+	@echo "  make test         - Run unit tests"
+	@echo "  make test-api     - Run post-flight API tests"
 	@echo "  make coverage     - Run tests with coverage report"
 	@echo "  make fmt          - Format code"
 	@echo "  make vet          - Run go vet"

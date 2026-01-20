@@ -1,10 +1,16 @@
 package models
 
-import "time"
+import (
+	"time"
+
+	"github.com/jordanhubbard/agenticorp/pkg/models"
+)
 
 // Provider represents an AI engine running on-prem or in the cloud
 // Providers may require credentials (keys) to communicate
 type Provider struct {
+	models.EntityMetadata `json:",inline"`
+
 	ID                     string    `json:"id"`
 	Name                   string    `json:"name"`
 	Type                   string    `json:"type"`     // openai, anthropic, local, etc.
@@ -25,3 +31,10 @@ type Provider struct {
 	CreatedAt              time.Time `json:"created_at"`
 	UpdatedAt              time.Time `json:"updated_at"`
 }
+
+// VersionedEntity interface implementation for Provider
+func (p *Provider) GetEntityType() models.EntityType          { return models.EntityTypeProvider }
+func (p *Provider) GetSchemaVersion() models.SchemaVersion    { return p.EntityMetadata.SchemaVersion }
+func (p *Provider) SetSchemaVersion(v models.SchemaVersion)   { p.EntityMetadata.SchemaVersion = v }
+func (p *Provider) GetEntityMetadata() *models.EntityMetadata { return &p.EntityMetadata }
+func (p *Provider) GetID() string                             { return p.ID }
