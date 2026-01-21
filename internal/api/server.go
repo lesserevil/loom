@@ -188,6 +188,7 @@ func (s *Server) SetupRoutes() http.Handler {
 	mux.HandleFunc("/api/v1/cache/stats", s.handleGetCacheStats)
 	mux.HandleFunc("/api/v1/cache/config", s.handleGetCacheConfig)
 	mux.HandleFunc("/api/v1/cache/clear", s.handleClearCache)
+	mux.HandleFunc("/api/v1/cache/invalidate", s.handleInvalidateCache)
 
 	// Configuration
 	mux.HandleFunc("/api/v1/config", s.handleConfig)

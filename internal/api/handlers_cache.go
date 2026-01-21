@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/jordanhubbard/agenticorp/internal/auth"
 	"github.com/jordanhubbard/agenticorp/internal/cache"
@@ -92,6 +93,71 @@ func (s *Server) handleClearCache(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success": true,
 		"message": "Cache cleared successfully",
+	})
+}
+
+// handleInvalidateCache handles POST /api/v1/cache/invalidate
+func (s *Server) handleInvalidateCache(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Authentication required (admin only)
+	role := auth.GetRoleFromRequest(r)
+	if role != "admin" {
+		http.Error(w, "Forbidden: admin access required", http.StatusForbidden)
+		return
+	}
+
+	if s.cache == nil {
+		http.Error(w, "Cache not initialized", http.StatusInternalServerError)
+		return
+	}
+
+	// Parse invalidation request
+	var req struct {
+		Type  string `json:"type"`  // "provider", "model", "age", "pattern"
+		Value string `json:"value"` // Provider ID, model name, age duration, or pattern
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	var removed int
+	var invalidationType string
+
+	switch req.Type {
+	case "provider":
+		removed = s.cache.InvalidateByProvider(r.Context(), req.Value)
+		invalidationType = "provider: " + req.Value
+	case "model":
+		removed = s.cache.InvalidateByModel(r.Context(), req.Value)
+		invalidationType = "model: " + req.Value
+	case "age":
+		duration, err := time.ParseDuration(req.Value)
+		if err != nil {
+			http.Error(w, "Invalid age duration: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		removed = s.cache.InvalidateByAge(r.Context(), duration)
+		invalidationType = "age: older than " + req.Value
+	case "pattern":
+		removed = s.cache.InvalidateByPattern(r.Context(), req.Value)
+		invalidationType = "pattern: " + req.Value
+	default:
+		http.Error(w, "Invalid invalidation type. Use: provider, model, age, or pattern", http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success":     true,
+		"removed":     removed,
+		"type":        invalidationType,
+		"invalidated_at": time.Now().Format(time.RFC3339),
 	})
 }
 

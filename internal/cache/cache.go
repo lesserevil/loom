@@ -194,6 +194,89 @@ func (c *Cache) Clear(ctx context.Context) {
 	c.mu.Unlock()
 }
 
+// InvalidateByProvider removes all cache entries for a specific provider
+func (c *Cache) InvalidateByProvider(ctx context.Context, providerID string) int {
+	if !c.config.Enabled {
+		return 0
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	removed := 0
+	for key, entry := range c.entries {
+		if entry.ProviderID == providerID {
+			delete(c.entries, key)
+			removed++
+		}
+	}
+
+	return removed
+}
+
+// InvalidateByModel removes all cache entries for a specific model
+func (c *Cache) InvalidateByModel(ctx context.Context, modelName string) int {
+	if !c.config.Enabled {
+		return 0
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	removed := 0
+	for key, entry := range c.entries {
+		if entry.ModelName == modelName {
+			delete(c.entries, key)
+			removed++
+		}
+	}
+
+	return removed
+}
+
+// InvalidateByAge removes all cache entries older than the specified duration
+func (c *Cache) InvalidateByAge(ctx context.Context, maxAge time.Duration) int {
+	if !c.config.Enabled {
+		return 0
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	threshold := time.Now().Add(-maxAge)
+	removed := 0
+
+	for key, entry := range c.entries {
+		if entry.CachedAt.Before(threshold) {
+			delete(c.entries, key)
+			removed++
+		}
+	}
+
+	return removed
+}
+
+// InvalidateByPattern removes all cache entries matching a pattern (prefix match)
+func (c *Cache) InvalidateByPattern(ctx context.Context, pattern string) int {
+	if !c.config.Enabled {
+		return 0
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	removed := 0
+	for key := range c.entries {
+		// Simple prefix match for now
+		if len(key) >= len(pattern) && key[:len(pattern)] == pattern {
+			delete(c.entries, key)
+			removed++
+		}
+	}
+
+	return removed
+}
+
 // GetStats returns current cache statistics
 func (c *Cache) GetStats(ctx context.Context) *Stats {
 	c.mu.RLock()
