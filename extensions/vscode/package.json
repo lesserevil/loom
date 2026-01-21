@@ -1,0 +1,161 @@
+{
+  "name": "agenticorp-vscode",
+  "displayName": "AgentiCorp",
+  "description": "AI-powered coding assistant integrated with AgentiCorp",
+  "version": "1.0.0",
+  "publisher": "agenticorp",
+  "icon": "icon.png",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "AI",
+    "Programming Languages",
+    "Snippets",
+    "Other"
+  ],
+  "keywords": [
+    "ai",
+    "assistant",
+    "chat",
+    "code",
+    "agenticorp"
+  ],
+  "activationEvents": [
+    "onCommand:agenticorp.openChat",
+    "onView:agenticorp.chatView"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "agenticorp.openChat",
+        "title": "Open AgentiCorp Chat",
+        "category": "AgentiCorp"
+      },
+      {
+        "command": "agenticorp.askAboutSelection",
+        "title": "Ask AgentiCorp about selection",
+        "category": "AgentiCorp"
+      },
+      {
+        "command": "agenticorp.explainCode",
+        "title": "Explain this code",
+        "category": "AgentiCorp"
+      },
+      {
+        "command": "agenticorp.generateTests",
+        "title": "Generate tests",
+        "category": "AgentiCorp"
+      },
+      {
+        "command": "agenticorp.refactorCode",
+        "title": "Refactor code",
+        "category": "AgentiCorp"
+      },
+      {
+        "command": "agenticorp.fixBug",
+        "title": "Help fix this bug",
+        "category": "AgentiCorp"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "agenticorp",
+          "title": "AgentiCorp",
+          "icon": "resources/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "agenticorp": [
+        {
+          "id": "agenticorp.chatView",
+          "name": "Chat",
+          "type": "webview"
+        }
+      ]
+    },
+    "menus": {
+      "editor/context": [
+        {
+          "command": "agenticorp.askAboutSelection",
+          "when": "editorHasSelection",
+          "group": "agenticorp"
+        },
+        {
+          "command": "agenticorp.explainCode",
+          "when": "editorHasSelection",
+          "group": "agenticorp"
+        },
+        {
+          "command": "agenticorp.generateTests",
+          "when": "editorHasSelection",
+          "group": "agenticorp"
+        },
+        {
+          "command": "agenticorp.refactorCode",
+          "when": "editorHasSelection",
+          "group": "agenticorp"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "AgentiCorp",
+      "properties": {
+        "agenticorp.apiEndpoint": {
+          "type": "string",
+          "default": "http://localhost:8080",
+          "description": "AgentiCorp API endpoint URL"
+        },
+        "agenticorp.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "AgentiCorp API key (optional)"
+        },
+        "agenticorp.model": {
+          "type": "string",
+          "default": "default",
+          "description": "Preferred AI model"
+        },
+        "agenticorp.autoContext": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically include file context in requests"
+        },
+        "agenticorp.maxContextLines": {
+          "type": "number",
+          "default": 100,
+          "description": "Maximum lines of context to include"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile",
+    "test": "node ./out/test/runTest.js",
+    "package": "vsce package",
+    "publish": "vsce publish"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.0.0",
+    "typescript": "^5.0.0",
+    "vsce": "^2.15.0"
+  },
+  "dependencies": {
+    "axios": "^1.6.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jordanhubbard/AgentiCorp.git"
+  },
+  "license": "MIT"
+}
