@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
 	"os"
 	"path"
 	"path/filepath"
@@ -24,6 +23,7 @@ import (
 	"github.com/jordanhubbard/agenticorp/internal/persona"
 	"github.com/jordanhubbard/agenticorp/internal/project"
 	"github.com/jordanhubbard/agenticorp/internal/provider"
+	"github.com/jordanhubbard/agenticorp/internal/routing"
 	"github.com/jordanhubbard/agenticorp/internal/temporal"
 	temporalactivities "github.com/jordanhubbard/agenticorp/internal/temporal/activities"
 	"github.com/jordanhubbard/agenticorp/internal/temporal/eventbus"
@@ -1188,28 +1188,24 @@ func (a *AgentiCorp) RunReplQuery(ctx context.Context, message string) (*ReplRes
 }
 
 func (a *AgentiCorp) selectBestProviderForRepl() (*internalmodels.Provider, error) {
+	return a.SelectProvider(context.Background(), nil, "balanced")
+}
+
+// SelectProvider chooses the best provider based on policy and requirements
+func (a *AgentiCorp) SelectProvider(ctx context.Context, requirements *routing.ProviderRequirements, policy string) (*internalmodels.Provider, error) {
 	providers, err := a.database.ListProviders()
 	if err != nil {
 		return nil, err
 	}
 
-	var best *internalmodels.Provider
-	bestScore := -math.MaxFloat64
-	for _, p := range providers {
-		if p == nil || !providerIsHealthy(p.Status) {
-			continue
-		}
-		score := a.scoreProviderForRepl(p)
-		if best == nil || score > bestScore {
-			best = p
-			bestScore = score
-		}
+	// Default policy
+	routingPolicy := routing.PolicyBalanced
+	if policy != "" {
+		routingPolicy = routing.RoutingPolicy(policy)
 	}
 
-	if best == nil {
-		return nil, fmt.Errorf("no active providers available")
-	}
-	return best, nil
+	router := routing.NewRouter(routingPolicy)
+	return router.SelectProvider(ctx, providers, requirements)
 }
 
 func (a *AgentiCorp) scoreProviderForRepl(p *internalmodels.Provider) float64 {

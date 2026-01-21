@@ -43,6 +43,11 @@ func New(dbPath string) (*Database, error) {
 		return nil, fmt.Errorf("failed to migrate provider ownership: %w", err)
 	}
 
+	if err := d.migrateProviderRouting(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to migrate provider routing: %w", err)
+	}
+
 	return d, nil
 }
 

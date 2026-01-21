@@ -48,7 +48,6 @@ tags:
   - p1
 created_at: 2026-01-20T00:00:00Z
 updated_at: 2026-01-21T02:45:00Z
-closed_at: 2026-01-21T02:45:00Z
 context:
   source: product-manager future goals
   related_file: personas/default/product-manager/FUTURE_GOALS.md

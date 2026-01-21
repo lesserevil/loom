@@ -32,6 +32,14 @@ type Provider struct {
 	LastHeartbeatLatencyMs int64           `json:"last_heartbeat_latency_ms"`
 	LastHeartbeatError     string          `json:"last_heartbeat_error"`
 
+	// Cost and capability metadata for routing
+	CostPerMToken     float64  `json:"cost_per_mtoken"`    // Cost per million tokens ($)
+	ContextWindow     int      `json:"context_window"`     // Maximum context window size
+	SupportsFunction  bool     `json:"supports_function"`  // Supports function calling
+	SupportsVision    bool     `json:"supports_vision"`    // Supports vision/multimodal
+	SupportsStreaming bool     `json:"supports_streaming"` // Supports streaming responses
+	Tags              []string `json:"tags"`               // Custom tags for filtering
+
 	// Runtime metrics for dynamic scoring
 	Metrics ProviderMetrics `json:"metrics"`
 
