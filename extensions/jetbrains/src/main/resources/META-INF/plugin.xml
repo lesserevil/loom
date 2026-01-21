@@ -1,0 +1,48 @@
+<idea-plugin>
+    <id>com.agenticorp.intellij</id>
+    <name>AgentiCorp</name>
+    <vendor email="support@agenticorp.io" url="https://github.com/jordanhubbard/AgentiCorp">AgentiCorp</vendor>
+
+    <description><![CDATA[
+    AI-powered coding assistant integrated with AgentiCorp.
+    
+    Features:
+    - AI chat tool window
+    - Inline code suggestions
+    - Code explanations
+    - Test generation
+    - Refactoring suggestions
+    - Bug fixing assistance
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <!-- Tool Window -->
+        <toolWindow id="AgentiCorp" secondary="true" icon="/icons/agenticorp.svg" anchor="right"
+                    factoryClass="com.agenticorp.intellij.ui.ChatToolWindowFactory"/>
+
+        <!-- Settings -->
+        <applicationConfigurable parentId="tools" instance="com.agenticorp.intellij.settings.AgentiCorpSettings"
+                                 id="com.agenticorp.intellij.settings.AgentiCorpSettings"
+                                 displayName="AgentiCorp"/>
+        <applicationService serviceImplementation="com.agenticorp.intellij.settings.AgentiCorpSettingsState"/>
+
+        <!-- Completion Provider -->
+        <completion.contributor language="any" implementationClass="com.agenticorp.intellij.completion.AgentiCorpCompletionContributor"/>
+    </extensions>
+
+    <actions>
+        <group id="AgentiCorp.EditorPopupMenu" text="AgentiCorp" popup="true">
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+            <action id="AgentiCorp.ExplainCode" class="com.agenticorp.intellij.actions.ExplainCodeAction"
+                    text="Explain Code" description="Explain selected code with AgentiCorp"/>
+            <action id="AgentiCorp.GenerateTests" class="com.agenticorp.intellij.actions.GenerateTestsAction"
+                    text="Generate Tests" description="Generate unit tests"/>
+            <action id="AgentiCorp.RefactorCode" class="com.agenticorp.intellij.actions.RefactorCodeAction"
+                    text="Refactor" description="Suggest refactorings"/>
+            <action id="AgentiCorp.FixBug" class="com.agenticorp.intellij.actions.FixBugAction"
+                    text="Help Fix Bug" description="Get help fixing a bug"/>
+        </group>
+    </actions>
+</idea-plugin>
