@@ -747,7 +747,7 @@ description: |
     temporal             | {"level":"info","ts":"2026-01-20T01:00:53.921Z","msg":"none","service":"matching","component":"matching-engine","wf-task-queue-name":"/_sys/temporal-sys-processor-parent-close-policy/1","wf-task-queue-type":"Activity","wf-namespace":"temporal-system","lifecycle":"Started","logging-call-at":"task_queue_manager.go:331"}
     temporal             | {"level":"info","ts":"2026-01-20T01:00:53.913Z","msg":"none","service":"matching","component":"matching-engine","wf-task-queue-name":"/_sys/temporal-archival-tq/3","wf-task-queue-type":"Workflow","wf-namespace":"temporal-system","lifecycle":"Started","logging-call-at":"task_queue_manager.go:331"}
 
-status: open
+status: closed
 priority: 0
 project_id: agenticorp
 assigned_to: null
@@ -761,7 +761,7 @@ tags:
   - run
 created_at: 2026-01-20T01:01:17Z
 updated_at: 2026-01-20T01:01:17Z
-closed_at: null
+closed_at: 2026-01-20T16:52:43Z
 context:
   source: makefile
   target: run

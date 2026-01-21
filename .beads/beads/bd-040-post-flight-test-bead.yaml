@@ -7,7 +7,7 @@ id: bd-040
 type: task
 title: Post-flight Test Bead
 description: Automated test
-status: in_progress
+status: closed
 priority: 2
 projectid: agenticorp
 assignedto: ""
@@ -20,4 +20,4 @@ tags: []
 context: {}
 createdat: 2026-01-20T06:06:38.847839253Z
 updatedat: 2026-01-20T06:06:38.86651492Z
-closedat: null
+closedat: 2026-01-20T16:52:43Z

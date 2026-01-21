@@ -983,7 +983,7 @@ description: |
     temporal-postgresql  | 2026-01-20 03:38:10.541 UTC [54] LOG:  checkpoint complete: wrote 39 buffers (0.2%); 0 WAL file(s) added, 0 removed, 0 recycled; write=3.822 s, sync=0.005 s, total=3.834 s; sync files=17, longest=0.004 s, average=0.001 s; distance=203 kB, estimate=4269 kB
     temporal             | {"level":"info","ts":"2026-01-20T03:39:02.632Z","msg":"none","service":"matching","component":"matching-engine","wf-task-queue-name":"/_sys/default-worker-tq/3","wf-task-queue-type":"Workflow","wf-namespace":"temporal-system","lifecycle":"Started","logging-call-at":"task_queue_manager.go:331"}
 
-status: open
+status: closed
 priority: 0
 project_id: agenticorp
 assigned_to: null
@@ -997,7 +997,7 @@ tags:
   - run
 created_at: 2026-01-20T03:39:07Z
 updated_at: 2026-01-20T03:39:07Z
-closed_at: null
+closed_at: 2026-01-20T16:52:43Z
 context:
   source: makefile
   target: run

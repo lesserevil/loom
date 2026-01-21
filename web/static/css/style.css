@@ -137,6 +137,44 @@ nav a[aria-current="page"] {
     background-color: rgba(255,255,255,0.2);
 }
 
+.view-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 1rem 0 1.5rem 0;
+}
+
+.view-tab {
+    border: 1px solid var(--border-color);
+    background: var(--card-bg);
+    color: var(--text-color);
+    padding: 0.5rem 0.9rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.view-tab:hover,
+.view-tab:focus-visible {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}
+
+.view-tab.active {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+    box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);
+}
+
+.view-panel {
+    display: none;
+}
+
+.view-panel.active {
+    display: block;
+}
+
 a:focus-visible,
 button:focus-visible,
 input:focus-visible,

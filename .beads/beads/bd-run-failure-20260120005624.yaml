@@ -467,7 +467,7 @@ description: |
      Container temporal-ui Started 
     Error response from daemon: No such container: a4f666fc711448bb5d04ca3d3b1ccfc402c93c3bd2e9bd00f4196c91e2e9d524
 
-status: open
+status: closed
 priority: 0
 project_id: agenticorp
 assigned_to: null
@@ -481,7 +481,7 @@ tags:
   - run
 created_at: 2026-01-20T00:56:24Z
 updated_at: 2026-01-20T00:56:24Z
-closed_at: null
+closed_at: 2026-01-20T16:52:43Z
 context:
   source: makefile
   target: run

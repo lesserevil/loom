@@ -13,6 +13,7 @@ Then explore:
 - [Architecture](docs/ARCHITECTURE.md) - System design and components
 - [Entities Reference](docs/ENTITIES_REFERENCE.md) - All data structures explained
 - [Temporal DSL Guide](docs/TEMPORAL_DSL.md) - Workflow language for agents
+- [API Authentication](docs/AUTH.md) - JWT, API keys, and RBAC
 - [Developer Guide](AGENTS.md) - For contributors and custom agents
 
 ## Features
@@ -21,6 +22,7 @@ Then explore:
 - 🔄 **Workflow Management**: Temporal-based workflow orchestration for reliable task execution
 - 📊 **Work Graph**: Track dependencies and relationships between work items (beads)
 - 🔐 **Decision Framework**: Approval workflows for agent decisions
+- 🔏 **API Auth & RBAC**: JWT bearer tokens, API keys, and role-based permissions
 - 📡 **Real-time Events**: Server-Sent Events (SSE) for live status updates
 - 🎯 **Smart Routing**: Intelligent task assignment and agent coordination
 - 🔒 **Secure**: Encrypted secret storage and secure credential management

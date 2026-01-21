@@ -29,8 +29,19 @@
     </header>
 
     <main id="main-content">
+        <div class="view-tabs" role="tablist" aria-label="UI sections">
+            <button class="view-tab active" data-target="project-viewer" role="tab" aria-selected="true">Project Viewer</button>
+            <button class="view-tab" data-target="kanban" role="tab" aria-selected="false">Kanban</button>
+            <button class="view-tab" data-target="providers" role="tab" aria-selected="false">Providers</button>
+            <button class="view-tab" data-target="agents" role="tab" aria-selected="false">Agents</button>
+            <button class="view-tab" data-target="projects" role="tab" aria-selected="false">Projects</button>
+            <button class="view-tab" data-target="personas" role="tab" aria-selected="false">Personas</button>
+            <button class="view-tab" data-target="decisions" role="tab" aria-selected="false">Decisions</button>
+            <button class="view-tab" data-target="repl" role="tab" aria-selected="false">CEO REPL</button>
+        </div>
+
         <!-- Project Viewer Section -->
-        <section id="project-viewer">
+        <section id="project-viewer" class="view-panel active" role="tabpanel" aria-label="Project Viewer">
             <h2><span aria-hidden="true">📁</span> Project Viewer</h2>
             <div class="toolbar" role="region" aria-label="Project viewer controls">
                 <div class="toolbar-row">
@@ -66,7 +77,7 @@
         </section>
 
         <!-- Kanban Board Section -->
-        <section id="kanban">
+        <section id="kanban" class="view-panel" role="tabpanel" aria-label="Kanban Board" hidden>
             <h2><span aria-hidden="true">📋</span> Kanban Board</h2>
             <div class="toolbar" role="region" aria-label="Bead search and filters">
                 <div class="toolbar-row">
@@ -139,7 +150,7 @@
         </section>
 
         <!-- Decision Beads Section -->
-        <section id="decisions">
+        <section id="decisions" class="view-panel" role="tabpanel" aria-label="Decisions" hidden>
             <h2><span aria-hidden="true">⚖️</span> Decision Beads</h2>
             <div id="decision-list" class="decision-container">
                 <!-- Decision beads will be loaded here -->
@@ -147,7 +158,7 @@
         </section>
 
         <!-- Providers Section -->
-        <section id="providers">
+        <section id="providers" class="view-panel" role="tabpanel" aria-label="Providers" hidden>
             <h2><span aria-hidden="true">🔌</span> Providers</h2>
             <div class="controls">
                 <button type="button" onclick="showRegisterProviderModal()" aria-haspopup="dialog">Register Provider</button>
@@ -158,7 +169,7 @@
         </section>
 
         <!-- Agents Section -->
-        <section id="agents">
+        <section id="agents" class="view-panel" role="tabpanel" aria-label="Agents" hidden>
             <h2><span aria-hidden="true">🤖</span> Active Agents</h2>
             <div class="controls">
                 <button type="button" onclick="showSpawnAgentModal()" aria-haspopup="dialog" aria-controls="spawn-agent-modal">Spawn New Agent</button>
@@ -177,7 +188,7 @@
         </section>
 
         <!-- Projects Section -->
-        <section id="projects">
+        <section id="projects" class="view-panel" role="tabpanel" aria-label="Projects" hidden>
             <h2><span aria-hidden="true">📁</span> Projects</h2>
             <div class="controls">
                 <button type="button" onclick="showCreateProjectModal()" aria-haspopup="dialog">Add Project</button>
@@ -188,14 +199,14 @@
         </section>
 
         <!-- Personas Section -->
-        <section id="personas">
+        <section id="personas" class="view-panel" role="tabpanel" aria-label="Personas" hidden>
             <h2><span aria-hidden="true">🎭</span> Personas</h2>
             <div id="persona-list" class="persona-container">
                 <!-- Personas will be loaded here -->
             </div>
         </section>
 
-        <section id="repl">
+        <section id="repl" class="view-panel" role="tabpanel" aria-label="CEO REPL" hidden>
             <h2><span aria-hidden="true">🧭</span> CEO REPL</h2>
             <div class="repl-container">
                 <label for="repl-input">Ask AgentiCorp</label>

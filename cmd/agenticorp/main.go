@@ -13,8 +13,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/jordanhubbard/agenticorp/internal/api"
 	"github.com/jordanhubbard/agenticorp/internal/agenticorp"
+	"github.com/jordanhubbard/agenticorp/internal/api"
+	"github.com/jordanhubbard/agenticorp/internal/auth"
 	"github.com/jordanhubbard/agenticorp/internal/keymanager"
 	"github.com/jordanhubbard/agenticorp/pkg/config"
 )
@@ -58,14 +59,14 @@ func main() {
 	// Initialize key manager for encrypted API keys
 	keyStorePath := filepath.Join(".", ".keys.json")
 	km := keymanager.NewKeyManager(keyStorePath)
-	
+
 	// Load password from environment or .env file
 	password := loadPassword()
 	if password == "" {
 		log.Printf("Warning: No password found. Using default password. Set AGENTICORP_PASSWORD environment variable or create .env file")
 		password = "agenticorp-default-password"
 	}
-	
+
 	if err := km.Unlock(password); err != nil {
 		// Try default password if the provided one failed
 		log.Printf("Password unlock failed: %v. Trying default password...", err)
@@ -79,7 +80,10 @@ func main() {
 		go arb.StartDispatchLoop(runCtx, 10*time.Second)
 	}
 
-	apiServer := api.NewServer(arb, km, cfg)
+	// Initialize auth manager (JWT + API key support)
+	authManager := auth.NewManager(cfg.Security.JWTSecret)
+
+	apiServer := api.NewServer(arb, km, authManager, cfg)
 	handler := apiServer.SetupRoutes()
 
 	httpSrv := &http.Server{

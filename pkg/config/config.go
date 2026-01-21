@@ -83,6 +83,7 @@ type SecurityConfig struct {
 	RequireHTTPS   bool     `yaml:"require_https"`
 	AllowedOrigins []string `yaml:"allowed_origins"` // CORS
 	APIKeys        []string `yaml:"api_keys,omitempty"`
+	JWTSecret      string   `yaml:"jwt_secret" json:"jwt_secret,omitempty"`
 }
 
 // TemporalConfig configures Temporal workflow engine
@@ -192,6 +193,7 @@ func DefaultConfig() *Config {
 			PKIEnabled:     false,
 			RequireHTTPS:   false,
 			AllowedOrigins: []string{"*"},
+			JWTSecret:      "",
 		},
 		Temporal: TemporalConfig{
 			Host:                     "localhost:7233",
