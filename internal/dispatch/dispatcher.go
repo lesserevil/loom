@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"sort"
 	"sync"
 	"time"
@@ -78,7 +79,10 @@ func (d *Dispatcher) GetSystemStatus() SystemStatus {
 
 // DispatchOnce finds at most one ready bead and asks an idle agent to work on it.
 func (d *Dispatcher) DispatchOnce(ctx context.Context, projectID string) (*DispatchResult, error) {
-	if len(d.providers.ListActive()) == 0 {
+	activeProviders := d.providers.ListActive()
+	log.Printf("[Dispatcher] DispatchOnce called for project=%s, active_providers=%d", projectID, len(activeProviders))
+	if len(activeProviders) == 0 {
+		log.Printf("[Dispatcher] Parked - no active providers")
 		d.setStatus(StatusParked, "no active providers registered")
 		return &DispatchResult{Dispatched: false, ProjectID: projectID}, nil
 	}
@@ -88,6 +92,8 @@ func (d *Dispatcher) DispatchOnce(ctx context.Context, projectID string) (*Dispa
 		d.setStatus(StatusParked, "failed to list ready beads")
 		return nil, err
 	}
+	
+	log.Printf("[Dispatcher] GetReadyBeads returned %d beads for project %s", len(ready), projectID)
 
 	sort.SliceStable(ready, func(i, j int) bool {
 		if ready[i] == nil {
@@ -127,18 +133,23 @@ func (d *Dispatcher) DispatchOnce(ctx context.Context, projectID string) (*Dispa
 
 	var candidate *models.Bead
 	var ag *models.Agent
+	skippedReasons := make(map[string]int)
 	for _, b := range ready {
 		if b == nil {
+			skippedReasons["nil_bead"]++
 			continue
 		}
 		if b.Priority == models.BeadPriorityP0 {
+			skippedReasons["p0_priority"]++
 			continue
 		}
 		if b.Type == "decision" {
+			skippedReasons["decision_type"]++
 			continue
 		}
 		if b.Context != nil {
 			if b.Context["redispatch_requested"] != "true" && b.Context["last_run_at"] != "" {
+				skippedReasons["already_run"]++
 				continue
 			}
 		}
@@ -147,6 +158,8 @@ func (d *Dispatcher) DispatchOnce(ctx context.Context, projectID string) (*Dispa
 		if b.AssignedTo != "" {
 			assigned, ok := idleByID[b.AssignedTo]
 			if !ok {
+				skippedReasons["assigned_agent_not_idle"]++
+				log.Printf("[Dispatcher] Bead %s assigned to %s but agent not idle", b.ID, b.AssignedTo)
 				continue
 			}
 			ag = assigned
@@ -154,30 +167,38 @@ func (d *Dispatcher) DispatchOnce(ctx context.Context, projectID string) (*Dispa
 			break
 		}
 
-		// Try persona-based routing first
+		// Try persona-based routing first, but fall back to any idle agent
 		personaHint := d.personaMatcher.ExtractPersonaHint(b)
 		if personaHint != "" {
 			matchedAgent := d.personaMatcher.FindAgentByPersonaHint(personaHint, idleAgents)
 			if matchedAgent != nil {
 				ag = matchedAgent
 				candidate = b
+				log.Printf("[Dispatcher] Matched bead %s to agent %s via persona hint '%s'", b.ID, matchedAgent.Name, personaHint)
 				break
 			}
-			// If persona hint found but no matching agent, continue to try other beads
-			// This allows P1/P2 beads to wait for the right agent rather than being misassigned
-			continue
+			// Persona hint found but no match - log it but fall through to assign any idle agent
+			log.Printf("[Dispatcher] Bead %s has persona hint '%s' but no exact match - will assign to any idle agent", b.ID, personaHint)
 		}
 
-		// Otherwise, pick any idle agent.
+		// Pick any idle agent (either no persona hint, or hint didn't match)
 		if len(idleAgents) == 0 {
+			skippedReasons["no_idle_agents"]++
+			log.Printf("[Dispatcher] Bead %s: no idle agents available", b.ID)
 			continue
 		}
+		log.Printf("[Dispatcher] Assigning bead %s to agent %s (any idle agent)", b.ID, idleAgents[0].Name)
 		ag = idleAgents[0]
 		candidate = b
 		break
 	}
+	
+	if len(skippedReasons) > 0 {
+		log.Printf("[Dispatcher] Skipped beads: %+v", skippedReasons)
+	}
 
 	if candidate == nil {
+		log.Printf("[Dispatcher] No dispatchable beads found (ready: %d, idle agents: %d)", len(ready), len(idleAgents))
 		d.setStatus(StatusParked, "no dispatchable beads")
 		return &DispatchResult{Dispatched: false, ProjectID: projectID}, nil
 	}
