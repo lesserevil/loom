@@ -19,14 +19,15 @@ func (s *Server) handleGetLogs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userID := auth.GetUserIDFromRequest(r)
-	if userID == "" {
+	// If auth is disabled, allow access with empty userID (show all logs)
+	if userID == "" && s.config.Security.EnableAuth {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
 	// Parse query parameters
 	filter := &analytics.LogFilter{
-		UserID: userID, // Users can only see their own logs
+		UserID: userID, // Users can only see their own logs (or all if auth disabled)
 		Limit:  100,    // Default limit
 	}
 
@@ -64,14 +65,15 @@ func (s *Server) handleGetLogStats(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userID := auth.GetUserIDFromRequest(r)
-	if userID == "" {
+	// If auth is disabled, allow access with empty userID (show all stats)
+	if userID == "" && s.config.Security.EnableAuth {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
 	// Parse query parameters
 	filter := &analytics.LogFilter{
-		UserID: userID, // Users can only see their own stats
+		UserID: userID, // Users can only see their own stats (or all if auth disabled)
 	}
 
 	if startTime := r.URL.Query().Get("start_time"); startTime != "" {
@@ -113,7 +115,8 @@ func (s *Server) handleExportLogs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userID := auth.GetUserIDFromRequest(r)
-	if userID == "" {
+	// If auth is disabled, allow access with empty userID (export all logs)
+	if userID == "" && s.config.Security.EnableAuth {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -166,14 +169,15 @@ func (s *Server) handleGetCostReport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userID := auth.GetUserIDFromRequest(r)
-	if userID == "" {
+	// If auth is disabled, allow access with empty userID (show all costs)
+	if userID == "" && s.config.Security.EnableAuth {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
 	// Parse query parameters
 	filter := &analytics.LogFilter{
-		UserID: userID, // Users can only see their own costs by default
+		UserID: userID, // Users can only see their own costs by default (or all if auth disabled)
 	}
 
 	if startTime := r.URL.Query().Get("start_time"); startTime != "" {
@@ -240,7 +244,8 @@ func (s *Server) handleExportStats(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userID := auth.GetUserIDFromRequest(r)
-	if userID == "" {
+	// If auth is disabled, allow access with empty userID (export all stats)
+	if userID == "" && s.config.Security.EnableAuth {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
