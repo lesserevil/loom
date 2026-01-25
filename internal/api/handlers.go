@@ -307,6 +307,10 @@ func (s *Server) handleProject(w http.ResponseWriter, r *http.Request) {
 	// Handle sub-endpoints for project state management
 	if len(parts) > 1 {
 		action := parts[1]
+		if action == "files" {
+			s.handleProjectFiles(w, r, id, parts[2:])
+			return
+		}
 		s.handleProjectStateEndpoints(w, r, id, action)
 		return
 	}

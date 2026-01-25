@@ -14,6 +14,7 @@ import (
 	"github.com/jordanhubbard/agenticorp/internal/cache"
 	"github.com/jordanhubbard/agenticorp/internal/keymanager"
 	"github.com/jordanhubbard/agenticorp/internal/logging"
+	"github.com/jordanhubbard/agenticorp/internal/files"
 	"github.com/jordanhubbard/agenticorp/pkg/config"
 	"github.com/jordanhubbard/agenticorp/pkg/models"
 )
@@ -27,6 +28,7 @@ type Server struct {
 	logManager      *logging.Manager
 	cache           *cache.Cache
 	config          *config.Config
+	fileManager     *files.Manager
 	apiFailureMu    sync.Mutex
 	apiFailureLast  map[string]time.Time
 }
@@ -85,6 +87,11 @@ func NewServer(arb *agenticorp.AgentiCorp, km *keymanager.KeyManager, am *auth.M
 		}
 	}
 
+	var fileManager *files.Manager
+	if arb != nil {
+		fileManager = files.NewManager(arb.GetGitOpsManager())
+	}
+
 	return &Server{
 		agenticorp:      arb,
 		keyManager:      km,
@@ -93,6 +100,7 @@ func NewServer(arb *agenticorp.AgentiCorp, km *keymanager.KeyManager, am *auth.M
 		logManager:      logMgr,
 		cache:           responseCache,
 		config:          cfg,
+		fileManager:     fileManager,
 		apiFailureLast:  make(map[string]time.Time),
 	}
 }
@@ -150,7 +158,7 @@ func (s *Server) SetupRoutes() http.Handler {
 	mux.HandleFunc("/api/v1/agents", s.handleAgents)
 	mux.HandleFunc("/api/v1/agents/", s.handleAgent)
 
-	// Projects
+	// Projects (includes /projects/{id}/files/*)
 	mux.HandleFunc("/api/v1/projects", s.handleProjects)
 	mux.HandleFunc("/api/v1/projects/", s.handleProject)
 

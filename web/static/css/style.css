@@ -264,6 +264,15 @@ section h2 {
     text-align: center;
 }
 
+.kanban-dropzone.drag-over {
+    border: 2px dashed var(--primary-color);
+    background: rgba(37, 99, 235, 0.06);
+}
+
+.bead-card.dragging {
+    opacity: 0.6;
+}
+
 .bead-list {
     display: flex;
     flex-direction: column;
@@ -333,6 +342,23 @@ section h2 {
 
 .ceo-bead-actions select {
     min-width: 220px;
+}
+
+.ceo-dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem;
+}
+
+.ceo-dashboard-card {
+    background: var(--light-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1rem;
+}
+
+.ceo-dashboard-card h3 {
+    margin-bottom: 0.5rem;
 }
 
 .ceo-bead-comment {
@@ -1351,6 +1377,26 @@ footer a:hover {
 
 .log-message {
     word-break: break-word;
+}
+
+.log-timeline-group {
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 0.75rem;
+    margin-bottom: 0.75rem;
+    background: var(--card-bg);
+}
+
+.log-timeline-header {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: var(--text-color);
+}
+
+.log-timeline-item {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    padding: 0.15rem 0;
 }
 
 .log-metadata {

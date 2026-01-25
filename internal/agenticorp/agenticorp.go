@@ -621,6 +621,10 @@ func (a *AgentiCorp) GetActionRouter() *actions.Router {
 	return a.actionRouter
 }
 
+func (a *AgentiCorp) GetGitOpsManager() *gitops.Manager {
+	return a.gitopsManager
+}
+
 func (a *AgentiCorp) GetDispatcher() *dispatch.Dispatcher {
 	return a.dispatcher
 }

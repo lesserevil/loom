@@ -136,7 +136,7 @@ func (m *Manager) persistLog(entry LogEntry) {
 	}
 
 	var metadataJSON *string
-	if entry.Metadata != nil && len(entry.Metadata) > 0 {
+	if len(entry.Metadata) > 0 {
 		data, err := json.Marshal(entry.Metadata)
 		if err == nil {
 			jsonStr := string(data)
@@ -172,7 +172,7 @@ func (m *Manager) persistLog(entry LogEntry) {
 }
 
 // GetRecent returns the most recent log entries from the buffer
-func (m *Manager) GetRecent(limit int, levelFilter, sourceFilter string) []LogEntry {
+func (m *Manager) GetRecent(limit int, levelFilter, sourceFilter, agentID, beadID, projectID string, since, until time.Time) []LogEntry {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -204,6 +204,24 @@ func (m *Manager) GetRecent(limit int, levelFilter, sourceFilter string) []LogEn
 		if sourceFilter != "" && entry.Source != sourceFilter {
 			return
 		}
+		if !since.IsZero() && entry.Timestamp.Before(since) {
+			return
+		}
+		if !until.IsZero() && entry.Timestamp.After(until) {
+			return
+		}
+		if agentID != "" || beadID != "" || projectID != "" {
+			meta := entry.Metadata
+			if agentID != "" && getMetaString(meta, "agent_id") != agentID {
+				return
+			}
+			if beadID != "" && getMetaString(meta, "bead_id") != beadID {
+				return
+			}
+			if projectID != "" && getMetaString(meta, "project_id") != projectID {
+				return
+			}
+		}
 
 		logs = append(logs, entry)
 		count++
@@ -218,9 +236,9 @@ func (m *Manager) GetRecent(limit int, levelFilter, sourceFilter string) []LogEn
 }
 
 // Query returns log entries from the database based on filters
-func (m *Manager) Query(limit int, levelFilter, sourceFilter string, since time.Time) ([]LogEntry, error) {
+func (m *Manager) Query(limit int, levelFilter, sourceFilter, agentID, beadID, projectID string, since, until time.Time) ([]LogEntry, error) {
 	if m.db == nil {
-		return m.GetRecent(limit, levelFilter, sourceFilter), nil
+		return m.GetRecent(limit, levelFilter, sourceFilter, agentID, beadID, projectID, since, until), nil
 	}
 
 	query := `SELECT id, timestamp, level, source, message, metadata_json FROM logs WHERE 1=1`
@@ -230,6 +248,10 @@ func (m *Manager) Query(limit int, levelFilter, sourceFilter string, since time.
 		query += " AND timestamp >= ?"
 		args = append(args, since)
 	}
+	if !until.IsZero() {
+		query += " AND timestamp <= ?"
+		args = append(args, until)
+	}
 	if levelFilter != "" {
 		query += " AND level = ?"
 		args = append(args, levelFilter)
@@ -237,6 +259,18 @@ func (m *Manager) Query(limit int, levelFilter, sourceFilter string, since time.
 	if sourceFilter != "" {
 		query += " AND source = ?"
 		args = append(args, sourceFilter)
+	}
+	if agentID != "" {
+		query += " AND agent_id = ?"
+		args = append(args, agentID)
+	}
+	if beadID != "" {
+		query += " AND bead_id = ?"
+		args = append(args, beadID)
+	}
+	if projectID != "" {
+		query += " AND project_id = ?"
+		args = append(args, projectID)
 	}
 
 	query += " ORDER BY timestamp DESC"
@@ -271,6 +305,16 @@ func (m *Manager) Query(limit int, levelFilter, sourceFilter string, since time.
 	}
 
 	return logs, nil
+}
+
+func getMetaString(meta map[string]interface{}, key string) string {
+	if meta == nil {
+		return ""
+	}
+	if val, ok := meta[key].(string); ok {
+		return val
+	}
+	return ""
 }
 
 // AddHandler registers a handler to be called for each new log entry (for SSE)

@@ -198,6 +198,8 @@ function initUI() {
 
     setupNavActiveState();
 
+    initKanbanDnD();
+
 
     const projectSelect = document.getElementById('project-view-select');
     projectSelect?.addEventListener('change', (e) => {
@@ -635,6 +637,7 @@ function render() {
     renderProjects();
     renderPersonas();
     renderDecisions();
+    renderCeoDashboard();
     renderCeoBeads();
     renderUsers();
 }
@@ -1255,6 +1258,54 @@ function renderKanban() {
             : renderEmptyState('No closed beads yet', 'Completed beads will appear here.');
 }
 
+function initKanbanDnD() {
+    const dropzones = document.querySelectorAll('.kanban-dropzone');
+    dropzones.forEach((zone) => {
+        zone.addEventListener('dragover', handleKanbanDragOver);
+        zone.addEventListener('dragleave', handleKanbanDragLeave);
+        zone.addEventListener('drop', handleKanbanDrop);
+    });
+}
+
+function handleBeadDragStart(event) {
+    const beadId = event.currentTarget?.dataset?.beadId;
+    if (!beadId) return;
+    event.dataTransfer.setData('text/plain', beadId);
+    event.dataTransfer.effectAllowed = 'move';
+    event.currentTarget.classList.add('dragging');
+}
+
+function handleBeadDragEnd(event) {
+    event.currentTarget.classList.remove('dragging');
+}
+
+function handleKanbanDragOver(event) {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    event.currentTarget.classList.add('drag-over');
+}
+
+function handleKanbanDragLeave(event) {
+    event.currentTarget.classList.remove('drag-over');
+}
+
+async function handleKanbanDrop(event) {
+    event.preventDefault();
+    event.currentTarget.classList.remove('drag-over');
+    const beadId = event.dataTransfer.getData('text/plain');
+    const status = event.currentTarget.dataset.status;
+    if (!beadId || !status) return;
+
+    const bead = state.beads.find((b) => b.id === beadId);
+    if (!bead || bead.status === status) return;
+
+    try {
+        await saveBeadUpdate(beadId, { status: status }, { successMessage: `Bead moved to ${status}` });
+    } catch (error) {
+        // Error already handled
+    }
+}
+
 async function sendStreamingTest() {
     const providerSelect = document.getElementById('stream-test-provider');
     const input = document.getElementById('stream-test-input');
@@ -1487,7 +1538,7 @@ function renderBeadCard(bead) {
     const typeClass = bead.type === 'decision' ? 'decision' : '';
 
     return `
-        <button type="button" class="bead-card ${priorityClass} ${typeClass}" onclick="viewBead('${bead.id}')" ondblclick="openBeadDetails('${bead.id}')" aria-label="View bead: ${escapeHtml(bead.title)}">
+        <button type="button" class="bead-card ${priorityClass} ${typeClass}" draggable="true" data-bead-id="${escapeHtml(bead.id)}" ondragstart="handleBeadDragStart(event)" ondragend="handleBeadDragEnd(event)" onclick="viewBead('${bead.id}')" ondblclick="openBeadDetails('${bead.id}')" aria-label="View bead: ${escapeHtml(bead.title)}">
             <div class="bead-title">${escapeHtml(bead.title)}</div>
             <div class="bead-meta">
                 <span class="badge priority-${bead.priority}">P${bead.priority}</span>
@@ -2120,6 +2171,65 @@ function renderDecisions() {
     document.getElementById('decision-list').innerHTML =
         html ||
         renderEmptyState('No pending decisions', 'Decision beads requiring input will appear here.');
+}
+
+function renderCeoDashboard() {
+    const container = document.getElementById('ceo-dashboard-summary');
+    if (!container) return;
+
+    const providers = state.providers || [];
+    const projects = state.projects || [];
+    const beads = state.beads || [];
+    const agents = state.agents || [];
+    const decisions = state.decisions || [];
+
+    const providerCounts = {
+        active: providers.filter((p) => p.status === 'active').length,
+        healthy: providers.filter((p) => p.status === 'healthy').length,
+        failed: providers.filter((p) => p.status === 'failed').length
+    };
+
+    const beadCounts = {
+        open: beads.filter((b) => b.status === 'open').length,
+        in_progress: beads.filter((b) => b.status === 'in_progress').length,
+        blocked: beads.filter((b) => b.status === 'blocked').length,
+        closed: beads.filter((b) => b.status === 'closed').length
+    };
+
+    const agentCounts = {
+        idle: agents.filter((a) => a.status === 'idle').length,
+        working: agents.filter((a) => a.status === 'working').length,
+        paused: agents.filter((a) => a.status === 'paused').length
+    };
+
+    const decisionCounts = {
+        open: decisions.filter((d) => d.status === 'open').length,
+        in_progress: decisions.filter((d) => d.status === 'in_progress').length,
+        closed: decisions.filter((d) => d.status === 'closed').length
+    };
+
+    container.innerHTML = `
+        <div class="ceo-dashboard-card">
+            <h3>Providers</h3>
+            <div class="small">Active: ${providerCounts.active} • Healthy: ${providerCounts.healthy} • Failed: ${providerCounts.failed}</div>
+        </div>
+        <div class="ceo-dashboard-card">
+            <h3>Projects</h3>
+            <div class="small">Total: ${projects.length}</div>
+        </div>
+        <div class="ceo-dashboard-card">
+            <h3>Beads</h3>
+            <div class="small">Open: ${beadCounts.open} • In progress: ${beadCounts.in_progress} • Blocked: ${beadCounts.blocked} • Closed: ${beadCounts.closed}</div>
+        </div>
+        <div class="ceo-dashboard-card">
+            <h3>Agents</h3>
+            <div class="small">Idle: ${agentCounts.idle} • Working: ${agentCounts.working} • Paused: ${agentCounts.paused}</div>
+        </div>
+        <div class="ceo-dashboard-card">
+            <h3>Decisions</h3>
+            <div class="small">Open: ${decisionCounts.open} • In progress: ${decisionCounts.in_progress} • Closed: ${decisionCounts.closed}</div>
+        </div>
+    `;
 }
 
 function viewDecision(decisionId) {

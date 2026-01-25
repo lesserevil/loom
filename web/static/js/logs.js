@@ -7,9 +7,17 @@ const LogViewer = {
     filters: {
         level: 'all', // all, debug, info, warn, error
         source: 'all', // all, temporal, agent, provider, dispatcher, database, actions
-        search: ''
+        search: '',
+        agent_id: '',
+        bead_id: '',
+        project_id: '',
+        since: '',
+        until: '',
+        view: 'list', // list or timeline
+        group_by: 'bead'
     },
     autoScroll: true,
+    eventSource: null,
 
     init() {
         this.startPolling();
@@ -18,7 +26,9 @@ const LogViewer = {
 
     async fetchLogs() {
         try {
-            const response = await apiCall('/logs/recent?limit=100', { suppressToast: true });
+            const params = this.buildQueryParams();
+            params.set('limit', '200');
+            const response = await apiCall(`/logs/recent?${params.toString()}`, { suppressToast: true });
             if (response && response.logs) {
                 this.addLogs(response.logs);
             }
@@ -122,11 +132,54 @@ const LogViewer = {
                 <option value="actions">Actions</option>
             </select>
 
+            <select id="log-view-filter" onchange="LogViewer.setFilter('view', this.value)">
+                <option value="list">List</option>
+                <option value="timeline">Timeline</option>
+            </select>
+
+            <select id="log-group-filter" onchange="LogViewer.setFilter('group_by', this.value)">
+                <option value="bead">Group by bead</option>
+                <option value="agent">Group by agent</option>
+            </select>
+
             <input 
                 type="text" 
                 id="log-search" 
                 placeholder="Search logs..."
                 oninput="LogViewer.setFilter('search', this.value)"
+            />
+
+            <input
+                type="text"
+                id="log-agent-filter"
+                placeholder="Agent ID..."
+                oninput="LogViewer.setFilter('agent_id', this.value)"
+            />
+
+            <input
+                type="text"
+                id="log-bead-filter"
+                placeholder="Bead ID..."
+                oninput="LogViewer.setFilter('bead_id', this.value)"
+            />
+
+            <input
+                type="text"
+                id="log-project-filter"
+                placeholder="Project ID..."
+                oninput="LogViewer.setFilter('project_id', this.value)"
+            />
+
+            <input
+                type="datetime-local"
+                id="log-since-filter"
+                onchange="LogViewer.setFilter('since', this.value)"
+            />
+
+            <input
+                type="datetime-local"
+                id="log-until-filter"
+                onchange="LogViewer.setFilter('until', this.value)"
             />
 
             <label>
@@ -146,6 +199,10 @@ const LogViewer = {
     renderLogs(logs) {
         if (logs.length === 0) {
             return '<div class="log-empty">No logs match the current filters</div>';
+        }
+
+        if (this.filters.view === 'timeline') {
+            return this.renderTimeline(logs);
         }
 
         return logs.map(log => {
@@ -181,6 +238,27 @@ const LogViewer = {
         }).join('');
     },
 
+    renderTimeline(logs) {
+        const groupKey = this.filters.group_by === 'agent' ? 'agent_id' : 'bead_id';
+        const grouped = new Map();
+        logs.forEach((log) => {
+            const key = this.getMetadataValue(log, groupKey) || 'unassigned';
+            if (!grouped.has(key)) {
+                grouped.set(key, []);
+            }
+            grouped.get(key).push(log);
+        });
+
+        return Array.from(grouped.entries()).map(([key, entries]) => {
+            const header = `<div class="log-timeline-header">${this.escapeHtml(key)}</div>`;
+            const items = entries.map((log) => {
+                const timestamp = new Date(log.timestamp).toLocaleTimeString();
+                return `<div class="log-timeline-item"><span class="log-time">${timestamp}</span> ${this.escapeHtml(log.message)}</div>`;
+            }).join('');
+            return `<div class="log-timeline-group">${header}${items}</div>`;
+        }).join('');
+    },
+
     getFilteredLogs() {
         return this.logs.filter(log => {
             if (this.filters.level !== 'all' && log.level !== this.filters.level) {
@@ -192,12 +270,38 @@ const LogViewer = {
             if (this.filters.search && !log.message.toLowerCase().includes(this.filters.search.toLowerCase())) {
                 return false;
             }
+            if (this.filters.agent_id && this.getMetadataValue(log, 'agent_id') !== this.filters.agent_id) {
+                return false;
+            }
+            if (this.filters.bead_id && this.getMetadataValue(log, 'bead_id') !== this.filters.bead_id) {
+                return false;
+            }
+            if (this.filters.project_id && this.getMetadataValue(log, 'project_id') !== this.filters.project_id) {
+                return false;
+            }
+            if (this.filters.since) {
+                const since = new Date(this.filters.since);
+                if (log.timestamp && new Date(log.timestamp) < since) {
+                    return false;
+                }
+            }
+            if (this.filters.until) {
+                const until = new Date(this.filters.until);
+                if (log.timestamp && new Date(log.timestamp) > until) {
+                    return false;
+                }
+            }
             return true;
         });
     },
 
     setFilter(name, value) {
         this.filters[name] = value;
+        if (['level', 'source', 'agent_id', 'bead_id', 'project_id', 'since', 'until'].includes(name)) {
+            this.logs = [];
+            this.fetchLogs();
+            this.restartStreaming();
+        }
         this.render();
     },
 
@@ -230,24 +334,55 @@ const LogViewer = {
         return String(metadata);
     },
 
+    getMetadataValue(log, key) {
+        if (!log || !log.metadata) return '';
+        const value = log.metadata[key];
+        return value ? String(value) : '';
+    },
+
     escapeHtml(text) {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
     },
 
+    buildQueryParams() {
+        const params = new URLSearchParams();
+        if (this.filters.level !== 'all') params.set('level', this.filters.level);
+        if (this.filters.source !== 'all') params.set('source', this.filters.source);
+        if (this.filters.agent_id) params.set('agent_id', this.filters.agent_id);
+        if (this.filters.bead_id) params.set('bead_id', this.filters.bead_id);
+        if (this.filters.project_id) params.set('project_id', this.filters.project_id);
+        if (this.filters.since) params.set('since', new Date(this.filters.since).toISOString());
+        if (this.filters.until) params.set('until', new Date(this.filters.until).toISOString());
+        return params;
+    },
+
     setupEventHandlers() {
-        // Listen for real-time log events via SSE if available
-        if (window.eventSource) {
-            window.eventSource.addEventListener('log', (event) => {
-                try {
-                    const log = JSON.parse(event.data);
-                    this.addLogs([log]);
-                } catch (error) {
-                    console.error('[LogViewer] Failed to parse log event:', error);
-                }
-            });
+        this.restartStreaming();
+    },
+
+    restartStreaming() {
+        if (this.eventSource) {
+            this.eventSource.close();
+            this.eventSource = null;
         }
+        this.startStreaming();
+    },
+
+    startStreaming() {
+        if (typeof EventSource === 'undefined') return;
+        const params = this.buildQueryParams();
+        const url = `/api/v1/logs/stream?${params.toString()}`;
+        this.eventSource = new EventSource(url);
+        this.eventSource.addEventListener('log', (event) => {
+            try {
+                const log = JSON.parse(event.data);
+                this.addLogs([log]);
+            } catch (error) {
+                console.error('[LogViewer] Failed to parse log event:', error);
+            }
+        });
     },
 
     async updateMetrics() {

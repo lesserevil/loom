@@ -30,23 +30,35 @@ func (s *Server) HandleLogsRecent(w http.ResponseWriter, r *http.Request) {
 	level := r.URL.Query().Get("level")
 	source := r.URL.Query().Get("source")
 	sinceStr := r.URL.Query().Get("since")
+	untilStr := r.URL.Query().Get("until")
+	agentID := r.URL.Query().Get("agent_id")
+	beadID := r.URL.Query().Get("bead_id")
+	projectID := r.URL.Query().Get("project_id")
 
 	var logs []logging.LogEntry
 	var err error
 
 	// If 'since' is provided, query from database
+	var since time.Time
+	var until time.Time
 	if sinceStr != "" {
-		since, parseErr := time.Parse(time.RFC3339, sinceStr)
+		var parseErr error
+		since, parseErr = time.Parse(time.RFC3339, sinceStr)
 		if parseErr != nil {
 			http.Error(w, fmt.Sprintf("Invalid 'since' parameter: %v", parseErr), http.StatusBadRequest)
 			return
 		}
-		logs, err = s.logManager.Query(limit, level, source, since)
-	} else {
-		// Otherwise, get from in-memory buffer
-		logs = s.logManager.GetRecent(limit, level, source)
+	}
+	if untilStr != "" {
+		var parseErr error
+		until, parseErr = time.Parse(time.RFC3339, untilStr)
+		if parseErr != nil {
+			http.Error(w, fmt.Sprintf("Invalid 'until' parameter: %v", parseErr), http.StatusBadRequest)
+			return
+		}
 	}
 
+	logs, err = s.logManager.Query(limit, level, source, agentID, beadID, projectID, since, until)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to query logs: %v", err), http.StatusInternalServerError)
 		return
@@ -76,6 +88,9 @@ func (s *Server) HandleLogsStream(w http.ResponseWriter, r *http.Request) {
 	// Parse filters from query params
 	levelFilter := r.URL.Query().Get("level")
 	sourceFilter := r.URL.Query().Get("source")
+	agentFilter := r.URL.Query().Get("agent_id")
+	beadFilter := r.URL.Query().Get("bead_id")
+	projectFilter := r.URL.Query().Get("project_id")
 
 	// Create a channel for this client
 	logChan := make(chan logging.LogEntry, 100)
@@ -87,6 +102,15 @@ func (s *Server) HandleLogsStream(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if sourceFilter != "" && entry.Source != sourceFilter {
+			return
+		}
+		if agentFilter != "" && getLogMeta(entry.Metadata, "agent_id") != agentFilter {
+			return
+		}
+		if beadFilter != "" && getLogMeta(entry.Metadata, "bead_id") != beadFilter {
+			return
+		}
+		if projectFilter != "" && getLogMeta(entry.Metadata, "project_id") != projectFilter {
 			return
 		}
 
@@ -107,7 +131,7 @@ func (s *Server) HandleLogsStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Send initial recent logs
-	recentLogs := s.logManager.GetRecent(50, levelFilter, sourceFilter)
+	recentLogs := s.logManager.GetRecent(50, levelFilter, sourceFilter, agentFilter, beadFilter, projectFilter, time.Time{}, time.Time{})
 	for _, entry := range recentLogs {
 		data, err := json.Marshal(entry)
 		if err != nil {
@@ -157,6 +181,11 @@ func (s *Server) HandleLogsExport(w http.ResponseWriter, r *http.Request) {
 
 	startTimeStr := r.URL.Query().Get("start_time")
 	endTimeStr := r.URL.Query().Get("end_time")
+	agentID := r.URL.Query().Get("agent_id")
+	beadID := r.URL.Query().Get("bead_id")
+	projectID := r.URL.Query().Get("project_id")
+	level := r.URL.Query().Get("level")
+	source := r.URL.Query().Get("source")
 
 	var startTime, endTime time.Time
 	var err error
@@ -178,21 +207,10 @@ func (s *Server) HandleLogsExport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Query logs
-	logs, err := s.logManager.Query(0, "", "", startTime)
+	logs, err := s.logManager.Query(0, level, source, agentID, beadID, projectID, startTime, endTime)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to export logs: %v", err), http.StatusInternalServerError)
 		return
-	}
-
-	// Filter by end time if provided
-	if !endTime.IsZero() {
-		filteredLogs := make([]logging.LogEntry, 0)
-		for _, log := range logs {
-			if log.Timestamp.Before(endTime) || log.Timestamp.Equal(endTime) {
-				filteredLogs = append(filteredLogs, log)
-			}
-		}
-		logs = filteredLogs
 	}
 
 	switch format {
@@ -231,4 +249,14 @@ func (s *Server) HandleLogsExport(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Error(w, "Unsupported format. Use 'json' or 'csv'", http.StatusBadRequest)
 	}
+}
+
+func getLogMeta(meta map[string]interface{}, key string) string {
+	if meta == nil {
+		return ""
+	}
+	if val, ok := meta[key].(string); ok {
+		return val
+	}
+	return ""
 }
