@@ -140,7 +140,7 @@ func (s *Server) handleStreamChatCompletion(w http.ResponseWriter, r *http.Reque
 			BeadID:    req.BeadID,
 			ProjectID: defaultProjectID(req.ProjectID),
 		}
-		env, parseErr := actions.DecodeStrict([]byte(raw))
+		env, parseErr := actions.DecodeLenient([]byte(raw))
 		if parseErr != nil {
 			router.AutoFileParseFailure(ctx, actx, parseErr, raw)
 			errorData, _ := json.Marshal(map[string]string{"error": fmt.Sprintf("action parse failed: %v", parseErr)})
@@ -229,7 +229,7 @@ func (s *Server) handleChatCompletion(w http.ResponseWriter, r *http.Request) {
 			BeadID:    req.BeadID,
 			ProjectID: defaultProjectID(req.ProjectID),
 		}
-		env, parseErr := actions.DecodeStrict([]byte(raw))
+		env, parseErr := actions.DecodeLenient([]byte(raw))
 		if parseErr != nil {
 			router.AutoFileParseFailure(r.Context(), actx, parseErr, raw)
 			s.respondError(w, http.StatusBadRequest, fmt.Sprintf("action parse failed: %v", parseErr))

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 )
 
 const (
@@ -73,6 +74,85 @@ func DecodeStrict(payload []byte) (*ActionEnvelope, error) {
 		return nil, err
 	}
 	return &env, nil
+}
+
+// DecodeLenient attempts strict decode first, then tries to recover a JSON object
+// from responses that include extra text (e.g., markdown fences or model traces).
+func DecodeLenient(payload []byte) (*ActionEnvelope, error) {
+	env, err := DecodeStrict(payload)
+	if err == nil {
+		return env, nil
+	}
+	trimmed := bytes.TrimSpace(payload)
+	trimmed = stripCodeFences(trimmed)
+	extracted, extractErr := extractJSONObject(trimmed)
+	if extractErr != nil {
+		return nil, err
+	}
+	return DecodeStrict(extracted)
+}
+
+func stripCodeFences(payload []byte) []byte {
+	if !bytes.HasPrefix(bytes.TrimSpace(payload), []byte("```")) {
+		return payload
+	}
+	lines := strings.Split(string(payload), "\n")
+	if len(lines) < 2 {
+		return payload
+	}
+	start := 0
+	if strings.HasPrefix(strings.TrimSpace(lines[0]), "```") {
+		start = 1
+	}
+	end := len(lines)
+	if strings.HasPrefix(strings.TrimSpace(lines[end-1]), "```") {
+		end--
+	}
+	if start >= end {
+		return payload
+	}
+	return []byte(strings.Join(lines[start:end], "\n"))
+}
+
+func extractJSONObject(payload []byte) ([]byte, error) {
+	inString := false
+	escaped := false
+	depth := 0
+	start := -1
+	for i, b := range payload {
+		if escaped {
+			escaped = false
+			continue
+		}
+		if b == '\\' && inString {
+			escaped = true
+			continue
+		}
+		if b == '"' {
+			inString = !inString
+			continue
+		}
+		if inString {
+			continue
+		}
+		if b == '{' {
+			if depth == 0 {
+				start = i
+			}
+			depth++
+			continue
+		}
+		if b == '}' {
+			if depth == 0 {
+				continue
+			}
+			depth--
+			if depth == 0 && start >= 0 {
+				return payload[start : i+1], nil
+			}
+		}
+	}
+	return nil, errors.New("no JSON object found in response")
 }
 
 func Validate(env *ActionEnvelope) error {

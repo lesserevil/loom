@@ -211,6 +211,11 @@ func (m *Manager) GetCurrentCommit(workDir string) (string, error) {
 
 // GetProjectWorkDir returns the work directory path for a project
 func (m *Manager) GetProjectWorkDir(projectID string) string {
+	if projectID == "agenticorp-self" {
+		if _, err := os.Stat(filepath.Join(m.baseWorkDir, ".git")); err == nil {
+			return m.baseWorkDir
+		}
+	}
 	return filepath.Join(m.baseWorkDir, projectID)
 }
 

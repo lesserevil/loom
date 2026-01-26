@@ -1,7 +1,7 @@
 package actions
 
 const ActionPrompt = `
-You must respond with strict JSON only. Do not include any surrounding text.
+You must respond with strict JSON only. Do not include any surrounding text or model reasoning markers (e.g. <think>).
 
 The response must be a single JSON object with this shape:
 {

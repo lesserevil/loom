@@ -335,7 +335,7 @@ func (m *WorkerManager) ExecuteTask(ctx context.Context, agentID string, task *w
 				BeadID:    task.BeadID,
 				ProjectID: task.ProjectID,
 			}
-			env, parseErr := actions.DecodeStrict([]byte(result.Response))
+			env, parseErr := actions.DecodeLenient([]byte(result.Response))
 			if parseErr != nil {
 				actionResult := router.AutoFileParseFailure(ctx, actx, parseErr, result.Response)
 				result.Actions = []actions.Result{actionResult}

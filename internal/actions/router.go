@@ -109,9 +109,41 @@ func (r *Router) executeAction(ctx context.Context, action Action, actx ActionCo
 	case ActionAskFollowup:
 		return r.createBeadFromAction("Follow-up question", action.Question, actx)
 	case ActionReadCode:
-		return r.createBeadFromAction("Read code", action.Path, actx)
+		if r.Files == nil {
+			return r.createBeadFromAction("Read code", action.Path, actx)
+		}
+		res, err := r.Files.ReadFile(ctx, actx.ProjectID, action.Path)
+		if err != nil {
+			return Result{ActionType: action.Type, Status: "error", Message: err.Error()}
+		}
+		return Result{
+			ActionType: action.Type,
+			Status:     "executed",
+			Message:    "file read",
+			Metadata: map[string]interface{}{
+				"path":    res.Path,
+				"content": res.Content,
+				"size":    res.Size,
+			},
+		}
 	case ActionEditCode:
-		return r.createBeadFromAction("Edit code", fmt.Sprintf("%s\n\nPatch:\n%s", action.Path, action.Patch), actx)
+		if r.Files == nil {
+			return r.createBeadFromAction("Edit code", fmt.Sprintf("%s\n\nPatch:\n%s", action.Path, action.Patch), actx)
+		}
+		res, err := r.Files.ApplyPatch(ctx, actx.ProjectID, action.Patch)
+		if err != nil {
+			message := err.Error()
+			if res != nil && res.Output != "" {
+				message = fmt.Sprintf("%s: %s", message, res.Output)
+			}
+			return Result{ActionType: action.Type, Status: "error", Message: message}
+		}
+		return Result{
+			ActionType: action.Type,
+			Status:     "executed",
+			Message:    "patch applied",
+			Metadata:   map[string]interface{}{"output": res.Output},
+		}
 	case ActionReadFile:
 		if r.Files == nil {
 			return Result{ActionType: action.Type, Status: "error", Message: "file manager not configured"}

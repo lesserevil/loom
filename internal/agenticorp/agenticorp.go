@@ -1337,7 +1337,7 @@ func (a *AgentiCorp) RunReplQuery(ctx context.Context, message string) (*ReplRes
 			BeadID:    beadID,
 			ProjectID: "agenticorp-self",
 		}
-		env, parseErr := actions.DecodeStrict([]byte(result.Response))
+		env, parseErr := actions.DecodeLenient([]byte(result.Response))
 		if parseErr != nil {
 			actionResult := a.actionRouter.AutoFileParseFailure(ctx, actx, parseErr, result.Response)
 			actionResults = []actions.Result{actionResult}
