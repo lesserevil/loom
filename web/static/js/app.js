@@ -52,6 +52,15 @@ let modalState = {
     lastFocused: null
 };
 
+// Helper to get authentication headers for API calls
+function getAuthHeaders() {
+    const headers = { 'Content-Type': 'application/json' };
+    if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+    }
+    return headers;
+}
+
 let eventStreamConnected = false;
 let reloadTimers = {};
 
