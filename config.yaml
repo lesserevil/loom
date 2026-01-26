@@ -28,7 +28,7 @@ agents:
   file_lock_timeout: 10m
 
 security:
-  enable_auth: true  # ENABLED FOR PRODUCTION
+  enable_auth: false  # Disabled for development - enable for production
   pki_enabled: false  # Will be enabled when certificates are provided
   ca_file: ""
   require_https: false

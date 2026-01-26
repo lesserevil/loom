@@ -9,7 +9,7 @@ let loginInFlight = null;
 
 // Feature flag: Set to false to disable authentication in the UI
 // Should match server-side config.yaml security.enable_auth setting
-const AUTH_ENABLED = true;
+const AUTH_ENABLED = false;
 
 // State
 let state = {
