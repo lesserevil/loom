@@ -80,7 +80,7 @@ func DecodeStrict(payload []byte) (*ActionEnvelope, error) {
 }
 
 // DecodeLenient attempts strict decode first, then tries to recover a JSON object
-// from responses that include extra text (e.g., markdown fences or model traces).
+// from responses that include extra text (e.g., markdown fences, model traces, or <think> blocks).
 func DecodeLenient(payload []byte) (*ActionEnvelope, error) {
 	env, err := DecodeStrict(payload)
 	if err == nil {
@@ -88,6 +88,7 @@ func DecodeLenient(payload []byte) (*ActionEnvelope, error) {
 	}
 	trimmed := bytes.TrimSpace(payload)
 	trimmed = stripCodeFences(trimmed)
+	trimmed = stripThinkTags(trimmed)
 	extracted, extractErr := extractJSONObject(trimmed)
 	if extractErr != nil {
 		return nil, err
@@ -115,6 +116,26 @@ func stripCodeFences(payload []byte) []byte {
 		return payload
 	}
 	return []byte(strings.Join(lines[start:end], "\n"))
+}
+
+// stripThinkTags removes <think>...</think> blocks from model output
+func stripThinkTags(payload []byte) []byte {
+	s := string(payload)
+	for {
+		start := strings.Index(s, "<think>")
+		if start == -1 {
+			break
+		}
+		end := strings.Index(s[start:], "</think>")
+		if end == -1 {
+			// Unclosed tag - remove from <think> to end
+			s = s[:start]
+			break
+		}
+		// Remove the entire <think>...</think> block
+		s = s[:start] + s[start+end+len("</think>"):]
+	}
+	return []byte(strings.TrimSpace(s))
 }
 
 func extractJSONObject(payload []byte) ([]byte, error) {
