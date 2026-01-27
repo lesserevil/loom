@@ -35,9 +35,10 @@ type Config struct {
 	Agents   AgentsConfig    `yaml:"agents" json:"agents,omitempty"`
 	Security SecurityConfig  `yaml:"security" json:"security,omitempty"`
 	Cache    CacheConfig     `yaml:"cache" json:"cache,omitempty"`
-	Projects []ProjectConfig `yaml:"projects" json:"projects,omitempty"`
-	WebUI    WebUIConfig     `yaml:"web_ui" json:"web_ui,omitempty"`
-	Temporal TemporalConfig  `yaml:"temporal" json:"temporal,omitempty"`
+	Projects  []ProjectConfig `yaml:"projects" json:"projects,omitempty"`
+	WebUI     WebUIConfig     `yaml:"web_ui" json:"web_ui,omitempty"`
+	Temporal  TemporalConfig  `yaml:"temporal" json:"temporal,omitempty"`
+	HotReload HotReloadConfig `yaml:"hot_reload" json:"hot_reload,omitempty"`
 
 	// JSON/User-specific configuration fields
 	Providers   []Provider     `yaml:"providers,omitempty" json:"providers"`
@@ -132,6 +133,13 @@ type WebUIConfig struct {
 	Enabled         bool   `yaml:"enabled"`
 	StaticPath      string `yaml:"static_path"`
 	RefreshInterval int    `yaml:"refresh_interval"` // seconds
+}
+
+// HotReloadConfig configures development hot-reload
+type HotReloadConfig struct {
+	Enabled   bool     `yaml:"enabled"`
+	WatchDirs []string `yaml:"watch_dirs"` // Directories to watch
+	Patterns  []string `yaml:"patterns"`   // File patterns to watch (e.g. "*.js", "*.css")
 }
 
 // LoadConfigFromFile loads configuration from a YAML file at the specified path.

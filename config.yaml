@@ -96,3 +96,15 @@ web_ui:
   enabled: true
   static_path: /app/src/web/static  # Use volume-mounted files for live updates
   refresh_interval: 5  # seconds
+
+hot_reload:
+  enabled: true  # Enable hot-reload for development
+  watch_dirs:
+    - "./web/static"  # Watch frontend files
+    - "./personas"    # Watch persona definitions
+  patterns:
+    - "*.html"
+    - "*.css"
+    - "*.js"
+    - "*.md"
+    - "PERSONA.md"
