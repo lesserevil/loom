@@ -2178,12 +2178,15 @@ func (a *AgentiCorp) checkProviderHealthAndActivate(providerID string) {
 	a.attachProviderToPausedAgents(context.Background(), providerID)
 }
 
-// TODO: Implement perpetual tasks for each org chart role:
-// - CFO: Monthly budget reviews, financial reporting
-// - PR Manager: Poll GitHub for new issues/PRs
-// - Documentation Manager: Automated documentation updates
-// - QA Engineer: Run automated test suites
-// These will be created as beads by the dispatcher when in idle mode
+// Perpetual tasks are implemented via the motivation system.
+// See internal/motivation/perpetual.go for role-based perpetual task definitions.
+// These tasks run on scheduled intervals (hourly, daily, weekly) to enable proactive
+// agent workflows. Examples:
+// - CFO: Daily budget reviews, weekly cost optimization reports
+// - QA Engineer: Daily automated test runs, weekly integration tests
+// - PR Manager: Hourly GitHub activity checks
+// - Documentation Manager: Daily documentation audits
+// The motivation engine evaluates these on regular intervals and creates beads automatically.
 
 // ResumeAgentsWaitingForProvider resumes agents that were paused waiting for a provider to become healthy
 func (a *AgentiCorp) ResumeAgentsWaitingForProvider(ctx context.Context, providerID string) error {

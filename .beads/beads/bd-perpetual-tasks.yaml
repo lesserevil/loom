@@ -1,0 +1,72 @@
+id: bd-perpetual-tasks
+type: task
+title: "Implement perpetual tasks for org chart roles"
+description: |
+  Implement automated perpetual task system for key org chart roles:
+  
+  Goals:
+  - CFO: Monthly budget reviews and financial reporting
+  - PR Manager: Poll GitHub for new issues/PRs  
+  - Documentation Manager: Automated documentation updates
+  - QA Engineer: Run automated test suites
+  
+  These tasks should be created as beads by the dispatcher when agents are in idle mode,
+  enabling proactive agent workflows rather than purely reactive ones.
+  
+  Implementation Areas:
+  - Dispatcher logic to recognize idle agents with perpetual roles
+  - Task templates for each role type
+  - Scheduling system (daily, weekly, monthly triggers)
+  - Integration with motivation system
+  
+  Success Criteria:
+  - Agents automatically pick up role-specific tasks when idle
+  - CFO generates monthly financial reports
+  - PR Manager monitors GitHub activity
+  - Documentation Manager keeps docs current
+  - QA Engineer runs regular test suites
+  
+  Location: internal/agenticorp/agenticorp.go:2181
+
+  IMPLEMENTATION COMPLETE (2026-01-26):
+
+  Created new perpetual task system via motivation framework:
+  - internal/motivation/perpetual.go: 15 perpetual task definitions
+  - internal/motivation/perpetual_test.go: Comprehensive test suite
+  - docs/perpetual-tasks.md: Complete documentation
+
+  Perpetual Tasks Implemented:
+  - CFO: Daily budget review, weekly cost optimization (2 tasks)
+  - QA Engineer: Daily test runs, weekly integration/regression tests (3 tasks)
+  - PR Manager: Hourly GitHub checks, daily community reports (2 tasks)
+  - Documentation Manager: Daily audits, weekly consistency checks (2 tasks)
+  - DevOps Engineer: Daily infrastructure health, weekly security audits (2 tasks)
+  - Project Manager: Daily standup, weekly sprint planning (2 tasks)
+  - Housekeeping Bot: Hourly cleanup, weekly archival (2 tasks)
+
+  All tasks use scheduled interval triggers with appropriate cooldown periods.
+  Tasks automatically create beads and wake agents on their configured schedules.
+
+  Test Results: All 8 perpetual task tests passing ✓
+  Full test suite: All tests passing ✓
+  
+status: closed
+priority: 1
+project_id: agenticorp
+assigned_to: claude-sonnet-4.5
+blocked_by: []
+blocks: []
+parent: null
+children: []
+tags:
+  - p1
+  - feature
+  - proactive-agents
+  - automation
+created_at: 2026-01-26T23:32:17Z
+updated_at: 2026-01-26T23:32:17Z
+closed_at: 2026-01-26T23:45:00Z
+context:
+  source: code-todo
+  file: internal/agenticorp/agenticorp.go
+  line: 2181

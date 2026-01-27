@@ -497,7 +497,9 @@ func RegisterDefaults(registry *Registry) error {
 			continue
 		}
 	}
-	return nil
+
+	// Also register perpetual task motivations
+	return RegisterPerpetualTasks(registry)
 }
 
 // GetMotivationsByRole returns default motivations for a specific agent role
