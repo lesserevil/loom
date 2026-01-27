@@ -9,20 +9,22 @@ import (
 )
 
 const (
-	ActionAskFollowup = "ask_followup"
-	ActionReadCode    = "read_code"
-	ActionEditCode    = "edit_code"
-	ActionWriteFile   = "write_file"
-	ActionRunCommand  = "run_command"
-	ActionCreateBead  = "create_bead"
-	ActionCloseBead   = "close_bead"
-	ActionEscalateCEO = "escalate_ceo"
-	ActionReadFile    = "read_file"
-	ActionReadTree    = "read_tree"
-	ActionSearchText  = "search_text"
-	ActionApplyPatch  = "apply_patch"
-	ActionGitStatus   = "git_status"
-	ActionGitDiff     = "git_diff"
+	ActionAskFollowup  = "ask_followup"
+	ActionReadCode     = "read_code"
+	ActionEditCode     = "edit_code"
+	ActionWriteFile    = "write_file"
+	ActionRunCommand   = "run_command"
+	ActionCreateBead   = "create_bead"
+	ActionCloseBead    = "close_bead"
+	ActionEscalateCEO  = "escalate_ceo"
+	ActionReadFile     = "read_file"
+	ActionReadTree     = "read_tree"
+	ActionSearchText   = "search_text"
+	ActionApplyPatch   = "apply_patch"
+	ActionGitStatus    = "git_status"
+	ActionGitDiff      = "git_diff"
+	ActionApproveBead  = "approve_bead"
+	ActionRejectBead   = "reject_bead"
 )
 
 type ActionEnvelope struct {
@@ -261,6 +263,17 @@ func validateAction(action Action) error {
 	case ActionEscalateCEO:
 		if action.BeadID == "" {
 			return errors.New("escalate_ceo requires bead_id")
+		}
+	case ActionApproveBead:
+		if action.BeadID == "" {
+			return errors.New("approve_bead requires bead_id")
+		}
+	case ActionRejectBead:
+		if action.BeadID == "" {
+			return errors.New("reject_bead requires bead_id")
+		}
+		if action.Reason == "" {
+			return errors.New("reject_bead requires reason")
 		}
 	default:
 		return fmt.Errorf("unknown action type: %s", action.Type)

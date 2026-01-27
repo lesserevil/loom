@@ -185,6 +185,7 @@ func New(cfg *config.Config) (*AgentiCorp, error) {
 		Files:     files.NewManager(gitopsMgr),
 		Git:       gitopsMgr,
 		Logger:    arb,
+		Workflow:  arb,
 		BeadType:  "task",
 		DefaultP0: true,
 	}
@@ -767,6 +768,44 @@ func (a *AgentiCorp) GetIdleDetector() *motivation.IdleDetector {
 // GetWorkflowEngine returns the workflow engine
 func (a *AgentiCorp) GetWorkflowEngine() *workflow.Engine {
 	return a.workflowEngine
+}
+
+// AdvanceWorkflowWithCondition advances a bead's workflow with a specific condition
+func (a *AgentiCorp) AdvanceWorkflowWithCondition(beadID, agentID string, condition string, resultData map[string]string) error {
+	if a.workflowEngine == nil {
+		return fmt.Errorf("workflow engine not available")
+	}
+
+	// Get workflow execution for this bead
+	execution, err := a.workflowEngine.GetDatabase().GetWorkflowExecutionByBeadID(beadID)
+	if err != nil {
+		return fmt.Errorf("failed to get workflow execution: %w", err)
+	}
+	if execution == nil {
+		return fmt.Errorf("no workflow execution found for bead %s", beadID)
+	}
+
+	// Convert condition string to EdgeCondition
+	var edgeCondition workflow.EdgeCondition
+	switch condition {
+	case "approved":
+		edgeCondition = workflow.EdgeConditionApproved
+	case "rejected":
+		edgeCondition = workflow.EdgeConditionRejected
+	case "success":
+		edgeCondition = workflow.EdgeConditionSuccess
+	case "failure":
+		edgeCondition = workflow.EdgeConditionFailure
+	case "timeout":
+		edgeCondition = workflow.EdgeConditionTimeout
+	case "escalated":
+		edgeCondition = workflow.EdgeConditionEscalated
+	default:
+		return fmt.Errorf("unknown workflow condition: %s", condition)
+	}
+
+	// Advance the workflow
+	return a.workflowEngine.AdvanceWorkflow(execution.ID, edgeCondition, agentID, resultData)
 }
 
 // GetWorkerManager returns the agent worker manager

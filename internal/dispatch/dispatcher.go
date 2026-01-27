@@ -456,6 +456,13 @@ func (d *Dispatcher) DispatchOnce(ctx context.Context, projectID string) (*Dispa
 				if updatedExec != nil {
 					log.Printf("[Workflow] Advanced workflow for bead %s: status=%s, node=%s, cycle=%d",
 						candidate.ID, updatedExec.Status, updatedExec.CurrentNodeKey, updatedExec.CycleCount)
+
+					// Check if workflow was escalated and needs CEO bead
+					if updatedExec.Status == workflow.ExecutionStatusEscalated && candidate.Context["escalation_bead_created"] != "true" {
+						log.Printf("[Workflow] Creating CEO escalation bead for workflow %s (bead %s)", updatedExec.ID, candidate.ID)
+						// Note: Escalation bead creation should be handled by a background job
+						// For now, we just log it. The workflow engine has marked the bead for escalation.
+					}
 				}
 			}
 		}

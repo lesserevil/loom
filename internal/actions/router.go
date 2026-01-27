@@ -42,6 +42,10 @@ type ActionLogger interface {
 	LogAction(ctx context.Context, actx ActionContext, action Action, result Result)
 }
 
+type WorkflowOperator interface {
+	AdvanceWorkflowWithCondition(beadID, agentID string, condition string, resultData map[string]string) error
+}
+
 type ActionContext struct {
 	AgentID   string
 	BeadID    string
@@ -63,6 +67,7 @@ type Router struct {
 	Files     FileManager
 	Git       GitOperator
 	Logger    ActionLogger
+	Workflow  WorkflowOperator
 	BeadType  string
 	BeadTags  []string
 	DefaultP0 bool
@@ -347,6 +352,44 @@ func (r *Router) executeAction(ctx context.Context, action Action, actx ActionCo
 			Status:     "executed",
 			Message:    "escalated to CEO",
 			Metadata:   map[string]interface{}{"decision_id": decision.ID},
+		}
+	case ActionApproveBead:
+		if r.Workflow == nil {
+			return Result{ActionType: action.Type, Status: "error", Message: "workflow operator not configured"}
+		}
+		// Advance workflow with approved condition
+		resultData := map[string]string{
+			"approved_by": actx.AgentID,
+			"approval_reason": action.Reason,
+		}
+		err := r.Workflow.AdvanceWorkflowWithCondition(action.BeadID, actx.AgentID, "approved", resultData)
+		if err != nil {
+			return Result{ActionType: action.Type, Status: "error", Message: err.Error()}
+		}
+		return Result{
+			ActionType: action.Type,
+			Status:     "executed",
+			Message:    "bead approved, workflow advanced",
+			Metadata:   map[string]interface{}{"bead_id": action.BeadID},
+		}
+	case ActionRejectBead:
+		if r.Workflow == nil {
+			return Result{ActionType: action.Type, Status: "error", Message: "workflow operator not configured"}
+		}
+		// Advance workflow with rejected condition
+		resultData := map[string]string{
+			"rejected_by": actx.AgentID,
+			"rejection_reason": action.Reason,
+		}
+		err := r.Workflow.AdvanceWorkflowWithCondition(action.BeadID, actx.AgentID, "rejected", resultData)
+		if err != nil {
+			return Result{ActionType: action.Type, Status: "error", Message: err.Error()}
+		}
+		return Result{
+			ActionType: action.Type,
+			Status:     "executed",
+			Message:    "bead rejected, workflow advanced",
+			Metadata:   map[string]interface{}{"bead_id": action.BeadID, "reason": action.Reason},
 		}
 	default:
 		return Result{ActionType: action.Type, Status: "error", Message: "unsupported action"}

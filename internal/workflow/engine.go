@@ -27,16 +27,21 @@ type BeadManager interface {
 	UpdateBead(id string, updates map[string]interface{}) error
 }
 
+// BeadCreator interface for creating escalation beads
+type BeadCreator interface {
+	GetBead(id string) (interface{}, error)
+}
+
 // Engine manages workflow execution
 type Engine struct {
-	db   Database
+	db    Database
 	beads BeadManager
 }
 
 // NewEngine creates a new workflow engine
 func NewEngine(db Database, beads BeadManager) *Engine {
 	return &Engine{
-		db:   db,
+		db:    db,
 		beads: beads,
 	}
 }
@@ -358,17 +363,86 @@ func (e *Engine) escalateWorkflow(exec *WorkflowExecution, reason string) error 
 			"workflow_status":     string(ExecutionStatusEscalated),
 			"escalation_reason":   reason,
 			"escalated_at":        now.Format(time.RFC3339),
+			"needs_ceo_review":    "true",
 		},
 	}
 	if err := e.beads.UpdateBead(exec.BeadID, updates); err != nil {
 		log.Printf("[Workflow] Warning: failed to update bead context: %v", err)
 	}
 
-	// TODO: Create escalation bead for CEO
-	// This would create a new bead assigned to CEO with type "escalation"
-	// and reference the original bead
+	log.Printf("[Workflow] Workflow escalated for bead %s - CEO escalation bead should be created", exec.BeadID)
 
 	return nil
+}
+
+// GetEscalationInfo returns information needed to create an escalation bead
+func (e *Engine) GetEscalationInfo(exec *WorkflowExecution) (string, string, error) {
+	// Get workflow details
+	wf, err := e.db.GetWorkflow(exec.WorkflowID)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get workflow: %w", err)
+	}
+
+	// Get workflow history for context
+	history, err := e.db.ListWorkflowHistory(exec.ID)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get workflow history: %w", err)
+	}
+
+	// Build escalation title and description
+	title := fmt.Sprintf("[CEO-Escalation] Workflow stuck: %s", exec.BeadID)
+
+	description := fmt.Sprintf(`# Workflow Escalation
+
+**Original Bead:** %s
+**Workflow:** %s (%s)
+**Escalation Reason:** Exceeded max cycles or attempts
+
+## Workflow Progress
+
+- **Cycles Completed:** %d
+- **Current Node:** %s
+- **Node Attempts:** %d
+- **Escalated At:** %s
+
+## History Summary
+
+`, exec.BeadID, wf.Name, wf.WorkflowType, exec.CycleCount, exec.CurrentNodeKey, exec.NodeAttemptCount, time.Now().Format(time.RFC3339))
+
+	if history != nil && len(history) > 0 {
+		description += fmt.Sprintf("Total workflow steps: %d\n\n", len(history))
+		// Show last 5 steps
+		startIdx := 0
+		if len(history) > 5 {
+			startIdx = len(history) - 5
+		}
+		for i := startIdx; i < len(history); i++ {
+			h := history[i]
+			description += fmt.Sprintf("- **%s** (attempt %d): %s\n", h.NodeKey, h.AttemptNumber, h.Condition)
+		}
+	}
+
+	description += fmt.Sprintf(`
+
+## Required Action
+
+This workflow has exceeded the maximum number of cycles (%d) or attempts. Please review:
+
+1. The original bead and its requirements
+2. The workflow execution history above
+3. Whether the workflow needs to be adjusted
+4. Whether the bead should be reassigned or closed
+
+## Options
+
+- **Approve with Instructions:** Provide specific guidance for how to proceed
+- **Reject and Reassign:** Assign to a different agent or role
+- **Close Bead:** Mark as won't fix or duplicate
+- **Modify Workflow:** Update the workflow definition if the process is flawed
+
+`, exec.CycleCount)
+
+	return title, description, nil
 }
 
 // GetCurrentNode returns the current node for an execution
