@@ -472,9 +472,59 @@ func (e *Engine) GetCurrentNode(executionID string) (*WorkflowNode, error) {
 
 // IsNodeReady checks if a node is ready to be executed (no blocking conditions)
 func (e *Engine) IsNodeReady(execution *WorkflowExecution) bool {
-	// For now, nodes are always ready when they become current
-	// In future, could check dependencies, timeouts, etc.
-	return execution.Status == ExecutionStatusActive
+	if execution.Status != ExecutionStatusActive {
+		return false
+	}
+
+	// Check for timeout
+	if err := e.CheckNodeTimeout(execution); err != nil {
+		log.Printf("[Workflow] Node timeout detected for bead %s: %v", execution.BeadID, err)
+		return false
+	}
+
+	return true
+}
+
+// CheckNodeTimeout checks if the current node has exceeded its timeout
+func (e *Engine) CheckNodeTimeout(execution *WorkflowExecution) error {
+	if execution.CurrentNodeKey == "" {
+		return nil // At workflow start, no timeout
+	}
+
+	// Get current node
+	node, err := e.GetCurrentNode(execution.ID)
+	if err != nil || node == nil {
+		return nil // No node, no timeout
+	}
+
+	// Check if node has timeout configured
+	if node.TimeoutMinutes <= 0 {
+		return nil // No timeout configured
+	}
+
+	// Calculate time since node started
+	timeSinceNode := time.Since(execution.LastNodeAt)
+	timeoutDuration := time.Duration(node.TimeoutMinutes) * time.Minute
+
+	if timeSinceNode > timeoutDuration {
+		// Node has timed out - advance workflow with timeout condition
+		log.Printf("[Workflow] Node %s timed out for bead %s (elapsed: %v, timeout: %v)",
+			node.NodeKey, execution.BeadID, timeSinceNode, timeoutDuration)
+
+		resultData := map[string]string{
+			"timeout_reason": fmt.Sprintf("Node exceeded timeout of %d minutes", node.TimeoutMinutes),
+			"elapsed_time":   timeSinceNode.String(),
+		}
+
+		// Advance with timeout condition
+		if err := e.AdvanceWorkflow(execution.ID, EdgeConditionTimeout, "system", resultData); err != nil {
+			return fmt.Errorf("node timed out but failed to advance workflow: %w", err)
+		}
+
+		return fmt.Errorf("node %s timed out after %v", node.NodeKey, timeSinceNode)
+	}
+
+	return nil
 }
 
 // GetWorkflowForBead determines which workflow to use for a bead

@@ -233,6 +233,13 @@ func (d *Dispatcher) DispatchOnce(ctx context.Context, projectID string) (*Dispa
 			if err != nil {
 				log.Printf("[Workflow] Error ensuring workflow for bead %s: %v", b.ID, err)
 			} else if execution != nil {
+				// Check for timeout before processing
+				if !d.workflowEngine.IsNodeReady(execution) {
+					skippedReasons["workflow_node_not_ready"]++
+					log.Printf("[Workflow] Bead %s workflow node not ready (may have timed out)", b.ID)
+					continue
+				}
+
 				workflowRoleRequired = d.getWorkflowRoleRequirement(execution)
 				if workflowRoleRequired != "" {
 					log.Printf("[Workflow] Bead %s requires role: %s", b.ID, workflowRoleRequired)
@@ -460,8 +467,51 @@ func (d *Dispatcher) DispatchOnce(ctx context.Context, projectID string) (*Dispa
 					// Check if workflow was escalated and needs CEO bead
 					if updatedExec.Status == workflow.ExecutionStatusEscalated && candidate.Context["escalation_bead_created"] != "true" {
 						log.Printf("[Workflow] Creating CEO escalation bead for workflow %s (bead %s)", updatedExec.ID, candidate.ID)
-						// Note: Escalation bead creation should be handled by a background job
-						// For now, we just log it. The workflow engine has marked the bead for escalation.
+
+						// Get escalation info from workflow engine
+						title, description, err := d.workflowEngine.GetEscalationInfo(updatedExec)
+						if err != nil {
+							log.Printf("[Workflow] Failed to get escalation info for workflow %s: %v", updatedExec.ID, err)
+						} else {
+							// Create CEO escalation bead
+							createdBead, err := d.beads.CreateBead(
+								title,
+								description,
+								models.BeadPriorityP0,
+								"decision",
+								candidate.ProjectID,
+							)
+							if err != nil {
+								log.Printf("[Workflow] Failed to create CEO escalation bead: %v", err)
+							} else {
+								log.Printf("[Workflow] Created CEO escalation bead %s for workflow %s", createdBead.ID, updatedExec.ID)
+
+								// Update the escalation bead with tags and context
+								escalationBeadUpdates := map[string]interface{}{
+									"tags": []string{"workflow-escalation", "ceo-review", "urgent"},
+									"context": map[string]string{
+										"original_bead_id":      candidate.ID,
+										"workflow_execution_id": updatedExec.ID,
+										"escalation_reason":     candidate.Context["escalation_reason"],
+										"escalated_at":          time.Now().UTC().Format(time.RFC3339),
+									},
+								}
+								if err := d.beads.UpdateBead(createdBead.ID, escalationBeadUpdates); err != nil {
+									log.Printf("[Workflow] Failed to update escalation bead with tags and context: %v", err)
+								}
+
+								// Mark original bead as having escalation bead created
+								originalUpdates := map[string]interface{}{
+									"context": map[string]string{
+										"escalation_bead_created": "true",
+										"escalation_bead_id":      createdBead.ID,
+									},
+								}
+								if err := d.beads.UpdateBead(candidate.ID, originalUpdates); err != nil {
+									log.Printf("[Workflow] Failed to update original bead with escalation info: %v", err)
+								}
+							}
+						}
 					}
 				}
 			}
@@ -718,6 +768,10 @@ func (d *Dispatcher) getWorkflowRoleRequirement(execution *workflow.WorkflowExec
 				// Found start edge, get target node
 				for _, node := range wf.Nodes {
 					if node.NodeKey == edge.ToNodeKey {
+						// Enforce Engineering Manager for commit nodes
+						if node.NodeType == workflow.NodeTypeCommit {
+							return "Engineering Manager"
+						}
 						return node.RoleRequired
 					}
 				}
@@ -730,6 +784,11 @@ func (d *Dispatcher) getWorkflowRoleRequirement(execution *workflow.WorkflowExec
 	node, err := d.workflowEngine.GetCurrentNode(execution.ID)
 	if err != nil || node == nil {
 		return ""
+	}
+
+	// Enforce Engineering Manager for commit nodes
+	if node.NodeType == workflow.NodeTypeCommit {
+		return "Engineering Manager"
 	}
 
 	return node.RoleRequired
