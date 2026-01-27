@@ -113,7 +113,8 @@ deps:
 clean:
 	@echo "Cleaning build artifacts..."
 	rm -f $(BINARY_NAME)
-	rm -f $(BINARY_NAME)-*
+	rm -f $(BINARY_NAME)-*-*
+	rm -f $(BINARY_NAME)-*.exe
 	rm -f coverage.out coverage.html
 	rm -f *.db
 
