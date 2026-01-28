@@ -21,6 +21,8 @@ func (s *Server) handleProjectStateEndpoints(w http.ResponseWriter, r *http.Requ
 		s.handleProjectState(w, r, id)
 	case "agents":
 		s.handleProjectAgents(w, r, id)
+	case "git-key":
+		s.handleProjectGitKey(w, r, id)
 	default:
 		s.respondError(w, http.StatusNotFound, "Unknown action")
 	}
@@ -67,6 +69,38 @@ func (s *Server) handleProjectAgents(w http.ResponseWriter, r *http.Request, id 
 
 	project, _ := s.agenticorp.GetProjectManager().GetProject(id)
 	s.respondJSON(w, http.StatusOK, project)
+}
+
+// handleProjectGitKey handles GET/POST /api/v1/projects/{id}/git-key
+func (s *Server) handleProjectGitKey(w http.ResponseWriter, r *http.Request, id string) {
+	if r.Method != http.MethodGet && r.Method != http.MethodPost {
+		s.respondError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	project, err := s.agenticorp.GetProjectManager().GetProject(id)
+	if err != nil {
+		s.respondError(w, http.StatusNotFound, "Project not found")
+		return
+	}
+
+	var publicKey string
+	if r.Method == http.MethodPost {
+		publicKey, err = s.agenticorp.RotateProjectGitKey(id)
+	} else {
+		publicKey, err = s.agenticorp.GetProjectGitPublicKey(id)
+	}
+	if err != nil {
+		s.respondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	s.respondJSON(w, http.StatusOK, map[string]interface{}{
+		"project_id":  project.ID,
+		"auth_method": project.GitAuthMethod,
+		"public_key":  publicKey,
+		"rotated":     r.Method == http.MethodPost,
+	})
 }
 
 // handleCloseProject handles POST /api/v1/projects/{id}/close

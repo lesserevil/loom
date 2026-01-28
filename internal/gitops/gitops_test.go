@@ -12,7 +12,7 @@ import (
 func TestNewManager(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	mgr, err := NewManager(tmpDir)
+	mgr, err := NewManager(tmpDir, filepath.Join(tmpDir, "keys"))
 	if err != nil {
 		t.Fatalf("NewManager failed: %v", err)
 	}
@@ -29,7 +29,7 @@ func TestNewManager(t *testing.T) {
 
 func TestGetProjectWorkDir(t *testing.T) {
 	tmpDir := t.TempDir()
-	mgr, _ := NewManager(tmpDir)
+	mgr, _ := NewManager(tmpDir, filepath.Join(tmpDir, "keys"))
 
 	projectID := "test-project"
 	expected := filepath.Join(tmpDir, projectID)
@@ -46,7 +46,7 @@ func TestCloneProject(t *testing.T) {
 	}
 
 	tmpDir := t.TempDir()
-	mgr, _ := NewManager(tmpDir)
+	mgr, _ := NewManager(tmpDir, filepath.Join(tmpDir, "keys"))
 
 	project := &models.Project{
 		ID:            "test-clone",
@@ -89,7 +89,7 @@ func TestCommitChanges(t *testing.T) {
 	}
 
 	tmpDir := t.TempDir()
-	mgr, _ := NewManager(tmpDir)
+	mgr, _ := NewManager(tmpDir, filepath.Join(tmpDir, "keys"))
 
 	// First clone a repo
 	project := &models.Project{
@@ -147,7 +147,7 @@ func TestCommitChangesNoChanges(t *testing.T) {
 	}
 
 	tmpDir := t.TempDir()
-	mgr, _ := NewManager(tmpDir)
+	mgr, _ := NewManager(tmpDir, filepath.Join(tmpDir, "keys"))
 
 	project := &models.Project{
 		ID:            "test-no-changes",

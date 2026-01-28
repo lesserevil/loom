@@ -2,7 +2,7 @@
 FROM golang:1.24-alpine AS builder
 
 # Install build dependencies (including gcc for CGO/sqlite3)
-RUN apk add --no-cache git ca-certificates tzdata gcc musl-dev
+RUN apk add --no-cache git ca-certificates tzdata gcc musl-dev openssh-client
 
 # Set working directory
 WORKDIR /build

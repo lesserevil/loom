@@ -27,6 +27,13 @@ const (
 	StatusParked StatusState = "parked"
 )
 
+type ReadinessMode string
+
+const (
+	ReadinessBlock ReadinessMode = "block"
+	ReadinessWarn  ReadinessMode = "warn"
+)
+
 type SystemStatus struct {
 	State     StatusState `json:"state"`
 	Reason    string      `json:"reason"`
@@ -53,6 +60,8 @@ type Dispatcher struct {
 	workflowEngine *workflow.Engine
 	personaMatcher *PersonaMatcher
 	autoBugRouter  *AutoBugRouter
+	readinessCheck func(context.Context, string) (bool, []string)
+	readinessMode  ReadinessMode
 
 	mu     sync.RWMutex
 	status SystemStatus
@@ -67,6 +76,7 @@ func NewDispatcher(beadsMgr *beads.Manager, projMgr *project.Manager, agentMgr *
 		eventBus:       eb,
 		personaMatcher: NewPersonaMatcher(),
 		autoBugRouter:  NewAutoBugRouter(),
+		readinessMode:  ReadinessBlock,
 		status: SystemStatus{
 			State:     StatusParked,
 			Reason:    "not started",
@@ -89,6 +99,21 @@ func (d *Dispatcher) SetWorkflowEngine(engine *workflow.Engine) {
 	d.workflowEngine = engine
 }
 
+func (d *Dispatcher) SetReadinessCheck(check func(context.Context, string) (bool, []string)) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.readinessCheck = check
+}
+
+func (d *Dispatcher) SetReadinessMode(mode ReadinessMode) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if mode != ReadinessWarn {
+		mode = ReadinessBlock
+	}
+	d.readinessMode = mode
+}
+
 // DispatchOnce finds at most one ready bead and asks an idle agent to work on it.
 func (d *Dispatcher) DispatchOnce(ctx context.Context, projectID string) (*DispatchResult, error) {
 	activeProviders := d.providers.ListActive()
@@ -103,6 +128,59 @@ func (d *Dispatcher) DispatchOnce(ctx context.Context, projectID string) (*Dispa
 	if err != nil {
 		d.setStatus(StatusParked, "failed to list ready beads")
 		return nil, err
+	}
+
+	d.mu.RLock()
+	readinessCheck := d.readinessCheck
+	readinessMode := d.readinessMode
+	d.mu.RUnlock()
+
+	if readinessCheck != nil {
+		if projectID != "" {
+			readyOK, issues := readinessCheck(ctx, projectID)
+			if !readyOK && readinessMode == ReadinessBlock {
+				reason := "project readiness failed"
+				if len(issues) > 0 {
+					reason = fmt.Sprintf("project readiness failed: %s", strings.Join(issues, "; "))
+				}
+				d.setStatus(StatusParked, reason)
+				return &DispatchResult{Dispatched: false, ProjectID: projectID, Error: reason}, nil
+			}
+		}
+
+		projectReadiness := make(map[string]bool)
+		if readinessMode == ReadinessBlock {
+			filtered := make([]*models.Bead, 0, len(ready))
+			for _, bead := range ready {
+				if bead == nil {
+					filtered = append(filtered, bead)
+					continue
+				}
+				if _, ok := projectReadiness[bead.ProjectID]; !ok {
+					okReady, _ := readinessCheck(ctx, bead.ProjectID)
+					projectReadiness[bead.ProjectID] = okReady
+				}
+				if projectReadiness[bead.ProjectID] {
+					filtered = append(filtered, bead)
+				}
+			}
+			ready = filtered
+			if len(ready) == 0 {
+				d.setStatus(StatusParked, "project readiness failed")
+				return &DispatchResult{Dispatched: false, ProjectID: projectID}, nil
+			}
+		} else {
+			for _, bead := range ready {
+				if bead == nil {
+					continue
+				}
+				if _, ok := projectReadiness[bead.ProjectID]; ok {
+					continue
+				}
+				okReady, _ := readinessCheck(ctx, bead.ProjectID)
+				projectReadiness[bead.ProjectID] = okReady
+			}
+		}
 	}
 
 	log.Printf("[Dispatcher] GetReadyBeads returned %d beads for project %s", len(ready), projectID)

@@ -29,12 +29,14 @@ type Provider struct {
 // and JSON-based configuration (for user-specific config using LoadConfig).
 type Config struct {
 	// YAML/File-based configuration fields
-	Server   ServerConfig    `yaml:"server" json:"server,omitempty"`
-	Database DatabaseConfig  `yaml:"database" json:"database,omitempty"`
-	Beads    BeadsConfig     `yaml:"beads" json:"beads,omitempty"`
-	Agents   AgentsConfig    `yaml:"agents" json:"agents,omitempty"`
-	Security SecurityConfig  `yaml:"security" json:"security,omitempty"`
-	Cache    CacheConfig     `yaml:"cache" json:"cache,omitempty"`
+	Server    ServerConfig    `yaml:"server" json:"server,omitempty"`
+	Database  DatabaseConfig  `yaml:"database" json:"database,omitempty"`
+	Beads     BeadsConfig     `yaml:"beads" json:"beads,omitempty"`
+	Agents    AgentsConfig    `yaml:"agents" json:"agents,omitempty"`
+	Security  SecurityConfig  `yaml:"security" json:"security,omitempty"`
+	Cache     CacheConfig     `yaml:"cache" json:"cache,omitempty"`
+	Readiness ReadinessConfig `yaml:"readiness" json:"readiness,omitempty"`
+	Git       GitConfig       `yaml:"git" json:"git,omitempty"`
 	Projects  []ProjectConfig `yaml:"projects" json:"projects,omitempty"`
 	WebUI     WebUIConfig     `yaml:"web_ui" json:"web_ui,omitempty"`
 	Temporal  TemporalConfig  `yaml:"temporal" json:"temporal,omitempty"`
@@ -80,6 +82,18 @@ type AgentsConfig struct {
 	DefaultPersonaPath string        `yaml:"default_persona_path"`
 	HeartbeatInterval  time.Duration `yaml:"heartbeat_interval"`
 	FileLockTimeout    time.Duration `yaml:"file_lock_timeout"`
+	CorpProfile        string        `yaml:"corp_profile" json:"corp_profile,omitempty"`
+	AllowedRoles       []string      `yaml:"allowed_roles" json:"allowed_roles,omitempty"`
+}
+
+// ReadinessConfig controls readiness gating behavior
+type ReadinessConfig struct {
+	Mode string `yaml:"mode" json:"mode,omitempty"`
+}
+
+// GitConfig controls git-related settings
+type GitConfig struct {
+	ProjectKeyDir string `yaml:"project_key_dir" json:"project_key_dir,omitempty"`
 }
 
 // SecurityConfig configures authentication and authorization
@@ -118,14 +132,16 @@ type CacheConfig struct {
 
 // ProjectConfig represents a project configuration
 type ProjectConfig struct {
-	ID          string            `yaml:"id"`
-	Name        string            `yaml:"name"`
-	GitRepo     string            `yaml:"git_repo"`
-	Branch      string            `yaml:"branch"`
-	BeadsPath   string            `yaml:"beads_path"`
-	IsPerpetual bool              `yaml:"is_perpetual" json:"is_perpetual,omitempty"`
-	IsSticky    bool              `yaml:"is_sticky" json:"is_sticky,omitempty"`
-	Context     map[string]string `yaml:"context"`
+	ID              string            `yaml:"id"`
+	Name            string            `yaml:"name"`
+	GitRepo         string            `yaml:"git_repo"`
+	Branch          string            `yaml:"branch"`
+	BeadsPath       string            `yaml:"beads_path"`
+	GitAuthMethod   string            `yaml:"git_auth_method" json:"git_auth_method,omitempty"`
+	GitCredentialID string            `yaml:"git_credential_id" json:"git_credential_id,omitempty"`
+	IsPerpetual     bool              `yaml:"is_perpetual" json:"is_perpetual,omitempty"`
+	IsSticky        bool              `yaml:"is_sticky" json:"is_sticky,omitempty"`
+	Context         map[string]string `yaml:"context"`
 }
 
 // WebUIConfig configures the web interface
@@ -213,6 +229,13 @@ func DefaultConfig() *Config {
 			DefaultPersonaPath: "./personas",
 			HeartbeatInterval:  30 * time.Second,
 			FileLockTimeout:    10 * time.Minute,
+			CorpProfile:        "full",
+		},
+		Readiness: ReadinessConfig{
+			Mode: "block",
+		},
+		Git: GitConfig{
+			ProjectKeyDir: "/app/data/projects",
 		},
 		Security: SecurityConfig{
 			EnableAuth:     true,

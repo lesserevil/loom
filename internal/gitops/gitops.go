@@ -14,18 +14,27 @@ import (
 
 // Manager handles git operations for managed projects
 type Manager struct {
-	baseWorkDir string // Base directory for all project clones (e.g., /app/src)
+	baseWorkDir   string // Base directory for all project clones (e.g., /app/src)
+	projectKeyDir string // Base directory for per-project SSH keys
 }
 
 // NewManager creates a new git operations manager
-func NewManager(baseWorkDir string) (*Manager, error) {
+func NewManager(baseWorkDir, projectKeyDir string) (*Manager, error) {
 	// Ensure base work directory exists
 	if err := os.MkdirAll(baseWorkDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create base work directory: %w", err)
 	}
 
+	if projectKeyDir == "" {
+		projectKeyDir = filepath.Join("/app/data", "projects")
+	}
+	if err := os.MkdirAll(projectKeyDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create project key directory: %w", err)
+	}
+
 	return &Manager{
-		baseWorkDir: baseWorkDir,
+		baseWorkDir:   baseWorkDir,
+		projectKeyDir: projectKeyDir,
 	}, nil
 }
 
@@ -252,14 +261,21 @@ func (m *Manager) configureAuth(cmd *exec.Cmd, project *models.Project) error {
 		return nil
 
 	case models.GitAuthSSH:
-		// Set SSH key path via environment
-		// This assumes SSH keys are managed by the keymanager
-		sshKeyPath := filepath.Join("/home/agenticorp/.ssh", project.GitCredentialID)
+		publicKey, err := m.EnsureProjectSSHKey(project.ID)
+		if err != nil {
+			return err
+		}
+		_ = publicKey
+		sshKeyPath := m.projectPrivateKeyPath(project.ID)
+		if _, err := os.Stat(sshKeyPath); err != nil {
+			return fmt.Errorf("ssh key not found for project %s: %w", project.ID, err)
+		}
 		if cmd.Env == nil {
 			cmd.Env = os.Environ()
 		}
 		cmd.Env = append(cmd.Env,
-			fmt.Sprintf("GIT_SSH_COMMAND=ssh -i %s -o UserKnownHostsFile=/home/agenticorp/.ssh/known_hosts", sshKeyPath),
+			"GIT_TERMINAL_PROMPT=0",
+			fmt.Sprintf("GIT_SSH_COMMAND=ssh -i %s -o IdentitiesOnly=yes -o UserKnownHostsFile=/home/agenticorp/.ssh/known_hosts", sshKeyPath),
 		)
 		return nil
 
@@ -299,6 +315,118 @@ func (m *Manager) runGitCommandWithOutput(ctx context.Context, workDir string, a
 		return "", fmt.Errorf("git %s failed: %w\nOutput: %s", strings.Join(args, " "), err, string(output))
 	}
 	return string(output), nil
+}
+
+func (m *Manager) projectKeyDirForProject(projectID string) string {
+	return filepath.Join(m.projectKeyDir, projectID, "ssh")
+}
+
+func (m *Manager) projectPrivateKeyPath(projectID string) string {
+	return filepath.Join(m.projectKeyDirForProject(projectID), "id_ed25519")
+}
+
+func (m *Manager) projectPublicKeyPath(projectID string) string {
+	return m.projectPrivateKeyPath(projectID) + ".pub"
+}
+
+// EnsureProjectSSHKey ensures an SSH keypair exists for the project and returns the public key.
+func (m *Manager) EnsureProjectSSHKey(projectID string) (string, error) {
+	if projectID == "" {
+		return "", fmt.Errorf("project ID is required")
+	}
+
+	keyDir := m.projectKeyDirForProject(projectID)
+	if err := os.MkdirAll(keyDir, 0700); err != nil {
+		return "", fmt.Errorf("failed to create project ssh directory: %w", err)
+	}
+
+	privatePath := m.projectPrivateKeyPath(projectID)
+	publicPath := m.projectPublicKeyPath(projectID)
+	if _, err := os.Stat(privatePath); os.IsNotExist(err) {
+		if err := m.generateSSHKeyPair(privatePath); err != nil {
+			return "", err
+		}
+	}
+
+	if _, err := os.Stat(publicPath); os.IsNotExist(err) {
+		if err := m.writePublicKeyFromPrivate(privatePath, publicPath); err != nil {
+			return "", err
+		}
+	}
+
+	keyBytes, err := os.ReadFile(publicPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read public key: %w", err)
+	}
+
+	return strings.TrimSpace(string(keyBytes)), nil
+}
+
+// GetProjectPublicKey returns the project's public SSH key, creating it if needed.
+func (m *Manager) GetProjectPublicKey(projectID string) (string, error) {
+	return m.EnsureProjectSSHKey(projectID)
+}
+
+// RotateProjectSSHKey regenerates the project's SSH keypair and returns the new public key.
+func (m *Manager) RotateProjectSSHKey(projectID string) (string, error) {
+	if projectID == "" {
+		return "", fmt.Errorf("project ID is required")
+	}
+	privatePath := m.projectPrivateKeyPath(projectID)
+	publicPath := m.projectPublicKeyPath(projectID)
+	_ = os.Remove(privatePath)
+	_ = os.Remove(publicPath)
+	if err := m.generateSSHKeyPair(privatePath); err != nil {
+		return "", err
+	}
+	keyBytes, err := os.ReadFile(publicPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read public key: %w", err)
+	}
+	return strings.TrimSpace(string(keyBytes)), nil
+}
+
+func (m *Manager) generateSSHKeyPair(privatePath string) error {
+	cmd := exec.Command("ssh-keygen", "-t", "ed25519", "-N", "", "-f", privatePath)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to generate ssh key: %w: %s", err, strings.TrimSpace(string(output)))
+	}
+	if err := os.Chmod(privatePath, 0600); err != nil {
+		return fmt.Errorf("failed to set ssh key permissions: %w", err)
+	}
+	return nil
+}
+
+func (m *Manager) writePublicKeyFromPrivate(privatePath, publicPath string) error {
+	cmd := exec.Command("ssh-keygen", "-y", "-f", privatePath)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to derive public key: %w: %s", err, strings.TrimSpace(string(output)))
+	}
+	if err := os.WriteFile(publicPath, output, 0644); err != nil {
+		return fmt.Errorf("failed to write public key: %w", err)
+	}
+	return nil
+}
+
+// CheckRemoteAccess verifies that the configured git auth can access the remote.
+func (m *Manager) CheckRemoteAccess(ctx context.Context, project *models.Project) error {
+	if project == nil {
+		return fmt.Errorf("project is required")
+	}
+	if project.GitRepo == "" || project.GitRepo == "." {
+		return nil
+	}
+	cmd := exec.CommandContext(ctx, "git", "ls-remote", project.GitRepo, "HEAD")
+	if err := m.configureAuth(cmd, project); err != nil {
+		return err
+	}
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("git ls-remote failed: %w: %s", err, strings.TrimSpace(string(output)))
+	}
+	return nil
 }
 
 // Helper to create time pointer

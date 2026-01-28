@@ -10,6 +10,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/jordanhubbard/agenticorp/internal/actions"
@@ -40,6 +41,14 @@ import (
 	"github.com/jordanhubbard/agenticorp/pkg/models"
 )
 
+const readinessCacheTTL = 2 * time.Minute
+
+type projectReadinessState struct {
+	ready     bool
+	issues    []string
+	checkedAt time.Time
+}
+
 // AgentiCorp is the main orchestrator
 type AgentiCorp struct {
 	config             *config.Config
@@ -65,6 +74,9 @@ type AgentiCorp struct {
 	idleDetector       *motivation.IdleDetector
 	workflowEngine     *workflow.Engine
 	metrics            *metrics.Metrics
+	readinessMu        sync.Mutex
+	readinessCache     map[string]projectReadinessState
+	readinessFailures  map[string]time.Time
 }
 
 // New creates a new AgentiCorp instance
@@ -126,7 +138,11 @@ func New(cfg *config.Config) (*AgentiCorp, error) {
 		// Use parent directory of beads path as work directory base
 		gitWorkDir = filepath.Join(filepath.Dir(cfg.Projects[0].BeadsPath), "src")
 	}
-	gitopsMgr, err := gitops.NewManager(gitWorkDir)
+	projectKeyDir := cfg.Git.ProjectKeyDir
+	if projectKeyDir == "" {
+		projectKeyDir = "/app/data/projects"
+	}
+	gitopsMgr, err := gitops.NewManager(gitWorkDir, projectKeyDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize gitops manager: %w", err)
 	}
@@ -196,6 +212,10 @@ func New(cfg *config.Config) (*AgentiCorp, error) {
 	agentMgr.SetActionRouter(actionRouter)
 
 	arb.dispatcher = dispatch.NewDispatcher(arb.beadsManager, arb.projectManager, arb.agentManager, arb.providerRegistry, eb)
+	arb.readinessCache = make(map[string]projectReadinessState)
+	arb.readinessFailures = make(map[string]time.Time)
+	arb.dispatcher.SetReadinessCheck(arb.CheckProjectReadiness)
+	arb.dispatcher.SetReadinessMode(dispatch.ReadinessMode(cfg.Readiness.Mode))
 
 	// Setup provider metrics tracking
 	arb.setupProviderMetrics()
@@ -275,15 +295,17 @@ func (a *AgentiCorp) Initialize(ctx context.Context) error {
 					continue
 				}
 				proj := &models.Project{
-					ID:          p.ID,
-					Name:        p.Name,
-					GitRepo:     p.GitRepo,
-					Branch:      p.Branch,
-					BeadsPath:   p.BeadsPath,
-					IsPerpetual: p.IsPerpetual,
-					IsSticky:    p.IsSticky,
-					Context:     p.Context,
-					Status:      models.ProjectStatusOpen,
+					ID:              p.ID,
+					Name:            p.Name,
+					GitRepo:         p.GitRepo,
+					Branch:          p.Branch,
+					BeadsPath:       p.BeadsPath,
+					GitAuthMethod:   models.GitAuthMethod(p.GitAuthMethod),
+					GitCredentialID: p.GitCredentialID,
+					IsPerpetual:     p.IsPerpetual,
+					IsSticky:        p.IsSticky,
+					Context:         p.Context,
+					Status:          models.ProjectStatusOpen,
 				}
 				_ = a.database.UpsertProject(proj)
 				projects = append(projects, proj)
@@ -292,15 +314,17 @@ func (a *AgentiCorp) Initialize(ctx context.Context) error {
 			// Bootstrap from config.yaml into the configuration database.
 			for _, p := range a.config.Projects {
 				proj := &models.Project{
-					ID:          p.ID,
-					Name:        p.Name,
-					GitRepo:     p.GitRepo,
-					Branch:      p.Branch,
-					BeadsPath:   p.BeadsPath,
-					IsPerpetual: p.IsPerpetual,
-					IsSticky:    p.IsSticky,
-					Context:     p.Context,
-					Status:      models.ProjectStatusOpen,
+					ID:              p.ID,
+					Name:            p.Name,
+					GitRepo:         p.GitRepo,
+					Branch:          p.Branch,
+					BeadsPath:       p.BeadsPath,
+					GitAuthMethod:   models.GitAuthMethod(p.GitAuthMethod),
+					GitCredentialID: p.GitCredentialID,
+					IsPerpetual:     p.IsPerpetual,
+					IsSticky:        p.IsSticky,
+					Context:         p.Context,
+					Status:          models.ProjectStatusOpen,
 				}
 				_ = a.database.UpsertProject(proj)
 				projects = append(projects, proj)
@@ -309,15 +333,17 @@ func (a *AgentiCorp) Initialize(ctx context.Context) error {
 	} else {
 		for _, p := range a.config.Projects {
 			projects = append(projects, &models.Project{
-				ID:          p.ID,
-				Name:        p.Name,
-				GitRepo:     p.GitRepo,
-				Branch:      p.Branch,
-				BeadsPath:   p.BeadsPath,
-				IsPerpetual: p.IsPerpetual,
-				IsSticky:    p.IsSticky,
-				Context:     p.Context,
-				Status:      models.ProjectStatusOpen,
+				ID:              p.ID,
+				Name:            p.Name,
+				GitRepo:         p.GitRepo,
+				Branch:          p.Branch,
+				BeadsPath:       p.BeadsPath,
+				GitAuthMethod:   models.GitAuthMethod(p.GitAuthMethod),
+				GitCredentialID: p.GitCredentialID,
+				IsPerpetual:     p.IsPerpetual,
+				IsSticky:        p.IsSticky,
+				Context:         p.Context,
+				Status:          models.ProjectStatusOpen,
 			})
 		}
 	}
@@ -330,32 +356,36 @@ func (a *AgentiCorp) Initialize(ctx context.Context) error {
 		}
 		copy := *p
 		copy.BeadsPath = normalizeBeadsPath(copy.BeadsPath)
+		copy.GitAuthMethod = normalizeGitAuthMethod(copy.GitRepo, copy.GitAuthMethod)
 		projectValues = append(projectValues, copy)
 	}
 	if len(projectValues) == 0 && len(a.config.Projects) > 0 {
 		for _, p := range a.config.Projects {
 			projectValues = append(projectValues, models.Project{
-				ID:          p.ID,
-				Name:        p.Name,
-				GitRepo:     p.GitRepo,
-				Branch:      p.Branch,
-				BeadsPath:   normalizeBeadsPath(p.BeadsPath),
-				IsPerpetual: p.IsPerpetual,
-				IsSticky:    p.IsSticky,
-				Context:     p.Context,
-				Status:      models.ProjectStatusOpen,
+				ID:              p.ID,
+				Name:            p.Name,
+				GitRepo:         p.GitRepo,
+				Branch:          p.Branch,
+				BeadsPath:       normalizeBeadsPath(p.BeadsPath),
+				GitAuthMethod:   normalizeGitAuthMethod(p.GitRepo, models.GitAuthMethod(p.GitAuthMethod)),
+				GitCredentialID: p.GitCredentialID,
+				IsPerpetual:     p.IsPerpetual,
+				IsSticky:        p.IsSticky,
+				Context:         p.Context,
+				Status:          models.ProjectStatusOpen,
 			})
 		}
 	}
 	if len(projectValues) == 0 {
 		projectValues = append(projectValues, models.Project{
-			ID:          "agenticorp",
-			Name:        "AgentiCorp",
-			GitRepo:     ".",
-			Branch:      "main",
-			BeadsPath:   normalizeBeadsPath(".beads"),
-			IsPerpetual: true,
-			IsSticky:    true,
+			ID:            "agenticorp",
+			Name:          "AgentiCorp",
+			GitRepo:       ".",
+			Branch:        "main",
+			BeadsPath:     normalizeBeadsPath(".beads"),
+			GitAuthMethod: normalizeGitAuthMethod(".", ""),
+			IsPerpetual:   true,
+			IsSticky:      true,
 			Context: map[string]string{
 				"build_command": "make build",
 				"test_command":  "make test",
@@ -869,6 +899,8 @@ func (a *AgentiCorp) CreateProject(name, gitRepo, branch, beadsPath string, ctxM
 	if err != nil {
 		return nil, err
 	}
+	p.BeadsPath = normalizeBeadsPath(p.BeadsPath)
+	p.GitAuthMethod = normalizeGitAuthMethod(p.GitRepo, p.GitAuthMethod)
 	_ = a.ensureDefaultAgents(context.Background(), p.ID)
 	if a.database != nil {
 		_ = a.database.UpsertProject(p)
@@ -904,6 +936,8 @@ func (a *AgentiCorp) ensureOrgChart(ctx context.Context, projectID string) error
 		return err
 	}
 
+	allowedRoles := a.allowedRoleSet()
+
 	// Map existing agents to their roles
 	existingByRole := map[string]string{} // role -> agentID
 	for _, agent := range a.agentManager.ListAgentsByProject(project.ID) {
@@ -919,6 +953,11 @@ func (a *AgentiCorp) ensureOrgChart(ctx context.Context, projectID string) error
 	// Fill positions from existing agents first
 	for i := range chart.Positions {
 		pos := &chart.Positions[i]
+		if len(allowedRoles) > 0 {
+			if _, ok := allowedRoles[strings.ToLower(pos.RoleName)]; !ok {
+				continue
+			}
+		}
 		if agentID, ok := existingByRole[pos.RoleName]; ok {
 			if !pos.HasAgent(agentID) && pos.CanAddAgent() {
 				pos.AgentIDs = append(pos.AgentIDs, agentID)
@@ -928,6 +967,11 @@ func (a *AgentiCorp) ensureOrgChart(ctx context.Context, projectID string) error
 
 	// Create agents for ALL positions that are still vacant (agents start paused without a provider)
 	for _, pos := range chart.Positions {
+		if len(allowedRoles) > 0 {
+			if _, ok := allowedRoles[strings.ToLower(pos.RoleName)]; !ok {
+				continue
+			}
+		}
 		if pos.IsFilled() {
 			continue
 		}
@@ -949,6 +993,134 @@ func (a *AgentiCorp) ensureOrgChart(ctx context.Context, projectID string) error
 	}
 
 	return nil
+}
+
+// CheckProjectReadiness validates git access and bead path availability for dispatch gating.
+func (a *AgentiCorp) CheckProjectReadiness(ctx context.Context, projectID string) (bool, []string) {
+	if projectID == "" {
+		return true, nil
+	}
+
+	now := time.Now()
+	a.readinessMu.Lock()
+	if cached, ok := a.readinessCache[projectID]; ok {
+		if now.Sub(cached.checkedAt) < readinessCacheTTL {
+			issues := append([]string(nil), cached.issues...)
+			ready := cached.ready
+			a.readinessMu.Unlock()
+			return ready, issues
+		}
+	}
+	a.readinessMu.Unlock()
+
+	project, err := a.projectManager.GetProject(projectID)
+	if err != nil {
+		return false, []string{err.Error()}
+	}
+
+	issues := []string{}
+	publicKey := ""
+	if project.GitRepo != "" && project.GitRepo != "." {
+		if project.GitAuthMethod == "" {
+			project.GitAuthMethod = normalizeGitAuthMethod(project.GitRepo, project.GitAuthMethod)
+		}
+		if project.GitAuthMethod == models.GitAuthSSH {
+			key, err := a.gitopsManager.EnsureProjectSSHKey(project.ID)
+			if err != nil {
+				issues = append(issues, fmt.Sprintf("ssh key generation failed: %v", err))
+			} else {
+				publicKey = key
+			}
+			if !isSSHRepo(project.GitRepo) {
+				issues = append(issues, "git repo is not using SSH (update git_repo to an SSH URL or set git_auth_method)")
+			}
+		}
+		if err := a.gitopsManager.CheckRemoteAccess(ctx, project); err != nil {
+			issues = append(issues, fmt.Sprintf("git remote access failed: %v", err))
+		}
+	}
+
+	beadsPath := project.BeadsPath
+	if project.GitRepo != "" && project.GitRepo != "." {
+		beadsPath = filepath.Join(a.gitopsManager.GetProjectWorkDir(project.ID), project.BeadsPath)
+	}
+	if !beadsPathExists(beadsPath) {
+		issues = append(issues, fmt.Sprintf("beads path missing: %s", beadsPath))
+	}
+
+	ready := len(issues) == 0
+	a.readinessMu.Lock()
+	a.readinessCache[projectID] = projectReadinessState{ready: ready, issues: issues, checkedAt: now}
+	a.readinessMu.Unlock()
+
+	if !ready {
+		a.maybeFileReadinessBead(project, issues, publicKey)
+	}
+
+	return ready, issues
+}
+
+func (a *AgentiCorp) maybeFileReadinessBead(project *models.Project, issues []string, publicKey string) {
+	if project == nil || len(issues) == 0 {
+		return
+	}
+	issueKey := fmt.Sprintf("%s:%s", project.ID, strings.Join(issues, "|"))
+	now := time.Now()
+	a.readinessMu.Lock()
+	if last, ok := a.readinessFailures[issueKey]; ok && now.Sub(last) < 30*time.Minute {
+		a.readinessMu.Unlock()
+		return
+	}
+	a.readinessFailures[issueKey] = now
+	a.readinessMu.Unlock()
+
+	description := fmt.Sprintf("Project readiness failed for %s.\n\nIssues:\n- %s", project.ID, strings.Join(issues, "\n- "))
+	if publicKey != "" {
+		description = fmt.Sprintf("%s\n\nProject SSH public key (register this with your git host):\n%s", description, publicKey)
+	}
+
+	bead, err := a.CreateBead(
+		fmt.Sprintf("[auto-filed] P0 - Project readiness failed for %s", project.ID),
+		description,
+		models.BeadPriorityP0,
+		"bug",
+		project.ID,
+	)
+	if err != nil {
+		log.Printf("failed to auto-file readiness bead for %s: %v", project.ID, err)
+		return
+	}
+
+	_ = a.beadsManager.UpdateBead(bead.ID, map[string]interface{}{
+		"tags": []string{"auto-filed", "readiness", "p0"},
+	})
+}
+
+func isSSHRepo(repo string) bool {
+	repo = strings.TrimSpace(repo)
+	return strings.HasPrefix(repo, "git@") || strings.HasPrefix(repo, "ssh://")
+}
+
+func (a *AgentiCorp) GetProjectGitPublicKey(projectID string) (string, error) {
+	project, err := a.projectManager.GetProject(projectID)
+	if err != nil {
+		return "", err
+	}
+	if project.GitAuthMethod != models.GitAuthSSH {
+		return "", fmt.Errorf("project %s is not configured for ssh auth", projectID)
+	}
+	return a.gitopsManager.GetProjectPublicKey(projectID)
+}
+
+func (a *AgentiCorp) RotateProjectGitKey(projectID string) (string, error) {
+	project, err := a.projectManager.GetProject(projectID)
+	if err != nil {
+		return "", err
+	}
+	if project.GitAuthMethod != models.GitAuthSSH {
+		return "", fmt.Errorf("project %s is not configured for ssh auth", projectID)
+	}
+	return a.gitopsManager.RotateProjectSSHKey(projectID)
 }
 
 func roleFromPersonaName(personaName string) string {
@@ -1032,11 +1204,61 @@ func beadsPathExists(path string) bool {
 	if path == "" {
 		return false
 	}
+	issuesPath := filepath.Join(path, "issues.jsonl")
+	if _, err := os.Stat(issuesPath); err == nil {
+		return true
+	}
 	beadsDir := filepath.Join(path, "beads")
 	if _, err := os.Stat(beadsDir); err == nil {
 		return true
 	}
 	return false
+}
+
+func normalizeGitAuthMethod(repo string, method models.GitAuthMethod) models.GitAuthMethod {
+	if method != "" {
+		return method
+	}
+	if repo == "" || repo == "." {
+		return models.GitAuthNone
+	}
+	return models.GitAuthSSH
+}
+
+func (a *AgentiCorp) allowedRoleSet() map[string]struct{} {
+	roles := a.config.Agents.AllowedRoles
+	if len(roles) == 0 {
+		roles = rolesForProfile(a.config.Agents.CorpProfile)
+	}
+	if len(roles) == 0 {
+		return nil
+	}
+	set := make(map[string]struct{}, len(roles))
+	for _, role := range roles {
+		role = strings.TrimSpace(strings.ToLower(role))
+		if role == "" {
+			continue
+		}
+		set[role] = struct{}{}
+	}
+	if len(set) == 0 {
+		return nil
+	}
+	return set
+}
+
+func rolesForProfile(profile string) []string {
+	profile = strings.TrimSpace(strings.ToLower(profile))
+	switch profile {
+	case "startup":
+		return []string{"ceo", "engineering-manager", "web-designer"}
+	case "solo":
+		return []string{"ceo", "engineering-manager"}
+	case "full", "enterprise", "":
+		return nil
+	default:
+		return nil
+	}
 }
 
 // CloneAgentPersona clones a default persona into a project-specific persona and spawns a new agent.
