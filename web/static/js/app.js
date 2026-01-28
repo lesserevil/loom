@@ -420,7 +420,7 @@ async function apiCall(endpoint, options = {}) {
         
         return await response.json();
     } catch (error) {
-        console.error('API Error:', error);
+        console.error('[AgentiCorp] API Error:', error);
         if (!options.suppressToast) {
             showToast(error.message || 'Request failed', 'error');
         }
@@ -1434,6 +1434,51 @@ async function sendStreamingTest() {
     }
 }
 
+const OPENAI_COMPATIBLE_TYPES = new Set(['openai', 'local', 'custom', 'anthropic', 'vllm']);
+
+function parseProviderEndpoint(endpoint) {
+    if (!endpoint) return null;
+    try {
+        return new URL(endpoint);
+    } catch (err) {
+        try {
+            return new URL(`http://${endpoint}`);
+        } catch (err2) {
+            return null;
+        }
+    }
+}
+
+function looksLikeOllamaEndpoint(endpoint) {
+    const url = parseProviderEndpoint(endpoint);
+    if (!url) return false;
+    const port = url.port;
+    const path = url.pathname || '';
+    return port === '11434' || path.startsWith('/api') || path.includes('/api/');
+}
+
+function looksLikeOpenAIEndpoint(endpoint) {
+    const url = parseProviderEndpoint(endpoint);
+    if (!url) return false;
+    const path = url.pathname || '';
+    return path.startsWith('/v1') || path.includes('/v1/');
+}
+
+function getProviderEndpointWarning(provider) {
+    if (!provider) return '';
+    const endpoint = provider.endpoint || '';
+    const type = String(provider.type || '').toLowerCase();
+    if (!endpoint || !type) return '';
+
+    if (type === 'ollama' && looksLikeOpenAIEndpoint(endpoint)) {
+        return 'This endpoint looks OpenAI-compatible (/v1) but the protocol is Ollama.';
+    }
+    if (OPENAI_COMPATIBLE_TYPES.has(type) && looksLikeOllamaEndpoint(endpoint)) {
+        return 'This endpoint looks like an Ollama server (port 11434 or /api), but the protocol is OpenAI-compatible.';
+    }
+    return '';
+}
+
 function renderProviders() {
     const container = document.getElementById('provider-list');
     if (!container) return;
@@ -1464,6 +1509,7 @@ function renderProviders() {
             const id = escapeHtml(p.id || '');
             const name = escapeHtml(p.name || p.id || '');
             const endpoint = escapeHtml(p.endpoint || '');
+            const endpointWarning = getProviderEndpointWarning(p);
             const model = escapeHtml(p.model || '');
             const configuredModel = escapeHtml(p.configured_model || p.model || '');
             const selectedModel = escapeHtml(p.selected_model || p.model || '');
@@ -1485,6 +1531,7 @@ function renderProviders() {
                         <div><span class="badge">${escapeHtml(p.type || '')}</span></div>
                     </div>
                     <div class="small"><strong>Endpoint:</strong> ${endpoint}</div>
+                    ${endpointWarning ? `<div class="small" style="color: var(--warning-color);"><strong>Warning:</strong> ${escapeHtml(endpointWarning)}</div>` : ''}
                     <div class="small"><strong>API Key:</strong> ${hasApiKey}</div>
                     <div class="small"><strong>Configured model:</strong> ${configuredModel || '<em>unset</em>'}</div>
                     <div class="small"><strong>Selected model:</strong> ${selectedModel || '<em>unset</em>'}</div>
@@ -2338,7 +2385,13 @@ async function showRegisterProviderModal(preset = {}) {
         title: 'Register provider',
         submitText: 'Register',
         fields: [
-            { id: 'endpoint', label: 'Provider URL', required: true, placeholder: preset.endpoint || 'e.g. http://myvllmhost.local:8000' },
+            {
+                id: 'endpoint',
+                label: 'Provider URL',
+                required: true,
+                placeholder: preset.endpoint || 'e.g. http://myvllmhost.local:8000',
+                description: 'OpenAI-compatible servers typically use /v1 (often :8000). Ollama defaults to :11434.'
+            },
             { id: 'name', label: 'Display name (optional)', required: false, placeholder: preset.name || '' },
             { 
                 id: 'type', 
@@ -2363,6 +2416,17 @@ async function showRegisterProviderModal(preset = {}) {
     
     // Auto-generate provider ID from URL hostname
     const endpoint = (values.endpoint || '').trim();
+    const providerType = (values.type || '').trim() || 'local';
+    const endpointWarning = getProviderEndpointWarning({ endpoint, type: providerType });
+    if (endpointWarning) {
+        const ok = await confirmModal({
+            title: 'Check provider endpoint',
+            body: `${endpointWarning} Continue anyway?`,
+            confirmText: 'Continue',
+            cancelText: 'Edit'
+        });
+        if (!ok) return;
+    }
     let providerId = endpoint;
     try {
         const url = new URL(endpoint);
@@ -2374,7 +2438,7 @@ async function showRegisterProviderModal(preset = {}) {
     const payload = {
         id: providerId,
         name: (values.name || '').trim() || providerId,
-        type: (values.type || '').trim() || 'local',
+        type: providerType,
         endpoint: endpoint,
         api_key: (values.api_key || '').trim() || '',
         model: (values.model || '').trim()
