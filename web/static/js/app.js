@@ -1131,6 +1131,25 @@ async function showProjectSettingsModal(projectId) {
     }
 
     try {
+        const usesSSH = project.git_auth_method === 'ssh'
+            || (project.git_repo || '').trim().startsWith('git@')
+            || (project.git_repo || '').trim().startsWith('ssh://');
+        let gitKeyValue = '';
+        let gitKeyPlaceholder = 'Not available';
+        let gitKeyDescription = 'SSH git auth is required to display the deploy key.';
+        if (usesSSH) {
+            try {
+                const keyRes = await apiCall(`/projects/${projectId}/git-key`, {
+                    suppressToast: true,
+                    skipAutoFile: true
+                });
+                gitKeyValue = keyRes?.public_key || '';
+                gitKeyPlaceholder = gitKeyValue ? '' : 'No key returned';
+                gitKeyDescription = 'Add this as a write-enabled deploy key in your git host.';
+            } catch (error) {
+                gitKeyDescription = 'Unable to fetch the git key.';
+            }
+        }
         const res = await formModal({
             title: `Project Settings: ${project.name}`,
             submitText: 'Save Settings',
@@ -1149,6 +1168,16 @@ async function showProjectSettingsModal(projectId) {
                     required: true,
                     value: project.git_repo || '',
                     placeholder: 'https://github.com/org/repo'
+                },
+                {
+                    id: 'git_key',
+                    label: 'Project Git Key (Deploy Key)',
+                    type: 'textarea',
+                    required: false,
+                    value: gitKeyValue,
+                    placeholder: gitKeyPlaceholder,
+                    description: gitKeyDescription,
+                    readonly: true
                 },
                 {
                     id: 'branch',
@@ -3234,13 +3263,15 @@ function formModal({ title, submitText = 'Submit', cancelText = 'Cancel', fields
                         const id = `field-${formId}-${f.id}`;
                         const required = f.required ? 'required' : '';
                         const placeholder = f.placeholder ? `placeholder="${escapeHtml(f.placeholder)}"` : '';
+                        const readOnly = f.readonly ? 'readonly' : '';
+                        const disabled = f.disabled ? 'disabled' : '';
                         const value = f.value !== undefined && f.value !== null ? String(f.value) : '';
                         const description = f.description ? `<div class="small" style="color: var(--text-muted); margin-top: 0.25rem;">${escapeHtml(f.description)}</div>` : '';
                         
                         if (f.type === 'textarea') {
                             return `
                                 <label for="${id}">${escapeHtml(f.label)}</label>
-                                <textarea id="${id}" name="${escapeHtml(f.id)}" ${required} ${placeholder}>${escapeHtml(value)}</textarea>
+                                <textarea id="${id}" name="${escapeHtml(f.id)}" ${required} ${placeholder} ${readOnly} ${disabled}>${escapeHtml(value)}</textarea>
                                 ${description}
                             `;
                         }
@@ -3248,7 +3279,7 @@ function formModal({ title, submitText = 'Submit', cancelText = 'Cancel', fields
                             const options = Array.isArray(f.options) ? f.options : [];
                             return `
                                 <label for="${id}">${escapeHtml(f.label)}</label>
-                                <select id="${id}" name="${escapeHtml(f.id)}" ${required}>
+                                <select id="${id}" name="${escapeHtml(f.id)}" ${required} ${disabled}>
                                     ${options
                                         .map((opt) => {
                                             const optValue = String(opt.value ?? '');
@@ -3264,7 +3295,7 @@ function formModal({ title, submitText = 'Submit', cancelText = 'Cancel', fields
                             const checked = (value === 'true' || value === true || value === '1') ? 'checked' : '';
                             return `
                                 <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                    <input type="checkbox" id="${id}" name="${escapeHtml(f.id)}" value="true" ${checked}>
+                                    <input type="checkbox" id="${id}" name="${escapeHtml(f.id)}" value="true" ${checked} ${disabled}>
                                     <label for="${id}" style="margin: 0;">${escapeHtml(f.label)}</label>
                                 </div>
                                 ${description}
@@ -3274,7 +3305,7 @@ function formModal({ title, submitText = 'Submit', cancelText = 'Cancel', fields
                         const inputType = f.type || 'text';
                         return `
                             <label for="${id}">${escapeHtml(f.label)}</label>
-                            <input type="${escapeHtml(inputType)}" id="${id}" name="${escapeHtml(f.id)}" ${required} ${placeholder} value="${escapeHtml(value)}">
+                            <input type="${escapeHtml(inputType)}" id="${id}" name="${escapeHtml(f.id)}" ${required} ${placeholder} ${readOnly} ${disabled} value="${escapeHtml(value)}">
                             ${description}
                         `;
                     })
