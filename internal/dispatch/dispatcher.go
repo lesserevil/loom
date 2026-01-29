@@ -258,6 +258,19 @@ func (d *Dispatcher) DispatchOnce(ctx context.Context, projectID string) (*Dispa
 			skippedReasons["decision_type"]++
 			continue
 		}
+
+		if b.Status == models.BeadStatusOpen && b.AssignedTo == "" {
+			if b.Context == nil {
+				b.Context = make(map[string]string)
+			}
+			if b.Context["redispatch_requested"] != "true" {
+				b.Context["redispatch_requested"] = "true"
+				b.Context["redispatch_requested_at"] = time.Now().UTC().Format(time.RFC3339)
+				if err := d.beads.UpdateBead(b.ID, map[string]interface{}{"context": b.Context}); err != nil {
+					log.Printf("[Dispatcher] Failed to auto-enable redispatch for bead %s: %v", b.ID, err)
+				}
+			}
+		}
 		// Allow redispatch for in_progress beads (multi-step investigations)
 		// This is a temporary fix until workflow system is implemented
 		if b.Context != nil {
