@@ -217,6 +217,8 @@ func New(cfg *config.Config) (*AgentiCorp, error) {
 	arb.readinessFailures = make(map[string]time.Time)
 	arb.dispatcher.SetReadinessCheck(arb.CheckProjectReadiness)
 	arb.dispatcher.SetReadinessMode(dispatch.ReadinessMode(cfg.Readiness.Mode))
+	arb.dispatcher.SetMaxDispatchHops(cfg.Dispatch.MaxHops)
+	arb.dispatcher.SetEscalator(arb)
 
 	// Setup provider metrics tracking
 	arb.setupProviderMetrics()

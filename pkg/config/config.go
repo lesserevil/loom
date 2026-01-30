@@ -36,6 +36,7 @@ type Config struct {
 	Security  SecurityConfig  `yaml:"security" json:"security,omitempty"`
 	Cache     CacheConfig     `yaml:"cache" json:"cache,omitempty"`
 	Readiness ReadinessConfig `yaml:"readiness" json:"readiness,omitempty"`
+	Dispatch  DispatchConfig  `yaml:"dispatch" json:"dispatch,omitempty"`
 	Git       GitConfig       `yaml:"git" json:"git,omitempty"`
 	Projects  []ProjectConfig `yaml:"projects" json:"projects,omitempty"`
 	WebUI     WebUIConfig     `yaml:"web_ui" json:"web_ui,omitempty"`
@@ -89,6 +90,11 @@ type AgentsConfig struct {
 // ReadinessConfig controls readiness gating behavior
 type ReadinessConfig struct {
 	Mode string `yaml:"mode" json:"mode,omitempty"`
+}
+
+// DispatchConfig controls dispatcher guardrails
+type DispatchConfig struct {
+	MaxHops int `yaml:"max_hops" json:"max_hops,omitempty"`
 }
 
 // GitConfig controls git-related settings
@@ -233,6 +239,9 @@ func DefaultConfig() *Config {
 		},
 		Readiness: ReadinessConfig{
 			Mode: "block",
+		},
+		Dispatch: DispatchConfig{
+			MaxHops: 5,
 		},
 		Git: GitConfig{
 			ProjectKeyDir: "/app/data/projects",

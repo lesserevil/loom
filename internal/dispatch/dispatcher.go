@@ -53,19 +53,26 @@ type DispatchResult struct {
 // Dispatcher is responsible for selecting ready work and executing it using agents/providers.
 // For now it focuses on turning beads into LLM tasks and storing the output back into bead context.
 type Dispatcher struct {
-	beads          *beads.Manager
-	projects       *project.Manager
-	agents         *agent.WorkerManager
-	providers      *provider.Registry
-	eventBus       *eventbus.EventBus
-	workflowEngine *workflow.Engine
-	personaMatcher *PersonaMatcher
-	autoBugRouter  *AutoBugRouter
-	readinessCheck func(context.Context, string) (bool, []string)
-	readinessMode  ReadinessMode
+	beads           *beads.Manager
+	projects        *project.Manager
+	agents          *agent.WorkerManager
+	providers       *provider.Registry
+	eventBus        *eventbus.EventBus
+	workflowEngine  *workflow.Engine
+	personaMatcher  *PersonaMatcher
+	autoBugRouter   *AutoBugRouter
+	readinessCheck  func(context.Context, string) (bool, []string)
+	readinessMode   ReadinessMode
+	escalator       Escalator
+	maxDispatchHops int
 
 	mu     sync.RWMutex
 	status SystemStatus
+}
+
+// Escalator provides CEO escalation for dispatcher guardrails.
+type Escalator interface {
+	EscalateBeadToCEO(beadID, reason, returnedTo string) (*models.DecisionBead, error)
 }
 
 func NewDispatcher(beadsMgr *beads.Manager, projMgr *project.Manager, agentMgr *agent.WorkerManager, registry *provider.Registry, eb *eventbus.EventBus) *Dispatcher {
@@ -98,6 +105,20 @@ func (d *Dispatcher) SetWorkflowEngine(engine *workflow.Engine) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.workflowEngine = engine
+}
+
+// SetEscalator sets the escalator used for CEO escalation.
+func (d *Dispatcher) SetEscalator(escalator Escalator) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.escalator = escalator
+}
+
+// SetMaxDispatchHops configures the max hop limit before escalation.
+func (d *Dispatcher) SetMaxDispatchHops(maxHops int) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.maxDispatchHops = maxHops
 }
 
 func (d *Dispatcher) SetReadinessCheck(check func(context.Context, string) (bool, []string)) {
@@ -259,7 +280,7 @@ func (d *Dispatcher) DispatchOnce(ctx context.Context, projectID string) (*Dispa
 			continue
 		}
 
-		if b.Status == models.BeadStatusOpen && b.AssignedTo == "" {
+		if b.Status == models.BeadStatusOpen || b.Status == models.BeadStatusInProgress {
 			if b.Context == nil {
 				b.Context = make(map[string]string)
 			}
@@ -271,32 +292,69 @@ func (d *Dispatcher) DispatchOnce(ctx context.Context, projectID string) (*Dispa
 				}
 			}
 		}
-		// Allow redispatch for in_progress beads (multi-step investigations)
-		// This is a temporary fix until workflow system is implemented
+
+		dispatchCount := 0
 		if b.Context != nil {
-			// Track dispatch count to prevent infinite loops
-			dispatchCountStr := b.Context["dispatch_count"]
-			dispatchCount := 0
-			if dispatchCountStr != "" {
+			if dispatchCountStr := b.Context["dispatch_count"]; dispatchCountStr != "" {
 				fmt.Sscanf(dispatchCountStr, "%d", &dispatchCount)
 			}
+		}
 
-			// Escalate to CEO after 10 dispatches (safety limit)
-			if dispatchCount >= 10 {
-				log.Printf("[Dispatcher] WARNING: Bead %s has been dispatched %d times, escalating to CEO", b.ID, dispatchCount)
-				// TODO: Create CEO escalation bead when workflow system is ready
-				skippedReasons["excessive_dispatches"]++
+		maxHops := d.maxDispatchHops
+		if maxHops <= 0 {
+			maxHops = 5
+		}
+
+		if dispatchCount >= maxHops {
+			if b.Context != nil && b.Context["escalated_to_ceo_decision_id"] != "" {
+				skippedReasons["dispatch_limit_escalated"]++
 				continue
 			}
 
-			// Warn if dispatch count is getting high
-			if dispatchCount >= 5 {
-				log.Printf("[Dispatcher] WARNING: Bead %s has been dispatched %d times", b.ID, dispatchCount)
+			reason := fmt.Sprintf("dispatch_count=%d exceeded max_hops=%d", dispatchCount, maxHops)
+			log.Printf("[Dispatcher] WARNING: Bead %s has been dispatched %d times, escalating to CEO", b.ID, dispatchCount)
+
+			decisionID := ""
+			if d.escalator == nil {
+				log.Printf("[Dispatcher] Failed to escalate bead %s: no escalator configured", b.ID)
+			} else {
+				decision, err := d.escalator.EscalateBeadToCEO(b.ID, reason, b.AssignedTo)
+				if err != nil {
+					log.Printf("[Dispatcher] Failed to escalate bead %s: %v", b.ID, err)
+				} else {
+					decisionID = decision.ID
+				}
 			}
 
-			// Skip beads that have already run UNLESS:
-			// 1. They explicitly request redispatch, OR
-			// 2. They are still in_progress (multi-step work not complete)
+			ctxUpdates := map[string]string{
+				"redispatch_requested":       "false",
+				"dispatch_escalated_at":      time.Now().UTC().Format(time.RFC3339),
+				"dispatch_escalation_reason": reason,
+			}
+			if decisionID != "" {
+				ctxUpdates["dispatch_escalation_decision_id"] = decisionID
+			}
+			updates := map[string]interface{}{
+				"status":      models.BeadStatusBlocked,
+				"assigned_to": "",
+				"context":     ctxUpdates,
+			}
+			if err := d.beads.UpdateBead(b.ID, updates); err != nil {
+				log.Printf("[Dispatcher] Failed to block bead %s after escalation: %v", b.ID, err)
+			}
+
+			skippedReasons["dispatch_limit_exceeded"]++
+			continue
+		}
+
+		if dispatchCount >= maxHops-1 {
+			log.Printf("[Dispatcher] WARNING: Bead %s has been dispatched %d times", b.ID, dispatchCount)
+		}
+
+		// Skip beads that have already run UNLESS:
+		// 1. They explicitly request redispatch, OR
+		// 2. They are still in_progress (multi-step work not complete)
+		if b.Context != nil {
 			if b.Context["redispatch_requested"] != "true" &&
 				b.Status != "in_progress" &&
 				b.Context["last_run_at"] != "" {
@@ -483,7 +541,7 @@ func (d *Dispatcher) DispatchOnce(ctx context.Context, projectID string) (*Dispa
 			"last_run_error":       execErr.Error(),
 			"agent_id":             ag.ID,
 			"provider_id":          ag.ProviderID,
-			"redispatch_requested": "false",
+			"redispatch_requested": "true",
 			"dispatch_history":     historyJSON,
 			"loop_detected":        fmt.Sprintf("%t", loopDetected),
 		}
@@ -531,7 +589,7 @@ func (d *Dispatcher) DispatchOnce(ctx context.Context, projectID string) (*Dispa
 		"agent_tokens":         fmt.Sprintf("%d", result.TokensUsed),
 		"agent_task_id":        result.TaskID,
 		"agent_worker_id":      result.WorkerID,
-		"redispatch_requested": "false",
+		"redispatch_requested": "true",
 	}
 	historyJSON, loopDetected, loopReason := buildDispatchHistory(candidate, ag.ID)
 	ctxUpdates["dispatch_history"] = historyJSON

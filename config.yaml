@@ -29,6 +29,9 @@ agents:
   allowed_roles:
     - engineering-manager
 
+dispatch:
+  max_hops: 5
+
 security:
   enable_auth: false  # Disabled for development - enable for production
   pki_enabled: false  # Will be enabled when certificates are provided
