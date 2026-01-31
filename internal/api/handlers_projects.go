@@ -256,18 +256,23 @@ func (s *Server) handleProjectState(w http.ResponseWriter, r *http.Request, id s
 	hasOpenWork := len(openBeads) > 0
 	canClose := s.agenticorp.GetProjectManager().CanClose(id, hasOpenWork)
 
+	// Check project readiness
+	readinessOK, readinessIssues := s.agenticorp.CheckProjectReadiness(r.Context(), id)
+
 	state := map[string]interface{}{
-		"id":             project.ID,
-		"name":           project.Name,
-		"status":         project.Status,
-		"is_perpetual":   project.IsPerpetual,
-		"is_sticky":      project.IsSticky,
-		"open_beads":     len(openBeads),
-		"can_close":      canClose,
-		"created_at":     project.CreatedAt,
-		"updated_at":     project.UpdatedAt,
-		"closed_at":      project.ClosedAt,
-		"comments_count": len(project.Comments),
+		"id":               project.ID,
+		"name":             project.Name,
+		"status":           project.Status,
+		"is_perpetual":     project.IsPerpetual,
+		"is_sticky":        project.IsSticky,
+		"open_beads":       len(openBeads),
+		"can_close":        canClose,
+		"readiness_ok":     readinessOK,
+		"readiness_issues": readinessIssues,
+		"created_at":       project.CreatedAt,
+		"updated_at":       project.UpdatedAt,
+		"closed_at":        project.ClosedAt,
+		"comments_count":   len(project.Comments),
 	}
 
 	s.respondJSON(w, http.StatusOK, state)
