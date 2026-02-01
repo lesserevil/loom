@@ -14,6 +14,7 @@ Then explore:
 - [Entities Reference](docs/ENTITIES_REFERENCE.md) - All data structures explained
 - [Temporal DSL Guide](docs/TEMPORAL_DSL.md) - Workflow language for agents
 - [Analytics Guide](docs/ANALYTICS_GUIDE.md) - Usage monitoring and cost tracking
+- [Activity Feed & Notifications](docs/activity-notifications-implementation.md) - Team activity tracking and notifications
 - [API Authentication](docs/AUTH.md) - JWT, API keys, and RBAC
 - [Developer Guide](AGENTS.md) - For contributors and custom agents
 
@@ -25,6 +26,7 @@ Then explore:
 - 🔐 **Decision Framework**: Approval workflows for agent decisions
 - 🔏 **API Auth & RBAC**: JWT bearer tokens, API keys, and role-based permissions
 - 📡 **Real-time Events**: Server-Sent Events (SSE) for live status updates
+- 🔔 **Activity Feed & Notifications**: Team activity tracking with intelligent user notifications
 - 🎯 **Smart Routing**: Intelligent task assignment and agent coordination
 - 🔒 **Secure**: Encrypted secret storage and secure credential management
 - 📈 **Analytics & Cost Tracking**: Real-time usage monitoring, cost tracking, and spending alerts

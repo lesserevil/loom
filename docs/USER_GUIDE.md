@@ -127,6 +127,114 @@ latency weighted) with the AgentiCorp persona context.
 2. Enter your question and click **Send**.
 3. Review the response and provider/model metadata.
 
+## Activity Feed and Notifications
+
+AgentiCorp provides a comprehensive activity tracking and notification system to keep teams informed about important events.
+
+### Activity Feed
+
+The activity feed shows all important events across your projects, including bead creation, agent assignments, project updates, and more.
+
+**Access the activity feed:**
+
+```bash
+# Get recent activities (paginated)
+curl http://localhost:8080/api/v1/activity-feed
+
+# Filter by project
+curl http://localhost:8080/api/v1/activity-feed?project_id=agenticorp
+
+# Filter by event type
+curl http://localhost:8080/api/v1/activity-feed?event_type=bead.created
+
+# Get only aggregated activities
+curl http://localhost:8080/api/v1/activity-feed?aggregated=true
+
+# Stream activities in real-time (SSE)
+curl -N http://localhost:8080/api/v1/activity-feed/stream
+```
+
+**Activity aggregation**: Similar activities within a 5-minute window are automatically grouped. For example, if an agent creates 5 beads in 3 minutes, you'll see a single activity with `aggregation_count: 5` instead of 5 separate entries.
+
+### Notifications
+
+Notifications are user-specific alerts for important events that require your attention.
+
+**Get your notifications:**
+
+```bash
+# Login to get token
+TOKEN=$(curl -X POST http://localhost:8080/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"admin"}' | jq -r .token)
+
+# Get all notifications
+curl -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8080/api/v1/notifications
+
+# Get only unread notifications
+curl -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8080/api/v1/notifications?status=unread
+
+# Stream notifications in real-time (SSE)
+curl -N -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8080/api/v1/notifications/stream
+```
+
+**Mark notifications as read:**
+
+```bash
+# Mark single notification as read
+curl -X POST -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8080/api/v1/notifications/{id}/read
+
+# Mark all as read
+curl -X POST -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8080/api/v1/notifications/mark-all-read
+```
+
+### Notification Rules
+
+You'll automatically receive notifications for:
+
+1. **Direct Assignments**: When a bead or decision is assigned to you
+2. **Critical Priority**: When a P0 (critical) bead is created
+3. **Decision Required**: When a decision requires your input
+4. **System Alerts**: Provider failures, workflow errors, and other critical system events
+
+### Notification Preferences
+
+Configure your notification preferences to control what you receive:
+
+```bash
+# Get current preferences
+curl -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8080/api/v1/notifications/preferences
+
+# Update preferences
+curl -X PATCH -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "enable_in_app": true,
+    "subscribed_events": ["bead.assigned", "decision.created"],
+    "min_priority": "high",
+    "quiet_hours_start": "22:00",
+    "quiet_hours_end": "08:00"
+  }' \
+  http://localhost:8080/api/v1/notifications/preferences
+```
+
+**Preference options:**
+
+- `enable_in_app`: Enable/disable in-app notifications (default: true)
+- `subscribed_events`: List of event types to receive (empty = all events)
+- `min_priority`: Minimum priority level (low, normal, high, critical)
+- `quiet_hours_start/end`: Time range to suppress notifications (24-hour format)
+- `digest_mode`: Delivery mode (realtime, hourly, daily)
+- `project_filters`: Only receive notifications from specific projects
+
+For complete API documentation and technical details, see [docs/activity-notifications-implementation.md](activity-notifications-implementation.md).
+
 ## Configuration
 
 AgentiCorp is configured via `config.yaml`. Key sections include:

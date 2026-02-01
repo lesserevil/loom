@@ -542,6 +542,71 @@ See [docs/ANALYTICS_GUIDE.md](ANALYTICS_GUIDE.md) for usage details.
 
 See [docs/MOTIVATION_SYSTEM.md](MOTIVATION_SYSTEM.md) for complete reference.
 
+### 14. Activity Feed and Notifications System (NEW v1.3)
+
+**Purpose**: Track team activity and deliver intelligent user notifications for important events
+
+**Key Files**:
+- `internal/activity/manager.go` - Activity persistence and aggregation
+- `internal/notifications/manager.go` - Notification rules and delivery
+- `internal/database/activity.go` - Database access layer
+- `internal/api/handlers_activity.go` - Activity feed API
+- `internal/api/handlers_notifications.go` - Notifications API
+
+**Architecture**:
+```
+EventBus → ActivityManager → NotificationManager → User SSE Streams
+   ↓            ↓                    ↓
+[Events]  [activity_feed]    [notifications]
+```
+
+**Activity Manager**:
+- Subscribes to EventBus and filters ~15 important event types
+- Transforms events into activities with resource metadata
+- Implements time-window aggregation (5-minute windows)
+- Persists activities to database with project-based permissions
+- Broadcasts to SSE subscribers in real-time
+
+**Notification Manager**:
+- Subscribes to activity stream
+- Applies notification rules per user:
+  - Direct assignments (beads, decisions)
+  - Critical priority alerts (P0 beads)
+  - System errors (provider/workflow failures)
+- Respects user preferences (quiet hours, priority thresholds)
+- Creates user-specific notifications
+- Streams to authenticated users via SSE
+
+**Event Filtering**:
+- ✅ Persisted: `bead.*`, `agent.*`, `project.*`, `provider.*`, `decision.*`, `motivation.*`, `workflow.*`
+- ❌ Filtered: `agent.heartbeat`, `log.message`, `system.idle` (too noisy)
+
+**Aggregation Logic**:
+- Groups similar events within 5-minute windows
+- Aggregation key: `{event_type}.{date-hour}.{project_id}.{actor_id}`
+- Example: 5 bead creations → single activity with `aggregation_count: 5`
+- In-memory cache with database fallback
+
+**API Endpoints**:
+- `GET /api/v1/activity-feed` - Paginated history with filters
+- `GET /api/v1/activity-feed/stream` - Real-time SSE stream
+- `GET /api/v1/notifications` - User notifications (authenticated)
+- `GET /api/v1/notifications/stream` - Real-time user SSE stream (authenticated)
+- `POST /api/v1/notifications/{id}/read` - Mark as read
+- `POST /api/v1/notifications/mark-all-read` - Bulk mark read
+- `GET /api/v1/notifications/preferences` - Get user preferences
+- `PATCH /api/v1/notifications/preferences` - Update preferences
+
+**Database Tables**:
+- `users` - User information for notifications (migrated from in-memory auth)
+- `activity_feed` - All activities with aggregation support
+- `notifications` - User-specific notifications (status, priority)
+- `notification_preferences` - Per-user configuration (events, quiet hours, thresholds)
+
+**Permission Filtering**: Users only see activities from projects they have `projects:read` access to, plus global activities (providers, system events)
+
+See [docs/activity-notifications-implementation.md](activity-notifications-implementation.md) for complete reference.
+
 ## Data Flow
 
 ### Work Distribution Flow

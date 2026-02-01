@@ -630,6 +630,154 @@ See `docs/TEMPORAL_DSL.md` for comprehensive DSL documentation.
 
 ---
 
+## Activity
+
+**Purpose**: Record of important events across the system for team activity tracking
+
+### Model Definition
+
+```go
+type Activity struct {
+    ID               string                 `json:"id"`
+    EventType        string                 `json:"event_type"`
+    Timestamp        time.Time              `json:"timestamp"`
+    Source           string                 `json:"source"`
+    ActorID          string                 `json:"actor_id,omitempty"`
+    ActorType        string                 `json:"actor_type,omitempty"`
+    ProjectID        string                 `json:"project_id,omitempty"`
+    AgentID          string                 `json:"agent_id,omitempty"`
+    BeadID           string                 `json:"bead_id,omitempty"`
+    ProviderID       string                 `json:"provider_id,omitempty"`
+    Action           string                 `json:"action"`
+    ResourceType     string                 `json:"resource_type"`
+    ResourceID       string                 `json:"resource_id"`
+    ResourceTitle    string                 `json:"resource_title,omitempty"`
+    Metadata         map[string]interface{} `json:"metadata,omitempty"`
+    AggregationKey   string                 `json:"aggregation_key,omitempty"`
+    AggregationCount int                    `json:"aggregation_count"`
+    IsAggregated     bool                   `json:"is_aggregated"`
+    Visibility       string                 `json:"visibility"`
+}
+```
+
+### Event Types
+
+Activities are created from these EventBus events:
+- `bead.created`, `bead.assigned`, `bead.status_change`, `bead.completed`
+- `agent.spawned`, `agent.status_change`, `agent.completed`
+- `project.created`, `project.updated`, `project.deleted`
+- `provider.registered`, `provider.deleted`, `provider.updated`
+- `decision.created`, `decision.resolved`
+- `motivation.fired`, `motivation.enabled`, `motivation.disabled`
+- `workflow.started`, `workflow.completed`, `workflow.failed`
+
+### Aggregation
+
+Activities with the same `aggregation_key` within a 5-minute window are grouped:
+- Aggregation key format: `{event_type}.{date-hour}.{project_id}.{actor_id}`
+- `aggregation_count` tracks number of similar events
+- Example: 5 bead creations → 1 activity with `aggregation_count: 5`
+
+### Visibility
+
+- `project`: Visible only to users with `projects:read` permission on the project
+- `global`: Visible to all users (provider events, system events)
+
+### Example
+
+```json
+{
+  "id": "act-abc123",
+  "event_type": "bead.created",
+  "timestamp": "2026-01-31T10:30:00Z",
+  "action": "created",
+  "resource_type": "bead",
+  "resource_id": "bead-xyz",
+  "resource_title": "Fix login bug",
+  "project_id": "proj-1",
+  "actor_id": "agent-123",
+  "aggregation_count": 5,
+  "is_aggregated": true,
+  "visibility": "project"
+}
+```
+
+---
+
+## Notification
+
+**Purpose**: User-specific alerts for important events requiring attention
+
+### Model Definition
+
+```go
+type Notification struct {
+    ID         string                 `json:"id"`
+    UserID     string                 `json:"user_id"`
+    ActivityID string                 `json:"activity_id,omitempty"`
+    EventType  string                 `json:"event_type"`
+    Title      string                 `json:"title"`
+    Message    string                 `json:"message"`
+    Link       string                 `json:"link,omitempty"`
+    Status     string                 `json:"status"`
+    Priority   string                 `json:"priority"`
+    Metadata   map[string]interface{} `json:"metadata,omitempty"`
+    CreatedAt  time.Time              `json:"created_at"`
+    ReadAt     *time.Time             `json:"read_at,omitempty"`
+    ArchivedAt *time.Time             `json:"archived_at,omitempty"`
+}
+```
+
+### Status Values
+
+- `unread`: Notification not yet seen by user
+- `read`: User has viewed the notification
+- `archived`: User has archived the notification
+
+### Priority Levels
+
+- `low`: Informational, non-urgent
+- `normal`: Standard priority (default)
+- `high`: Important, requires timely attention
+- `critical`: Urgent, requires immediate action
+
+### Notification Rules
+
+Users receive notifications for:
+1. **Direct Assignment**: Bead or decision assigned to them
+2. **Critical Priority**: P0 beads created
+3. **Decision Required**: Decision requires their input
+4. **System Alerts**: Provider failures, workflow errors
+
+### Preferences
+
+Users can configure:
+- `enable_in_app`: Enable/disable in-app notifications
+- `subscribed_events`: List of event types (empty = all)
+- `min_priority`: Minimum priority threshold
+- `quiet_hours_start/end`: Suppress notifications during hours (HH:MM format)
+- `digest_mode`: Delivery mode (realtime, hourly, daily)
+- `project_filters`: Only notify for specific projects
+
+### Example
+
+```json
+{
+  "id": "notif-123",
+  "user_id": "user-admin",
+  "activity_id": "act-abc123",
+  "event_type": "bead.assigned",
+  "title": "Bead Assigned to You",
+  "message": "You've been assigned to bead: Fix login bug",
+  "link": "/beads/bead-xyz",
+  "status": "unread",
+  "priority": "high",
+  "created_at": "2026-01-31T10:30:00Z"
+}
+```
+
+---
+
 ## Data Persistence
 
 All entities are persisted to:
@@ -660,3 +808,5 @@ All entities are persisted to:
 | Decision | Agent escalation | Response | Auto-cleanup | Database |
 | Persona | File creation | Content edit | File delete | File + Database |
 | Workflow | Temporal DSL | Signals/queries | Timeout | Temporal |
+| Activity | On important events | Aggregation updates | Retention policy | Database |
+| Notification | Rule evaluation | Read status | User archive | Database |
