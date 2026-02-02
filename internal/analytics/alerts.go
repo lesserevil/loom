@@ -1,9 +1,12 @@
 package analytics
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"time"
 )
 
@@ -196,11 +199,63 @@ func (ac *AlertChecker) notify(alert *Alert) {
 		log.Printf("[ALERT] Email notification to %s: %s", ac.config.EmailAddress, alert.Message)
 	}
 
-	// TODO: Implement webhook notifications if enabled
+	// Send webhook notifications if enabled
 	if ac.config.EnableWebhookAlerts && ac.config.WebhookURL != "" {
-		// Send webhook (requires HTTP client)
-		log.Printf("[ALERT] Webhook notification to %s: %s", ac.config.WebhookURL, alert.Message)
+		if err := ac.sendWebhook(alert); err != nil {
+			log.Printf("[ALERT] Failed to send webhook to %s: %v", ac.config.WebhookURL, err)
+		} else {
+			log.Printf("[ALERT] Webhook notification sent to %s: %s", ac.config.WebhookURL, alert.Message)
+		}
 	}
+}
+
+// sendWebhook sends an alert via HTTP webhook
+func (ac *AlertChecker) sendWebhook(alert *Alert) error {
+	// Prepare webhook payload
+	payload := map[string]interface{}{
+		"id":           alert.ID,
+		"user_id":      alert.UserID,
+		"type":         alert.Type,
+		"severity":     alert.Severity,
+		"message":      alert.Message,
+		"current_cost": alert.CurrentCost,
+		"threshold":    alert.Threshold,
+		"triggered_at": alert.TriggeredAt.Format(time.RFC3339),
+	}
+
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal webhook payload: %w", err)
+	}
+
+	// Create HTTP request
+	req, err := http.NewRequest("POST", ac.config.WebhookURL, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Errorf("failed to create webhook request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", "AgentiCorp-Alerts/1.0")
+	req.Header.Set("X-Alert-Type", alert.Type)
+	req.Header.Set("X-Alert-Severity", alert.Severity)
+
+	// Send request with timeout
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to send webhook: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Check response status
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("webhook returned non-success status: %d", resp.StatusCode)
+	}
+
+	return nil
 }
 
 // DefaultAlertConfig provides sensible defaults
