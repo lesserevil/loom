@@ -196,9 +196,9 @@ func TestMultipleAgentsWorkflow(t *testing.T) {
 	}
 
 	// Clean up all agents
-	workerManager.StopAgent(agent1.ID)
-	workerManager.StopAgent(agent2.ID)
-	workerManager.StopAgent(agent3.ID)
+	_ = workerManager.StopAgent(agent1.ID)
+	_ = workerManager.StopAgent(agent2.ID)
+	_ = workerManager.StopAgent(agent3.ID)
 
 	// Verify cleanup
 	agents = workerManager.ListAgents()
@@ -330,7 +330,7 @@ func TestWorkerTaskExecution(t *testing.T) {
 	}
 
 	// Clean up
-	workerManager.StopAgent(testAgent.ID)
+	_ = workerManager.StopAgent(testAgent.ID)
 }
 
 // TestWorkerPoolLimits tests the worker pool limits

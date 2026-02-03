@@ -285,7 +285,7 @@ func (m *Manager) processMentions(commentID string, mentions []string) error {
 					"username":     username,
 				},
 			}
-			m.eventBus.Publish(event)
+			_ = m.eventBus.Publish(event)
 		}
 
 		// Mark as notified
@@ -315,5 +315,5 @@ func (m *Manager) publishCommentEvent(eventType string, comment *Comment) {
 		},
 	}
 
-	m.eventBus.Publish(event)
+	_ = m.eventBus.Publish(event)
 }

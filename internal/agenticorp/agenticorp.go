@@ -2813,7 +2813,7 @@ func (a *AgentiCorp) checkProviderHealthAndActivate(providerID string) {
 		dbProvider.Status = "active"
 		_ = a.database.UpsertProvider(dbProvider)
 		// Sync to registry so UI sees the updated status
-		a.providerRegistry.Upsert(&provider.ProviderConfig{
+		_ = a.providerRegistry.Upsert(&provider.ProviderConfig{
 			ID:                     dbProvider.ID,
 			Name:                   dbProvider.Name,
 			Type:                   dbProvider.Type,

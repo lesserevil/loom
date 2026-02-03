@@ -49,12 +49,14 @@ func (s *Server) handleGitSync(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
 		"success":          true,
 		"project_id":       projectID,
 		"last_commit_hash": project.LastCommitHash,
 		"last_sync_at":     project.LastSyncAt,
-	})
+	}); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
 }
 
 // handleGitCommit handles committing changes for a project
@@ -113,11 +115,13 @@ func (s *Server) handleGitCommit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
 		"success":          true,
 		"project_id":       projectID,
 		"last_commit_hash": project.LastCommitHash,
-	})
+	}); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
 }
 
 // handleGitPush handles pushing changes for a project
@@ -153,10 +157,12 @@ func (s *Server) handleGitPush(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
 		"success":    true,
 		"project_id": projectID,
-	})
+	}); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
 }
 
 // handleGitStatus handles getting git status for a project
@@ -182,10 +188,12 @@ func (s *Server) handleGitStatus(w http.ResponseWriter, r *http.Request) {
 	// Check if project has git repo
 	if project.GitRepo == "" || project.GitRepo == "." {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		if err := json.NewEncoder(w).Encode(map[string]interface{}{
 			"project_id": projectID,
 			"has_git":    false,
-		})
+		}); err != nil {
+			http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		}
 		return
 	}
 
@@ -199,7 +207,7 @@ func (s *Server) handleGitStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
 		"project_id":       projectID,
 		"has_git":          true,
 		"work_dir":         project.WorkDir,
@@ -208,5 +216,7 @@ func (s *Server) handleGitStatus(w http.ResponseWriter, r *http.Request) {
 		"last_commit_hash": commitHash,
 		"last_sync_at":     project.LastSyncAt,
 		"git_auth_method":  project.GitAuthMethod,
-	})
+	}); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
 }

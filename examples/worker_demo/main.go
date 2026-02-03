@@ -196,10 +196,10 @@ func main() {
 
 	// Step 9: Cleanup
 	fmt.Println("Step 9: Cleaning up...")
-	workerManager.StopAgent(reviewer.ID)
+	_ = workerManager.StopAgent(reviewer.ID)
 	fmt.Printf("✓ Stopped agent: %s\n", reviewer.Name)
 
-	workerManager.StopAgent(executor.ID)
+	_ = workerManager.StopAgent(executor.ID)
 	fmt.Printf("✓ Stopped agent: %s\n", executor.Name)
 	fmt.Println()
 

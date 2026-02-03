@@ -79,36 +79,6 @@ func (o *Optimizer) createRateLimitOptimization(pattern *UsagePattern) *Optimiza
 	}
 }
 
-// createSubstitutionOptimization creates a provider/model substitution recommendation
-func (o *Optimizer) createSubstitutionOptimization(pattern *UsagePattern) *Optimization {
-	// This is a placeholder - actual implementation would query provider catalog
-	// and use routing system to find cheaper alternatives
-
-	// For now, just identify expensive patterns as candidates for substitution
-	if pattern.AvgCost < 0.01 {
-		return nil // Already cheap, no need to optimize
-	}
-
-	// Estimate potential savings (placeholder logic)
-	estimatedSavings := pattern.TotalCost * 0.3 // Assume 30% savings from substitution
-	monthlySavings := estimatedSavings * 30 / 7 // Extrapolate to monthly
-
-	return &Optimization{
-		ID:                  uuid.New().String(),
-		Type:                "provider-substitution",
-		Pattern:             pattern,
-		Recommendation:      fmt.Sprintf("Consider cheaper alternatives for %s (avg cost: $%.4f per request)", pattern.GroupKey, pattern.AvgCost),
-		CurrentCost:         pattern.TotalCost,
-		ProjectedCost:       pattern.TotalCost - estimatedSavings,
-		ProjectedSavingsUSD: estimatedSavings,
-		MonthlySavingsUSD:   monthlySavings,
-		ImpactRating:        getImpactRating(monthlySavings),
-		QualityImpact:       "moderate", // Substitution may affect quality
-		AutoApplicable:      false,      // Requires validation
-		Confidence:          0.6,        // Lower confidence without actual alternatives
-	}
-}
-
 // Helper functions
 
 func getImpactRating(monthlySavings float64) string {

@@ -42,13 +42,13 @@ func AgentLifecycleWorkflow(ctx workflow.Context, input AgentLifecycleWorkflowIn
 	}
 
 	// Signal handlers for agent control
-	workflow.SetUpdateHandler(ctx, "updateStatus", func(ctx workflow.Context, status string) error {
+	_ = workflow.SetUpdateHandler(ctx, "updateStatus", func(ctx workflow.Context, status string) error {
 		agentState.Status = status
 		logger.Info("Agent status updated", "status", status)
 		return nil
 	})
 
-	workflow.SetUpdateHandler(ctx, "assignBead", func(ctx workflow.Context, beadID string) error {
+	_ = workflow.SetUpdateHandler(ctx, "assignBead", func(ctx workflow.Context, beadID string) error {
 		agentState.CurrentBead = beadID
 		agentState.Status = "working"
 		logger.Info("Bead assigned to agent", "beadID", beadID)
@@ -56,11 +56,11 @@ func AgentLifecycleWorkflow(ctx workflow.Context, input AgentLifecycleWorkflowIn
 	})
 
 	// Query handlers for agent state
-	workflow.SetQueryHandler(ctx, "getStatus", func() (string, error) {
+	_ = workflow.SetQueryHandler(ctx, "getStatus", func() (string, error) {
 		return agentState.Status, nil
 	})
 
-	workflow.SetQueryHandler(ctx, "getCurrentBead", func() (string, error) {
+	_ = workflow.SetQueryHandler(ctx, "getCurrentBead", func() (string, error) {
 		return agentState.CurrentBead, nil
 	})
 
@@ -122,7 +122,7 @@ func BeadProcessingWorkflow(ctx workflow.Context, input BeadProcessingWorkflowIn
 	}
 
 	// Signal handlers for bead updates
-	workflow.SetUpdateHandler(ctx, "assignToAgent", func(ctx workflow.Context, agentID string) error {
+	_ = workflow.SetUpdateHandler(ctx, "assignToAgent", func(ctx workflow.Context, agentID string) error {
 		beadState.AssignedTo = agentID
 		beadState.Status = "in_progress"
 		beadState.UpdatedAt = time.Now()
@@ -130,14 +130,14 @@ func BeadProcessingWorkflow(ctx workflow.Context, input BeadProcessingWorkflowIn
 		return nil
 	})
 
-	workflow.SetUpdateHandler(ctx, "updateStatus", func(ctx workflow.Context, status string) error {
+	_ = workflow.SetUpdateHandler(ctx, "updateStatus", func(ctx workflow.Context, status string) error {
 		beadState.Status = status
 		beadState.UpdatedAt = time.Now()
 		logger.Info("Bead status updated", "status", status)
 		return nil
 	})
 
-	workflow.SetUpdateHandler(ctx, "complete", func(ctx workflow.Context, result string) error {
+	_ = workflow.SetUpdateHandler(ctx, "complete", func(ctx workflow.Context, result string) error {
 		beadState.Status = "closed"
 		beadState.UpdatedAt = time.Now()
 		logger.Info("Bead completed", "result", result)
@@ -145,11 +145,11 @@ func BeadProcessingWorkflow(ctx workflow.Context, input BeadProcessingWorkflowIn
 	})
 
 	// Query handlers for bead state
-	workflow.SetQueryHandler(ctx, "getStatus", func() (string, error) {
+	_ = workflow.SetQueryHandler(ctx, "getStatus", func() (string, error) {
 		return beadState.Status, nil
 	})
 
-	workflow.SetQueryHandler(ctx, "getAssignedAgent", func() (string, error) {
+	_ = workflow.SetQueryHandler(ctx, "getAssignedAgent", func() (string, error) {
 		return beadState.AssignedTo, nil
 	})
 
@@ -207,7 +207,7 @@ func DecisionWorkflow(ctx workflow.Context, input DecisionWorkflowInput) (string
 	}
 
 	// Signal handler for decision resolution
-	workflow.SetUpdateHandler(ctx, "resolve", func(ctx workflow.Context, decision string, deciderID string) error {
+	_ = workflow.SetUpdateHandler(ctx, "resolve", func(ctx workflow.Context, decision string, deciderID string) error {
 		decisionState.Decision = decision
 		decisionState.DeciderID = deciderID
 		decisionState.Status = "resolved"
@@ -217,11 +217,11 @@ func DecisionWorkflow(ctx workflow.Context, input DecisionWorkflowInput) (string
 	})
 
 	// Query handlers
-	workflow.SetQueryHandler(ctx, "getStatus", func() (string, error) {
+	_ = workflow.SetQueryHandler(ctx, "getStatus", func() (string, error) {
 		return decisionState.Status, nil
 	})
 
-	workflow.SetQueryHandler(ctx, "getDecision", func() (string, error) {
+	_ = workflow.SetQueryHandler(ctx, "getDecision", func() (string, error) {
 		return decisionState.Decision, nil
 	})
 

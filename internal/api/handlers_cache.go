@@ -32,7 +32,9 @@ func (s *Server) handleGetCacheStats(w http.ResponseWriter, r *http.Request) {
 	stats := s.cache.GetStats(r.Context())
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(stats)
+	if err := json.NewEncoder(w).Encode(stats); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
 }
 
 // handleGetCacheConfig handles GET /api/v1/cache/config
@@ -58,13 +60,15 @@ func (s *Server) handleGetCacheConfig(w http.ResponseWriter, r *http.Request) {
 	cacheConfig := s.config.Cache
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
 		"enabled":        cacheConfig.Enabled,
 		"default_ttl":    cacheConfig.DefaultTTL.String(),
 		"max_size":       cacheConfig.MaxSize,
 		"max_memory_mb":  cacheConfig.MaxMemoryMB,
 		"cleanup_period": cacheConfig.CleanupPeriod.String(),
-	})
+	}); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
 }
 
 // handleClearCache handles POST /api/v1/cache/clear
@@ -90,10 +94,12 @@ func (s *Server) handleClearCache(w http.ResponseWriter, r *http.Request) {
 	s.cache.Clear(r.Context())
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
 		"success": true,
 		"message": "Cache cleared successfully",
-	})
+	}); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
 }
 
 // handleInvalidateCache handles POST /api/v1/cache/invalidate
@@ -153,12 +159,14 @@ func (s *Server) handleInvalidateCache(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
 		"success":        true,
 		"removed":        removed,
 		"type":           invalidationType,
 		"invalidated_at": time.Now().Format(time.RFC3339),
-	})
+	}); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
 }
 
 // CacheToCacheConfig converts cache.Config to a format suitable for API responses

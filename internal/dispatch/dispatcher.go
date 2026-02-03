@@ -296,7 +296,7 @@ func (d *Dispatcher) DispatchOnce(ctx context.Context, projectID string) (*Dispa
 		dispatchCount := 0
 		if b.Context != nil {
 			if dispatchCountStr := b.Context["dispatch_count"]; dispatchCountStr != "" {
-				fmt.Sscanf(dispatchCountStr, "%d", &dispatchCount)
+				_, _ = fmt.Sscanf(dispatchCountStr, "%d", &dispatchCount)
 			}
 		}
 
@@ -484,7 +484,7 @@ func (d *Dispatcher) DispatchOnce(ctx context.Context, projectID string) (*Dispa
 	dispatchCount := 0
 	if candidate.Context != nil {
 		if countStr := candidate.Context["dispatch_count"]; countStr != "" {
-			fmt.Sscanf(countStr, "%d", &dispatchCount)
+			_, _ = fmt.Sscanf(countStr, "%d", &dispatchCount)
 		}
 	}
 	dispatchCount++

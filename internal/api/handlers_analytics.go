@@ -55,7 +55,9 @@ func (s *Server) handleGetLogs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(logs)
+	if err := json.NewEncoder(w).Encode(logs); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
 }
 
 // handleGetLogStats handles GET /api/v1/analytics/stats
@@ -105,7 +107,9 @@ func (s *Server) handleGetLogStats(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(stats)
+	if err := json.NewEncoder(w).Encode(stats); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
 }
 
 // handleExportLogs handles GET /api/v1/analytics/export
@@ -158,7 +162,9 @@ func (s *Server) handleExportLogs(w http.ResponseWriter, r *http.Request) {
 	default:
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Content-Disposition", "attachment; filename=\"logs.json\"")
-		json.NewEncoder(w).Encode(logs)
+		if err := json.NewEncoder(w).Encode(logs); err != nil {
+			http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		}
 	}
 }
 
@@ -234,7 +240,9 @@ func (s *Server) handleGetCostReport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(costReport)
+	if err := json.NewEncoder(w).Encode(costReport); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
 }
 
 // handleGetBatchingRecommendations handles GET /api/v1/analytics/batching
@@ -316,7 +324,9 @@ func (s *Server) handleGetBatchingRecommendations(w http.ResponseWriter, r *http
 
 	recommendations := analytics.BuildBatchingRecommendations(logs, options)
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(recommendations)
+	if err := json.NewEncoder(w).Encode(recommendations); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
 }
 
 // handleExportStats handles GET /api/v1/analytics/export-stats
@@ -374,7 +384,7 @@ func (s *Server) handleExportStats(w http.ResponseWriter, r *http.Request) {
 		// JSON export
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Content-Disposition", "attachment; filename=\"agenticorp-stats-"+time.Now().Format("2006-01-02")+".json\"")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		if err := json.NewEncoder(w).Encode(map[string]interface{}{
 			"exported_at": time.Now().Format(time.RFC3339),
 			"time_range": map[string]string{
 				"start": filter.StartTime.Format(time.RFC3339),
@@ -391,7 +401,9 @@ func (s *Server) handleExportStats(w http.ResponseWriter, r *http.Request) {
 			"cost_by_user":         stats.CostByUser,
 			"requests_by_provider": stats.RequestsByProvider,
 			"requests_by_user":     stats.RequestsByUser,
-		})
+		}); err != nil {
+			http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		}
 	}
 }
 
@@ -404,30 +416,30 @@ func exportStatsAsCSV(w http.ResponseWriter, stats *analytics.LogStats, filter *
 	defer writer.Flush()
 
 	// Summary section
-	writer.Write([]string{"Summary", "", "", ""})
-	writer.Write([]string{"Metric", "Value", "", ""})
-	writer.Write([]string{"Total Requests", fmt.Sprintf("%d", stats.TotalRequests), "", ""})
-	writer.Write([]string{"Total Tokens", fmt.Sprintf("%d", stats.TotalTokens), "", ""})
-	writer.Write([]string{"Total Cost (USD)", fmt.Sprintf("%.4f", stats.TotalCostUSD), "", ""})
-	writer.Write([]string{"Avg Latency (ms)", fmt.Sprintf("%.2f", stats.AvgLatencyMs), "", ""})
-	writer.Write([]string{"Error Rate", fmt.Sprintf("%.2f%%", stats.ErrorRate*100), "", ""})
-	writer.Write([]string{""})
+	_ = writer.Write([]string{"Summary", "", "", ""})
+	_ = writer.Write([]string{"Metric", "Value", "", ""})
+	_ = writer.Write([]string{"Total Requests", fmt.Sprintf("%d", stats.TotalRequests), "", ""})
+	_ = writer.Write([]string{"Total Tokens", fmt.Sprintf("%d", stats.TotalTokens), "", ""})
+	_ = writer.Write([]string{"Total Cost (USD)", fmt.Sprintf("%.4f", stats.TotalCostUSD), "", ""})
+	_ = writer.Write([]string{"Avg Latency (ms)", fmt.Sprintf("%.2f", stats.AvgLatencyMs), "", ""})
+	_ = writer.Write([]string{"Error Rate", fmt.Sprintf("%.2f%%", stats.ErrorRate*100), "", ""})
+	_ = writer.Write([]string{""})
 
 	// Cost by Provider
-	writer.Write([]string{"Cost by Provider", "", "", ""})
-	writer.Write([]string{"Provider ID", "Requests", "Cost (USD)", ""})
+	_ = writer.Write([]string{"Cost by Provider", "", "", ""})
+	_ = writer.Write([]string{"Provider ID", "Requests", "Cost (USD)", ""})
 	for provider, cost := range stats.CostByProvider {
 		requests := stats.RequestsByProvider[provider]
-		writer.Write([]string{provider, fmt.Sprintf("%d", requests), fmt.Sprintf("%.4f", cost), ""})
+		_ = writer.Write([]string{provider, fmt.Sprintf("%d", requests), fmt.Sprintf("%.4f", cost), ""})
 	}
-	writer.Write([]string{""})
+	_ = writer.Write([]string{""})
 
 	// Cost by User
-	writer.Write([]string{"Cost by User", "", "", ""})
-	writer.Write([]string{"User ID", "Requests", "Cost (USD)", ""})
+	_ = writer.Write([]string{"Cost by User", "", "", ""})
+	_ = writer.Write([]string{"User ID", "Requests", "Cost (USD)", ""})
 	for user, cost := range stats.CostByUser {
 		requests := stats.RequestsByUser[user]
-		writer.Write([]string{user, fmt.Sprintf("%d", requests), fmt.Sprintf("%.4f", cost), ""})
+		_ = writer.Write([]string{user, fmt.Sprintf("%d", requests), fmt.Sprintf("%.4f", cost), ""})
 	}
 }
 
@@ -440,7 +452,7 @@ func exportLogsAsCSV(w http.ResponseWriter, logs []*analytics.RequestLog) {
 	defer writer.Flush()
 
 	// Write CSV header
-	writer.Write([]string{
+	_ = writer.Write([]string{
 		"Timestamp",
 		"User ID",
 		"Method",
@@ -458,7 +470,7 @@ func exportLogsAsCSV(w http.ResponseWriter, logs []*analytics.RequestLog) {
 
 	// Write data rows
 	for _, log := range logs {
-		writer.Write([]string{
+		_ = writer.Write([]string{
 			log.Timestamp.Format(time.RFC3339),
 			log.UserID,
 			log.Method,

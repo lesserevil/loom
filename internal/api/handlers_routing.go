@@ -36,7 +36,9 @@ func (s *Server) handleSelectProvider(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(provider)
+	if err := json.NewEncoder(w).Encode(provider); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
 }
 
 // handleGetRoutingPolicies handles listing available routing policies
@@ -74,5 +76,7 @@ func (s *Server) handleGetRoutingPolicies(w http.ResponseWriter, r *http.Request
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(policies)
+	if err := json.NewEncoder(w).Encode(policies); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
 }

@@ -2,7 +2,6 @@ package auth
 
 import (
 	"encoding/json"
-	"io"
 	"net/http"
 )
 
@@ -234,15 +233,4 @@ func (h *Handlers) HandleRefreshToken(w http.ResponseWriter, r *http.Request) {
 	}); err != nil {
 		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 	}
-}
-
-// parseJSONBody is a helper to parse JSON from request body
-func parseJSONBody(r *http.Request, dest interface{}) error {
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		return err
-	}
-	defer r.Body.Close()
-
-	return json.Unmarshal(body, dest)
 }

@@ -318,7 +318,7 @@ func (m *WorkerManager) ExecuteTask(ctx context.Context, agentID string, task *w
 	}
 
 	// Update agent status
-	m.UpdateAgentStatus(agentID, "working")
+	_ = m.UpdateAgentStatus(agentID, "working")
 	if task != nil && task.BeadID != "" {
 		m.mu.Lock()
 		if a, ok := m.agents[agentID]; ok {
@@ -390,7 +390,7 @@ func (m *WorkerManager) ExecuteTask(ctx context.Context, agentID string, task *w
 	}
 
 	// Update last active time
-	m.UpdateHeartbeat(agentID)
+	_ = m.UpdateHeartbeat(agentID)
 
 	if task != nil {
 		observability.Info("agent.task_complete", map[string]interface{}{

@@ -34,10 +34,12 @@ func (s *Server) handleWorkflows(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
 		"workflows": workflows,
 		"count":     len(workflows),
-	})
+	}); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
 }
 
 // handleWorkflow handles GET /api/v1/workflows/{id} - get workflow details
@@ -75,7 +77,9 @@ func (s *Server) handleWorkflow(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(wf)
+	if err := json.NewEncoder(w).Encode(wf); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
 }
 
 // handleWorkflowExecutions handles GET /api/v1/workflows/executions - list workflow executions
@@ -116,10 +120,12 @@ func (s *Server) handleWorkflowExecutions(w http.ResponseWriter, r *http.Request
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		if err := json.NewEncoder(w).Encode(map[string]interface{}{
 			"execution": execution,
 			"history":   history,
-		})
+		}); err != nil {
+			http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		}
 		return
 	}
 
@@ -128,11 +134,13 @@ func (s *Server) handleWorkflowExecutions(w http.ResponseWriter, r *http.Request
 	// This is a simplified implementation - in production, you'd add proper filtering
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
 		"message":     "List all executions not yet implemented",
 		"status":      status,
 		"workflow_id": workflowID,
-	})
+	}); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
 }
 
 // handleBeadWorkflow handles GET /api/v1/beads/workflow?bead_id={id} - get workflow for a bead
@@ -163,10 +171,12 @@ func (s *Server) handleBeadWorkflow(w http.ResponseWriter, r *http.Request) {
 	}
 	if execution == nil {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		if err := json.NewEncoder(w).Encode(map[string]interface{}{
 			"message": "No workflow execution found for this bead",
 			"bead_id": beadID,
-		})
+		}); err != nil {
+			http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		}
 		return
 	}
 
@@ -193,13 +203,15 @@ func (s *Server) handleBeadWorkflow(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
 		"bead_id":      beadID,
 		"workflow":     wf,
 		"execution":    execution,
 		"current_node": currentNode,
 		"history":      history,
-	})
+	}); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
 }
 
 // handleWorkflowAnalytics handles GET /api/v1/workflows/analytics - get workflow metrics
@@ -329,7 +341,7 @@ func (s *Server) handleWorkflowAnalytics(w http.ResponseWriter, r *http.Request)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
 		"status_counts":      statusCounts,
 		"type_counts":        typeCounts,
 		"average_cycles":     avgCycles,
@@ -338,5 +350,7 @@ func (s *Server) handleWorkflowAnalytics(w http.ResponseWriter, r *http.Request)
 		"total_executions":   totalCount,
 		"escalated_count":    escalatedCount,
 		"recent_executions":  recentExecutions,
-	})
+	}); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
 }
