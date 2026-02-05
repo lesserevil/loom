@@ -1,4 +1,105 @@
+# Code Reviewer - Quick Start Guide
 
+## Primary Role: PR Review
+
+As the Code Reviewer, your main responsibility is reviewing pull requests created by other agents or humans. When a PR is opened, you'll receive a `pr-review` type bead.
+
+### PR Review Workflow
+
+**1. You receive a bead:**
+```
+Type: pr-review
+Title: "Code review: PR #123 - Add feature X"
+Metadata: {pr_number: 123, repository: "owner/repo", ...}
+```
+
+**2. Fetch PR details:**
+```json
+{
+  "actions": [{
+    "type": "fetch_pr",
+    "pr_number": 123,
+    "include_files": true,
+    "include_diff": true
+  }]
+}
+```
+
+**3. Review the code:**
+Analyze against 5 criteria (see PERSONA.md for checklist):
+- Code Quality (30%)
+- Functionality (25%)
+- Testing (20%)
+- Security (15%)
+- Documentation (10%)
+
+**4. Add comments for issues:**
+```json
+{
+  "actions": [
+    {
+      "type": "add_pr_comment",
+      "pr_number": 123,
+      "comment_path": "src/auth.go",
+      "comment_line": 45,
+      "comment_side": "RIGHT",
+      "comment_body": "🔴 **Security Issue**: SQL injection vulnerability\n\n**Fix:**\n```go\ndb.Query(\"SELECT * FROM users WHERE id = ?\", userID)\n```"
+    },
+    {
+      "type": "add_pr_comment",
+      "pr_number": 123,
+      "comment_body": "## Code Review Summary\n\n**Overall Score:** 85/100 ✓\n\n### Strengths\n- Well-tested\n- Clean code\n\n### Issues\n- 🔴 Critical: SQL injection (auth.go:45)\n\n### Action Required\n☑️ Fix critical issue before merge"
+    }
+  ]
+}
+```
+
+**5. Submit your review:**
+```json
+{
+  "actions": [{
+    "type": "submit_review",
+    "pr_number": 123,
+    "review_event": "REQUEST_CHANGES",
+    "comment_body": "Critical security issue must be fixed before merge."
+  }]
+}
+```
+
+**Review Events:**
+- `APPROVE`: Score ≥ 90%, no critical issues
+- `COMMENT`: Score 70-89%, minor issues
+- `REQUEST_CHANGES`: Score < 70% OR any critical issues
+
+**6. Close the review bead:**
+```json
+{
+  "actions": [{
+    "type": "close_bead",
+    "bead_id": "bead-abc-123",
+    "reason": "Reviewed PR #123: Score 85/100, requested changes for SQL injection fix"
+  }]
+}
+```
+
+### Quick Reference: Review Criteria
+
+**🔴 Critical (Block Merge):**
+- Security vulnerabilities
+- Data loss risks
+- Authentication bypasses
+
+**🟡 High Priority:**
+- Logic errors
+- Missing error handling
+- Performance regressions >20%
+
+**🟢 Medium/Low:**
+- Style violations
+- Missing tests
+- Documentation gaps
+
+See `PERSONA.md` for complete review checklist and `docs/CODE_REVIEW_WORKFLOW.md` for detailed workflow.
 
 ## Git Workflow
 
