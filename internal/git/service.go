@@ -612,3 +612,141 @@ func (l *AuditLogger) LogOperationWithDuration(operation, beadID, ref string, su
 	f.Write(data)
 	f.Write([]byte("\n"))
 }
+
+// CreatePRRequest defines parameters for creating a pull request
+type CreatePRRequest struct {
+	BeadID      string   // Bead ID for tracking
+	Title       string   // PR title (auto-generated if empty)
+	Body        string   // PR description (auto-generated if empty)
+	Base        string   // Base branch (default: main)
+	Branch      string   // Source branch (default: current)
+	Reviewers   []string // GitHub usernames to request reviews from
+	Draft       bool     // Create as draft PR
+}
+
+// CreatePRResult contains PR creation results
+type CreatePRResult struct {
+	Number int    // PR number
+	URL    string // PR URL
+	Branch string // Source branch
+	Base   string // Base branch
+}
+
+// CreatePR creates a pull request using gh CLI
+func (s *GitService) CreatePR(ctx context.Context, req CreatePRRequest) (*CreatePRResult, error) {
+	startTime := time.Now()
+	var resultRef string
+	var resultErr error
+	defer func() {
+		success := resultErr == nil
+		s.auditLogger.LogOperationWithDuration("create_pr", req.BeadID, resultRef, success, resultErr, time.Since(startTime))
+	}()
+
+	// Check if gh CLI is available
+	if !isGhCLIAvailable() {
+		resultErr = fmt.Errorf("gh CLI not found (install from https://cli.github.com)")
+		return nil, resultErr
+	}
+
+	// Get current branch if not specified
+	branch := req.Branch
+	if branch == "" {
+		currentBranch, err := s.getCurrentBranch(ctx)
+		if err != nil {
+			resultErr = fmt.Errorf("failed to get current branch: %w", err)
+			return nil, resultErr
+		}
+		branch = currentBranch
+	}
+
+	// Validate branch is an agent branch
+	if !strings.HasPrefix(branch, "agent/") {
+		resultErr = fmt.Errorf("can only create PR from agent branches (agent/*), got: %s", branch)
+		return nil, resultErr
+	}
+
+	// Set default base branch
+	base := req.Base
+	if base == "" {
+		base = "main"
+	}
+
+	// Validate not creating PR to protected branch from another protected branch
+	if isProtectedBranch(base) && isProtectedBranch(branch) {
+		resultErr = fmt.Errorf("cannot create PR between protected branches: %s -> %s", branch, base)
+		return nil, resultErr
+	}
+
+	// Build gh pr create command
+	args := []string{"pr", "create"}
+	args = append(args, "--base", base)
+	args = append(args, "--head", branch)
+
+	// Add title
+	if req.Title != "" {
+		args = append(args, "--title", req.Title)
+	}
+
+	// Add body
+	if req.Body != "" {
+		args = append(args, "--body", req.Body)
+	} else {
+		// Default body
+		args = append(args, "--body", fmt.Sprintf("Automated PR from bead %s", req.BeadID))
+	}
+
+	// Add reviewers
+	for _, reviewer := range req.Reviewers {
+		args = append(args, "--reviewer", reviewer)
+	}
+
+	// Draft mode
+	if req.Draft {
+		args = append(args, "--draft")
+	}
+
+	// Execute gh pr create
+	cmd := exec.CommandContext(ctx, "gh", args...)
+	cmd.Dir = s.projectPath
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		resultErr = fmt.Errorf("gh pr create failed: %w\nOutput: %s", err, string(output))
+		return nil, resultErr
+	}
+
+	// Parse PR URL from output
+	prURL := strings.TrimSpace(string(output))
+	resultRef = prURL
+
+	// Extract PR number from URL (e.g., https://github.com/owner/repo/pull/123)
+	prNumber := extractPRNumber(prURL)
+
+	result := &CreatePRResult{
+		Number: prNumber,
+		URL:    prURL,
+		Branch: branch,
+		Base:   base,
+	}
+
+	return result, nil
+}
+
+// isGhCLIAvailable checks if gh CLI is installed and authenticated
+func isGhCLIAvailable() bool {
+	cmd := exec.Command("gh", "auth", "status")
+	err := cmd.Run()
+	return err == nil
+}
+
+// extractPRNumber extracts PR number from GitHub PR URL
+func extractPRNumber(url string) int {
+	// Match pattern: /pull/123
+	re := regexp.MustCompile(`/pull/(\d+)`)
+	matches := re.FindStringSubmatch(url)
+	if len(matches) < 2 {
+		return 0
+	}
+	var num int
+	fmt.Sscanf(matches[1], "%d", &num)
+	return num
+}

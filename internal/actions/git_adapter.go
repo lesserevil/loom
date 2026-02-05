@@ -183,3 +183,28 @@ func containsAny(s string, substrs ...string) bool {
 	}
 	return false
 }
+
+// CreatePR creates a pull request
+func (a *GitServiceAdapter) CreatePR(ctx context.Context, beadID, title, body, base, branch string, reviewers []string, draft bool) (map[string]interface{}, error) {
+	req := git.CreatePRRequest{
+		BeadID:    beadID,
+		Title:     title,
+		Body:      body,
+		Base:      base,
+		Branch:    branch,
+		Reviewers: reviewers,
+		Draft:     draft,
+	}
+
+	result, err := a.service.CreatePR(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	return map[string]interface{}{
+		"pr_number": result.Number,
+		"pr_url":    result.URL,
+		"branch":    result.Branch,
+		"base":      result.Base,
+	}, nil
+}

@@ -26,11 +26,16 @@ const (
 	ActionApplyPatch    = "apply_patch"
 	ActionGitStatus     = "git_status"
 	ActionGitDiff       = "git_diff"
-	ActionGitCommit     = "git_commit"
-	ActionGitPush       = "git_push"
-	ActionCreatePR      = "create_pr"
-	ActionApproveBead   = "approve_bead"
-	ActionRejectBead    = "reject_bead"
+	ActionGitCommit       = "git_commit"
+	ActionGitPush         = "git_push"
+	ActionCreatePR        = "create_pr"
+	ActionStartDev        = "start_development"
+	ActionWhatsNext       = "whats_next"
+	ActionProceedToPhase  = "proceed_to_phase"
+	ActionConductReview   = "conduct_review"
+	ActionResumeWorkflow  = "resume_workflow"
+	ActionApproveBead     = "approve_bead"
+	ActionRejectBead      = "reject_bead"
 )
 
 type ActionEnvelope struct {
@@ -74,10 +79,16 @@ type Action struct {
 	PRBase        string   `json:"pr_base,omitempty"`        // PR base branch (default: main)
 	PRReviewers   []string `json:"pr_reviewers,omitempty"`   // PR reviewers
 
+	// Workflow management fields
+	Workflow       string `json:"workflow,omitempty"`        // Workflow type (epcc, tdd, waterfall, etc.)
+	RequireReviews bool   `json:"require_reviews,omitempty"` // Require reviews before phase transitions
+	TargetPhase    string `json:"target_phase,omitempty"`    // Target phase for proceed_to_phase
+	ReviewState    string `json:"review_state,omitempty"`    // Review state (not-required, pending, performed)
+
 	Bead *BeadPayload `json:"bead,omitempty"`
 
 	BeadID     string `json:"bead_id,omitempty"`
-	Reason     string `json:"reason,omitempty"`
+	Reason     string `json:"reason,omitempty"`     // Reason for bead operations or phase transitions
 	ReturnedTo string `json:"returned_to,omitempty"`
 }
 
@@ -321,6 +332,25 @@ func validateAction(action Action) error {
 		if action.Reason == "" {
 			return errors.New("reject_bead requires reason")
 		}
+	case ActionStartDev:
+		if action.Workflow == "" {
+			return errors.New("start_development requires workflow")
+		}
+	case ActionWhatsNext:
+		// All fields optional - context, user_input, conversation_summary, recent_messages
+	case ActionProceedToPhase:
+		if action.TargetPhase == "" {
+			return errors.New("proceed_to_phase requires target_phase")
+		}
+		if action.ReviewState == "" {
+			return errors.New("proceed_to_phase requires review_state")
+		}
+	case ActionConductReview:
+		if action.TargetPhase == "" {
+			return errors.New("conduct_review requires target_phase")
+		}
+	case ActionResumeWorkflow:
+		// All fields optional - include_system_prompt
 	default:
 		return fmt.Errorf("unknown action type: %s", action.Type)
 	}

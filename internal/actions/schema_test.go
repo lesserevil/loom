@@ -439,3 +439,130 @@ func TestActionBuildProject_JSONDecoding(t *testing.T) {
 		})
 	}
 }
+func TestWorkflowActionValidation(t *testing.T) {
+	tests := []struct {
+		name    string
+		json    string
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name: "valid start_development",
+			json: `{"actions": [{"type": "start_development", "workflow": "epcc", "require_reviews": true}]}`,
+			wantErr: false,
+		},
+		{
+			name: "start_development missing workflow",
+			json: `{"actions": [{"type": "start_development"}]}`,
+			wantErr: true,
+			errMsg: "requires workflow",
+		},
+		{
+			name: "valid whats_next",
+			json: `{"actions": [{"type": "whats_next"}]}`,
+			wantErr: false,
+		},
+		{
+			name: "valid proceed_to_phase",
+			json: `{"actions": [{"type": "proceed_to_phase", "target_phase": "implementation", "review_state": "performed"}]}`,
+			wantErr: false,
+		},
+		{
+			name: "proceed_to_phase missing target_phase",
+			json: `{"actions": [{"type": "proceed_to_phase", "review_state": "performed"}]}`,
+			wantErr: true,
+			errMsg: "requires target_phase",
+		},
+		{
+			name: "proceed_to_phase missing review_state",
+			json: `{"actions": [{"type": "proceed_to_phase", "target_phase": "implementation"}]}`,
+			wantErr: true,
+			errMsg: "requires review_state",
+		},
+		{
+			name: "valid conduct_review",
+			json: `{"actions": [{"type": "conduct_review", "target_phase": "design"}]}`,
+			wantErr: false,
+		},
+		{
+			name: "conduct_review missing target_phase",
+			json: `{"actions": [{"type": "conduct_review"}]}`,
+			wantErr: true,
+			errMsg: "requires target_phase",
+		},
+		{
+			name: "valid resume_workflow",
+			json: `{"actions": [{"type": "resume_workflow"}]}`,
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			env, err := DecodeStrict([]byte(tt.json))
+			if (err != nil) != tt.wantErr {
+				t.Errorf("DecodeStrict() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if tt.wantErr && tt.errMsg != "" {
+				if err == nil || !containsStr(err.Error(), tt.errMsg) {
+					t.Errorf("Expected error containing %q, got %v", tt.errMsg, err)
+				}
+			}
+			if !tt.wantErr && env == nil {
+				t.Error("Expected valid envelope, got nil")
+			}
+		})
+	}
+}
+
+// Helper function for error message checking
+func containsStr(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || findSubstr(s, substr))
+}
+
+func findSubstr(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}
+
+func TestCreatePRActionValidation(t *testing.T) {
+	tests := []struct {
+		name    string
+		json    string
+		wantErr bool
+	}{
+		{
+			name: "valid create_pr with all fields",
+			json: `{"actions": [{"type": "create_pr", "pr_title": "Feature X", "pr_body": "Description", "pr_base": "main", "branch": "agent/bead-123/feature", "pr_reviewers": ["user1", "user2"]}]}`,
+			wantErr: false,
+		},
+		{
+			name: "valid create_pr minimal",
+			json: `{"actions": [{"type": "create_pr"}]}`,
+			wantErr: false,
+		},
+		{
+			name: "create_pr with empty reviewers",
+			json: `{"actions": [{"type": "create_pr", "pr_reviewers": []}]}`,
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			env, err := DecodeStrict([]byte(tt.json))
+			if (err != nil) != tt.wantErr {
+				t.Errorf("DecodeStrict() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr && env == nil {
+				t.Error("Expected valid envelope, got nil")
+			}
+		})
+	}
+}

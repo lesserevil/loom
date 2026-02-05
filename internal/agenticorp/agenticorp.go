@@ -1031,6 +1031,31 @@ func (a *AgentiCorp) AdvanceWorkflowWithCondition(beadID, agentID string, condit
 	return a.workflowEngine.AdvanceWorkflow(execution.ID, edgeCondition, agentID, resultData)
 }
 
+// StartDevelopment is handled directly by the router via MCP tools
+func (a *AgentiCorp) StartDevelopment(ctx context.Context, workflow string, requireReviews bool, projectPath string) (map[string]interface{}, error) {
+	return nil, fmt.Errorf("StartDevelopment is handled directly by the router")
+}
+
+// WhatsNext is handled directly by the router via MCP tools
+func (a *AgentiCorp) WhatsNext(ctx context.Context, userInput, contextStr, conversationSummary string, recentMessages []map[string]string) (map[string]interface{}, error) {
+	return nil, fmt.Errorf("WhatsNext is handled directly by the router")
+}
+
+// ProceedToPhase is handled directly by the router via MCP tools
+func (a *AgentiCorp) ProceedToPhase(ctx context.Context, targetPhase, reviewState, reason string) (map[string]interface{}, error) {
+	return nil, fmt.Errorf("ProceedToPhase is handled directly by the router")
+}
+
+// ConductReview is handled directly by the router via MCP tools
+func (a *AgentiCorp) ConductReview(ctx context.Context, targetPhase string) (map[string]interface{}, error) {
+	return nil, fmt.Errorf("ConductReview is handled directly by the router")
+}
+
+// ResumeWorkflow is handled directly by the router via MCP tools
+func (a *AgentiCorp) ResumeWorkflow(ctx context.Context, includeSystemPrompt bool) (map[string]interface{}, error) {
+	return nil, fmt.Errorf("ResumeWorkflow is handled directly by the router")
+}
+
 // GetWorkerManager returns the agent worker manager
 func (a *AgentiCorp) GetWorkerManager() *agent.WorkerManager {
 	return a.agentManager

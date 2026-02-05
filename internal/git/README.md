@@ -112,6 +112,44 @@ result, err := service.Push(ctx, PushRequest{
 })
 ```
 
+### CreatePR
+
+Creates a pull request using the GitHub CLI (gh).
+
+**Prerequisites:**
+- GitHub CLI installed (`gh` command available)
+- Authenticated with GitHub (`gh auth login`)
+- Branch pushed to remote
+
+**Security:**
+- Can only create PRs from agent/* branches
+- Cannot create PRs between protected branches
+- Requires gh CLI authentication
+
+**Example:**
+```go
+result, err := service.CreatePR(ctx, CreatePRRequest{
+    BeadID:    "bead-abc-123",
+    Title:     "Add user authentication feature",
+    Body:      "Implements JWT-based authentication\n\nBead: bead-abc-123\nAgent: agent-worker-42",
+    Base:      "main",
+    Branch:    "agent/bead-abc-123/add-auth",
+    Reviewers: []string{"tech-lead", "security-reviewer"},
+    Draft:     false,
+})
+
+// Result contains:
+// - Number: PR number (e.g., 123)
+// - URL: PR URL (e.g., https://github.com/owner/repo/pull/123)
+// - Branch: Source branch
+// - Base: Target branch
+```
+
+**Auto-generation:**
+- Branch defaults to current branch if not specified
+- Base defaults to "main" if not specified
+- Title/Body can be auto-generated from bead context
+
 ### GetStatus / GetDiff
 
 Retrieve git status or diff for code inspection.

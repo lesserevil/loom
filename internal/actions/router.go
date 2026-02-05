@@ -53,6 +53,7 @@ type GitOperator interface {
 	Push(ctx context.Context, beadID, branch string, setUpstream bool) (map[string]interface{}, error)
 	GetStatus(ctx context.Context) (map[string]interface{}, error)
 	GetDiff(ctx context.Context, staged bool) (map[string]interface{}, error)
+	CreatePR(ctx context.Context, beadID, title, body, base, branch string, reviewers []string, draft bool) (map[string]interface{}, error)
 }
 
 type ActionLogger interface {
@@ -61,6 +62,11 @@ type ActionLogger interface {
 
 type WorkflowOperator interface {
 	AdvanceWorkflowWithCondition(beadID, agentID string, condition string, resultData map[string]string) error
+	StartDevelopment(ctx context.Context, workflow string, requireReviews bool, projectPath string) (map[string]interface{}, error)
+	WhatsNext(ctx context.Context, userInput, context, conversationSummary string, recentMessages []map[string]string) (map[string]interface{}, error)
+	ProceedToPhase(ctx context.Context, targetPhase, reviewState, reason string) (map[string]interface{}, error)
+	ConductReview(ctx context.Context, targetPhase string) (map[string]interface{}, error)
+	ResumeWorkflow(ctx context.Context, includeSystemPrompt bool) (map[string]interface{}, error)
 }
 
 type ActionContext struct {
@@ -333,12 +339,36 @@ func (r *Router) executeAction(ctx context.Context, action Action, actx ActionCo
 			Metadata:   result,
 		}
 	case ActionCreatePR:
-		// PR creation requires gh CLI - not implemented yet
-		// This would call GitHub API to create pull request
+		if r.Git == nil {
+			return Result{ActionType: action.Type, Status: "error", Message: "git operator not configured"}
+		}
+
+		// Auto-generate title/body from bead if not provided
+		title := action.PRTitle
+		body := action.PRBody
+		if title == "" {
+			title = fmt.Sprintf("PR from bead %s", actx.BeadID)
+		}
+		if body == "" {
+			body = fmt.Sprintf("Automated pull request from bead %s\n\nAgent: %s", actx.BeadID, actx.AgentID)
+		}
+
+		// Set default base branch
+		base := action.PRBase
+		if base == "" {
+			base = "main"
+		}
+
+		result, err := r.Git.CreatePR(ctx, actx.BeadID, title, body, base, action.Branch, action.PRReviewers, false)
+		if err != nil {
+			return Result{ActionType: action.Type, Status: "error", Message: err.Error()}
+		}
+
 		return Result{
 			ActionType: action.Type,
-			Status:     "error",
-			Message:    "create_pr not yet implemented (requires gh CLI integration)",
+			Status:     "executed",
+			Message:    fmt.Sprintf("PR created: %v", result["pr_url"]),
+			Metadata:   result,
 		}
 	case ActionRunCommand:
 		if r.Commands == nil {
@@ -512,6 +542,59 @@ func (r *Router) executeAction(ctx context.Context, action Action, actx ActionCo
 			Status:     "executed",
 			Message:    "bead rejected, workflow advanced",
 			Metadata:   map[string]interface{}{"bead_id": action.BeadID, "reason": action.Reason},
+		}
+	case ActionStartDev:
+		// Workflow actions are handled by MCP tools at the agent LLM layer
+		// This action records the workflow initiation
+		return Result{
+			ActionType: action.Type,
+			Status:     "mcp_required",
+			Message:    "start_development requires MCP tool call: mcp__responsible-vibe-mcp__start_development",
+			Metadata: map[string]interface{}{
+				"workflow":        action.Workflow,
+				"require_reviews": action.RequireReviews,
+				"mcp_tool":        "mcp__responsible-vibe-mcp__start_development",
+			},
+		}
+	case ActionWhatsNext:
+		return Result{
+			ActionType: action.Type,
+			Status:     "mcp_required",
+			Message:    "whats_next requires MCP tool call: mcp__responsible-vibe-mcp__whats_next",
+			Metadata: map[string]interface{}{
+				"mcp_tool": "mcp__responsible-vibe-mcp__whats_next",
+			},
+		}
+	case ActionProceedToPhase:
+		return Result{
+			ActionType: action.Type,
+			Status:     "mcp_required",
+			Message:    "proceed_to_phase requires MCP tool call: mcp__responsible-vibe-mcp__proceed_to_phase",
+			Metadata: map[string]interface{}{
+				"target_phase":  action.TargetPhase,
+				"review_state":  action.ReviewState,
+				"reason":        action.Reason,
+				"mcp_tool":      "mcp__responsible-vibe-mcp__proceed_to_phase",
+			},
+		}
+	case ActionConductReview:
+		return Result{
+			ActionType: action.Type,
+			Status:     "mcp_required",
+			Message:    "conduct_review requires MCP tool call: mcp__responsible-vibe-mcp__conduct_review",
+			Metadata: map[string]interface{}{
+				"target_phase": action.TargetPhase,
+				"mcp_tool":     "mcp__responsible-vibe-mcp__conduct_review",
+			},
+		}
+	case ActionResumeWorkflow:
+		return Result{
+			ActionType: action.Type,
+			Status:     "mcp_required",
+			Message:    "resume_workflow requires MCP tool call: mcp__responsible-vibe-mcp__resume_workflow",
+			Metadata: map[string]interface{}{
+				"mcp_tool": "mcp__responsible-vibe-mcp__resume_workflow",
+			},
 		}
 	default:
 		return Result{ActionType: action.Type, Status: "error", Message: "unsupported action"}
