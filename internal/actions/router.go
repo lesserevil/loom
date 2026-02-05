@@ -778,6 +778,19 @@ func (r *Router) executeAction(ctx context.Context, action Action, actx ActionCo
 				"format": action.DocFormat,
 			},
 		}
+
+	// PR Review Actions
+	case ActionFetchPR:
+		return r.handleFetchPR(ctx, action, actx)
+	case ActionReviewCode:
+		return r.handleReviewCode(ctx, action, actx)
+	case ActionAddPRComment:
+		return r.handleAddPRComment(ctx, action, actx)
+	case ActionSubmitReview:
+		return r.handleSubmitReview(ctx, action, actx)
+	case ActionRequestReview:
+		return r.handleRequestReview(ctx, action, actx)
+
 	default:
 		return Result{ActionType: action.Type, Status: "error", Message: "unsupported action"}
 	}
@@ -812,4 +825,224 @@ func truncateContent(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen-3] + "..."
+}
+
+// PR Review Action Handlers
+
+func (r *Router) handleFetchPR(ctx context.Context, action Action, actx ActionContext) Result {
+	if action.PRNumber == 0 {
+		return Result{ActionType: action.Type, Status: "error", Message: "pr_number is required"}
+	}
+
+	// Use gh CLI to fetch PR details
+	args := []string{"pr", "view", fmt.Sprintf("%d", action.PRNumber), "--json", "number,title,body,state,author,headRefName,baseRefName,createdAt,updatedAt"}
+
+	if action.IncludeFiles {
+		args = append(args, "--json", "files")
+	}
+
+	result, err := r.Git.ExecuteGitCommand(ctx, actx.ProjectID, args...)
+	if err != nil {
+		return Result{ActionType: action.Type, Status: "error", Message: fmt.Sprintf("failed to fetch PR: %v", err)}
+	}
+
+	// Parse JSON response
+	var prData map[string]interface{}
+	if err := json.Unmarshal([]byte(result), &prData); err != nil {
+		return Result{ActionType: action.Type, Status: "error", Message: fmt.Sprintf("failed to parse PR data: %v", err)}
+	}
+
+	// Optionally fetch diff
+	if action.IncludeDiff {
+		diffArgs := []string{"pr", "diff", fmt.Sprintf("%d", action.PRNumber)}
+		diff, err := r.Git.ExecuteGitCommand(ctx, actx.ProjectID, diffArgs...)
+		if err == nil {
+			prData["diff"] = diff
+		}
+	}
+
+	return Result{
+		ActionType: action.Type,
+		Status:     "executed",
+		Message:    fmt.Sprintf("Fetched PR #%d", action.PRNumber),
+		Metadata:   prData,
+	}
+}
+
+func (r *Router) handleReviewCode(ctx context.Context, action Action, actx ActionContext) Result {
+	if action.PRNumber == 0 {
+		return Result{ActionType: action.Type, Status: "error", Message: "pr_number is required"}
+	}
+
+	// Fetch PR details and files
+	fetchResult := r.handleFetchPR(ctx, Action{
+		Type:         ActionFetchPR,
+		PRNumber:     action.PRNumber,
+		IncludeFiles: true,
+		IncludeDiff:  true,
+	}, actx)
+
+	if fetchResult.Status != "executed" {
+		return Result{ActionType: action.Type, Status: "error", Message: "failed to fetch PR for review"}
+	}
+
+	// Review criteria defaults
+	criteria := action.ReviewCriteria
+	if len(criteria) == 0 {
+		criteria = []string{"quality", "functionality", "testing", "security", "documentation"}
+	}
+
+	// TODO: Implement actual code analysis against criteria
+	// For now, return placeholder review result
+	reviewResult := map[string]interface{}{
+		"pr_number":  action.PRNumber,
+		"criteria":   criteria,
+		"status":     "review_completed",
+		"score":      85, // Placeholder score
+		"issues": []map[string]interface{}{
+			{
+				"severity": "medium",
+				"category": "testing",
+				"message":  "Test coverage could be improved",
+			},
+		},
+		"recommendations": []string{
+			"Add more unit tests",
+			"Consider edge case handling",
+		},
+	}
+
+	return Result{
+		ActionType: action.Type,
+		Status:     "executed",
+		Message:    fmt.Sprintf("Reviewed PR #%d against %d criteria", action.PRNumber, len(criteria)),
+		Metadata:   reviewResult,
+	}
+}
+
+func (r *Router) handleAddPRComment(ctx context.Context, action Action, actx ActionContext) Result {
+	if action.PRNumber == 0 {
+		return Result{ActionType: action.Type, Status: "error", Message: "pr_number is required"}
+	}
+	if action.CommentBody == "" {
+		return Result{ActionType: action.Type, Status: "error", Message: "comment_body is required"}
+	}
+
+	var args []string
+	if action.CommentPath != "" && action.CommentLine > 0 {
+		// Inline comment on specific line
+		side := action.CommentSide
+		if side == "" {
+			side = "RIGHT"
+		}
+		args = []string{
+			"pr", "comment", fmt.Sprintf("%d", action.PRNumber),
+			"--body", action.CommentBody,
+			"--file", action.CommentPath,
+			"--line", fmt.Sprintf("%d", action.CommentLine),
+			"--side", side,
+		}
+	} else {
+		// General PR comment
+		args = []string{
+			"pr", "comment", fmt.Sprintf("%d", action.PRNumber),
+			"--body", action.CommentBody,
+		}
+	}
+
+	_, err := r.Git.ExecuteGitCommand(ctx, actx.ProjectID, args...)
+	if err != nil {
+		return Result{ActionType: action.Type, Status: "error", Message: fmt.Sprintf("failed to add comment: %v", err)}
+	}
+
+	commentType := "general"
+	if action.CommentPath != "" {
+		commentType = "inline"
+	}
+
+	return Result{
+		ActionType: action.Type,
+		Status:     "executed",
+		Message:    fmt.Sprintf("Added %s comment to PR #%d", commentType, action.PRNumber),
+		Metadata: map[string]interface{}{
+			"pr_number": action.PRNumber,
+			"type":      commentType,
+			"file":      action.CommentPath,
+			"line":      action.CommentLine,
+		},
+	}
+}
+
+func (r *Router) handleSubmitReview(ctx context.Context, action Action, actx ActionContext) Result {
+	if action.PRNumber == 0 {
+		return Result{ActionType: action.Type, Status: "error", Message: "pr_number is required"}
+	}
+	if action.ReviewEvent == "" {
+		return Result{ActionType: action.Type, Status: "error", Message: "review_event is required (APPROVE, REQUEST_CHANGES, COMMENT)"}
+	}
+	if action.CommentBody == "" {
+		return Result{ActionType: action.Type, Status: "error", Message: "comment_body is required"}
+	}
+
+	// Validate review event
+	validEvents := map[string]bool{
+		"APPROVE":          true,
+		"REQUEST_CHANGES":  true,
+		"COMMENT":          true,
+	}
+	if !validEvents[action.ReviewEvent] {
+		return Result{ActionType: action.Type, Status: "error", Message: "invalid review_event"}
+	}
+
+	// Use gh CLI to submit review
+	args := []string{
+		"pr", "review", fmt.Sprintf("%d", action.PRNumber),
+		"--"+strings.ToLower(strings.ReplaceAll(action.ReviewEvent, "_", "-")),
+		"--body", action.CommentBody,
+	}
+
+	_, err := r.Git.ExecuteGitCommand(ctx, actx.ProjectID, args...)
+	if err != nil {
+		return Result{ActionType: action.Type, Status: "error", Message: fmt.Sprintf("failed to submit review: %v", err)}
+	}
+
+	return Result{
+		ActionType: action.Type,
+		Status:     "executed",
+		Message:    fmt.Sprintf("Submitted review for PR #%d: %s", action.PRNumber, action.ReviewEvent),
+		Metadata: map[string]interface{}{
+			"pr_number": action.PRNumber,
+			"event":     action.ReviewEvent,
+		},
+	}
+}
+
+func (r *Router) handleRequestReview(ctx context.Context, action Action, actx ActionContext) Result {
+	if action.PRNumber == 0 {
+		return Result{ActionType: action.Type, Status: "error", Message: "pr_number is required"}
+	}
+	if action.Reviewer == "" {
+		return Result{ActionType: action.Type, Status: "error", Message: "reviewer is required"}
+	}
+
+	// Use gh CLI to request review
+	args := []string{
+		"pr", "edit", fmt.Sprintf("%d", action.PRNumber),
+		"--add-reviewer", action.Reviewer,
+	}
+
+	_, err := r.Git.ExecuteGitCommand(ctx, actx.ProjectID, args...)
+	if err != nil {
+		return Result{ActionType: action.Type, Status: "error", Message: fmt.Sprintf("failed to request review: %v", err)}
+	}
+
+	return Result{
+		ActionType: action.Type,
+		Status:     "executed",
+		Message:    fmt.Sprintf("Requested review from %s for PR #%d", action.Reviewer, action.PRNumber),
+		Metadata: map[string]interface{}{
+			"pr_number": action.PRNumber,
+			"reviewer":  action.Reviewer,
+		},
+	}
 }

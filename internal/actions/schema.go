@@ -58,6 +58,13 @@ const (
 
 	// Documentation generation actions
 	ActionGenerateDocs = "generate_docs"
+
+	// PR review actions
+	ActionFetchPR         = "fetch_pr"
+	ActionReviewCode      = "review_code"
+	ActionAddPRComment    = "add_pr_comment"
+	ActionSubmitReview    = "submit_review"
+	ActionRequestReview   = "request_review"
 )
 
 type ActionEnvelope struct {
@@ -131,6 +138,18 @@ type Action struct {
 
 	// Documentation fields
 	DocFormat string `json:"doc_format,omitempty"` // Documentation format (godoc, jsdoc, markdown)
+
+	// PR review fields
+	PRNumber       int      `json:"pr_number,omitempty"`        // PR number for fetch_pr and review actions
+	IncludeFiles   bool     `json:"include_files,omitempty"`    // Include changed files in fetch_pr
+	IncludeDiff    bool     `json:"include_diff,omitempty"`     // Include diff in fetch_pr
+	ReviewCriteria []string `json:"review_criteria,omitempty"`  // Criteria for review_code (quality, security, testing)
+	CommentBody    string   `json:"comment_body,omitempty"`     // Comment text for add_pr_comment
+	CommentPath    string   `json:"comment_path,omitempty"`     // File path for inline comment
+	CommentLine    int      `json:"comment_line,omitempty"`     // Line number for inline comment
+	CommentSide    string   `json:"comment_side,omitempty"`     // Side for inline comment (LEFT, RIGHT)
+	ReviewEvent    string   `json:"review_event,omitempty"`     // Review event (APPROVE, REQUEST_CHANGES, COMMENT)
+	Reviewer       string   `json:"reviewer,omitempty"`         // Reviewer for request_review
 
 	Bead *BeadPayload `json:"bead,omitempty"`
 
