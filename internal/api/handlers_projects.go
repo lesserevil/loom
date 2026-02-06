@@ -3,7 +3,9 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"os"
 
+	"github.com/jordanhubbard/loom/internal/project"
 	"github.com/jordanhubbard/loom/pkg/models"
 )
 
@@ -275,4 +277,38 @@ func (s *Server) handleProjectState(w http.ResponseWriter, r *http.Request, id s
 	}
 
 	s.respondJSON(w, http.StatusOK, state)
+}
+
+// handleBootstrapProject handles POST /api/v1/projects/bootstrap
+func (s *Server) handleBootstrapProject(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		s.respondError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	var req project.BootstrapRequest
+	if err := s.parseJSON(r, &req); err != nil {
+		s.respondError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	// Create bootstrap service (using current directory as workspace for now)
+	workspaceDir := "./projects"
+	bootstrapService := project.NewBootstrapService(
+		s.agenticorp.GetProjectManager(),
+		"./templates",
+		workspaceDir,
+	)
+
+	// Ensure workspace directory exists
+	os.MkdirAll(workspaceDir, 0755)
+
+	// Bootstrap the project
+	result, err := bootstrapService.Bootstrap(r.Context(), req)
+	if err != nil {
+		s.respondError(w, http.StatusInternalServerError, fmt.Sprintf("Bootstrap failed: %v", err))
+		return
+	}
+
+	s.respondJSON(w, http.StatusCreated, result)
 }

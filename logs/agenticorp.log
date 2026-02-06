@@ -13664,3 +13664,181 @@ Kickstarted 24 open bead(s) across 1 project(s)
 2026/02/06 05:07:50 server.go:144: [HotReload] Broadcasted change to 0 clients
 2026/02/06 05:07:50 server.go:144: [HotReload] Broadcasted change to 0 clients
 2026/02/06 05:07:50 server.go:144: [HotReload] Broadcasted change to 0 clients
+2026/02/06 05:07:52 client.go:105: [Temporal DEBUG] ExecuteActivity [Namespace default TaskQueue agenticorp-tasks WorkerID 13703@plubbit.local@ WorkflowType DispatcherWorkflow WorkflowID dispatcher-global RunID 63670175-4e77-415a-a405-cb627f1d7ba0 Attempt 1 ActivityID 8315 ActivityType DispatchOnceActivity]
+2026/02/06 05:07:52 dispatcher.go:154: [Dispatcher] DispatchOnce called for project=, active_providers=1
+2026/02/06 05:07:52 dispatcher.go:220: [Dispatcher] GetReadyBeads returned 61 beads for project 
+2026/02/06 05:07:52 dispatcher.go:331: [Dispatcher] Bead ac-4yo9 has 455 dispatches but is making progress, allowing to continue. Progress: No progress data
+2026/02/06 05:07:52 dispatcher.go:412: [Dispatcher] WARNING: Bead ac-4yo9 has been dispatched 455 times
+2026/02/06 05:07:52 dispatcher.go:449: [Workflow] Bead ac-5r5 workflow node not ready (may have timed out)
+2026/02/06 05:07:52 dispatcher.go:504: [Dispatcher] Skipped beads: map[assigned_agent_not_idle:4 dispatch_limit_but_progressing:1 p0_priority:47 workflow_node_not_ready:1 workflow_role_not_available:9]
+2026/02/06 05:07:52 dispatcher.go:508: [Dispatcher] No dispatchable beads found (ready: 61, idle agents: 0)
+2026/02/06 05:07:52 client.go:105: [Temporal DEBUG] NewTimer [Namespace default TaskQueue agenticorp-tasks WorkerID 13703@plubbit.local@ WorkflowType DispatcherWorkflow WorkflowID dispatcher-global RunID 63670175-4e77-415a-a405-cb627f1d7ba0 Attempt 1 TimerID 8321 Duration 5s]
+2026/02/06 05:07:54 client.go:105: [Temporal DEBUG] ExecuteActivity [Namespace default TaskQueue agenticorp-tasks WorkerID 13703@plubbit.local@ WorkflowType DispatcherWorkflow WorkflowID dispatcher-global RunID 63670175-4e77-415a-a405-cb627f1d7ba0 Attempt 1 ActivityID 8326 ActivityType DispatchOnceActivity]
+2026/02/06 05:07:54 client.go:105: [Temporal DEBUG] NewTimer [Namespace default TaskQueue agenticorp-tasks WorkerID 13703@plubbit.local@ WorkflowType DispatcherWorkflow WorkflowID dispatcher-global RunID 63670175-4e77-415a-a405-cb627f1d7ba0 Attempt 1 TimerID 8332 Duration 5s]
+2026/02/06 05:07:55 watcher.go:179: [HotReload] File changed: personas/agenticorp/PERSONA.md (chmod)
+2026/02/06 05:07:55 watcher.go:179: [HotReload] File changed: personas/default/cfo/PERSONA.md (chmod)
+2026/02/06 05:07:55 watcher.go:179: [HotReload] File changed: personas/default/documentation-manager/PERSONA.md (chmod)
+2026/02/06 05:07:55 watcher.go:179: [HotReload] File changed: personas/default/public-relations-manager/README.md (chmod)
+2026/02/06 05:07:55 watcher.go:179: [HotReload] File changed: personas/agenticorp/AI_START_HERE.md (chmod)
+2026/02/06 05:07:55 watcher.go:179: [HotReload] File changed: personas/default/web-designer/UX_REVIEW_FINDINGS.md (chmod)
+2026/02/06 05:07:55 server.go:144: [HotReload] Broadcasted change to 0 clients
+2026/02/06 05:07:55 server.go:144: [HotReload] Broadcasted change to 0 clients
+2026/02/06 05:07:55 server.go:144: [HotReload] Broadcasted change to 0 clients
+2026/02/06 05:07:55 server.go:144: [HotReload] Broadcasted change to 0 clients
+2026/02/06 05:07:55 server.go:144: [HotReload] Broadcasted change to 0 clients
+2026/02/06 05:07:55 server.go:144: [HotReload] Broadcasted change to 0 clients
+2026/02/06 05:07:55 watcher.go:179: [HotReload] File changed: personas/default/cfo/AI_START_HERE.md (chmod)
+2026/02/06 05:07:55 watcher.go:179: [HotReload] File changed: personas/default/devops-engineer/PERSONA.md (chmod)
+2026/02/06 05:07:55 watcher.go:179: [HotReload] File changed: personas/default/product-manager/FUTURE_GOALS.md (chmod)
+2026/02/06 05:07:55 server.go:144: [HotReload] Broadcasted change to 0 clients
+2026/02/06 05:07:55 server.go:144: [HotReload] Broadcasted change to 0 clients
+2026/02/06 05:07:55 server.go:144: [HotReload] Broadcasted change to 0 clients
+2026/02/06 05:07:55 watcher.go:179: [HotReload] File changed: personas/default/qa-engineer/README.md (chmod)
+2026/02/06 05:07:55 watcher.go:179: [HotReload] File changed: personas/templates/AI_START_HERE.md (chmod)
+2026/02/06 05:07:55 server.go:144: [HotReload] Broadcasted change to 0 clients
+2026/02/06 05:07:55 server.go:144: [HotReload] Broadcasted change to 0 clients
+2026/02/06 05:07:55 watcher.go:179: [HotReload] File changed: personas/agenticorp/PERSONA.md (chmod)
+2026/02/06 05:07:55 watcher.go:179: [HotReload] File changed: personas/default/cfo/PERSONA.md (chmod)
+2026/02/06 05:07:55 watcher.go:179: [HotReload] File changed: personas/default/documentation-manager/PERSONA.md (chmod)
+2026/02/06 05:07:55 watcher.go:179: [HotReload] File changed: personas/agenticorp/AI_START_HERE.md (chmod)
+2026/02/06 05:07:55 server.go:144: [HotReload] Broadcasted change to 0 clients
+2026/02/06 05:07:55 server.go:144: [HotReload] Broadcasted change to 0 clients
+2026/02/06 05:07:55 server.go:144: [HotReload] Broadcasted change to 0 clients
+2026/02/06 05:07:55 server.go:144: [HotReload] Broadcasted change to 0 clients
+2026/02/06 05:07:55 watcher.go:179: [HotReload] File changed: personas/default/cfo/AI_START_HERE.md (chmod)
+2026/02/06 05:07:55 watcher.go:179: [HotReload] File changed: personas/default/devops-engineer/PERSONA.md (chmod)
+2026/02/06 05:07:55 watcher.go:179: [HotReload] File changed: personas/default/public-relations-manager/README.md (chmod)
+2026/02/06 05:07:55 watcher.go:179: [HotReload] File changed: personas/default/web-designer/UX_REVIEW_FINDINGS.md (chmod)
+2026/02/06 05:07:55 watcher.go:179: [HotReload] File changed: personas/default/product-manager/FUTURE_GOALS.md (chmod)
+2026/02/06 05:07:55 watcher.go:179: [HotReload] File changed: personas/default/qa-engineer/README.md (chmod)
+2026/02/06 05:07:55 watcher.go:179: [HotReload] File changed: personas/templates/AI_START_HERE.md (chmod)
+2026/02/06 05:07:55 server.go:144: [HotReload] Broadcasted change to 0 clients
+2026/02/06 05:07:55 server.go:144: [HotReload] Broadcasted change to 0 clients
+2026/02/06 05:07:55 server.go:144: [HotReload] Broadcasted change to 0 clients
+2026/02/06 05:07:55 server.go:144: [HotReload] Broadcasted change to 0 clients
+2026/02/06 05:07:55 server.go:144: [HotReload] Broadcasted change to 0 clients
+2026/02/06 05:07:55 server.go:144: [HotReload] Broadcasted change to 0 clients
+2026/02/06 05:07:55 server.go:144: [HotReload] Broadcasted change to 0 clients
+2026/02/06 05:07:55 watcher.go:179: [HotReload] File changed: personas/agenticorp/PERSONA.md (chmod)
+2026/02/06 05:07:55 watcher.go:179: [HotReload] File changed: personas/default/cfo/PERSONA.md (chmod)
+2026/02/06 05:07:55 watcher.go:179: [HotReload] File changed: personas/default/documentation-manager/PERSONA.md (chmod)
+2026/02/06 05:07:55 watcher.go:179: [HotReload] File changed: personas/default/public-relations-manager/README.md (chmod)
+2026/02/06 05:07:55 watcher.go:179: [HotReload] File changed: personas/default/web-designer/UX_REVIEW_FINDINGS.md (chmod)
+2026/02/06 05:07:55 watcher.go:179: [HotReload] File changed: personas/agenticorp/AI_START_HERE.md (chmod)
+2026/02/06 05:07:55 watcher.go:179: [HotReload] File changed: personas/default/cfo/AI_START_HERE.md (chmod)
+2026/02/06 05:07:55 watcher.go:179: [HotReload] File changed: personas/default/devops-engineer/PERSONA.md (chmod)
+2026/02/06 05:07:55 watcher.go:179: [HotReload] File changed: personas/default/product-manager/FUTURE_GOALS.md (chmod)
+2026/02/06 05:07:55 watcher.go:179: [HotReload] File changed: personas/default/qa-engineer/README.md (chmod)
+2026/02/06 05:07:55 watcher.go:179: [HotReload] File changed: personas/templates/AI_START_HERE.md (chmod)
+2026/02/06 05:07:55 server.go:144: [HotReload] Broadcasted change to 0 clients
+2026/02/06 05:07:55 server.go:144: [HotReload] Broadcasted change to 0 clients
+2026/02/06 05:07:55 server.go:144: [HotReload] Broadcasted change to 0 clients
+2026/02/06 05:07:55 server.go:144: [HotReload] Broadcasted change to 0 clients
+2026/02/06 05:07:55 server.go:144: [HotReload] Broadcasted change to 0 clients
+2026/02/06 05:07:55 server.go:144: [HotReload] Broadcasted change to 0 clients
+2026/02/06 05:07:55 server.go:144: [HotReload] Broadcasted change to 0 clients
+2026/02/06 05:07:55 server.go:144: [HotReload] Broadcasted change to 0 clients
+2026/02/06 05:07:55 server.go:144: [HotReload] Broadcasted change to 0 clients
+2026/02/06 05:07:55 server.go:144: [HotReload] Broadcasted change to 0 clients
+2026/02/06 05:07:55 server.go:144: [HotReload] Broadcasted change to 0 clients
+2026/02/06 05:07:59 client.go:105: [Temporal DEBUG] ExecuteActivity [Namespace default TaskQueue agenticorp-tasks WorkerID 13703@plubbit.local@ WorkflowType DispatcherWorkflow WorkflowID dispatcher-global RunID 63670175-4e77-415a-a405-cb627f1d7ba0 Attempt 1 ActivityID 8341 ActivityType DispatchOnceActivity]
+2026/02/06 05:07:59 client.go:105: [Temporal DEBUG] NewTimer [Namespace default TaskQueue agenticorp-tasks WorkerID 13703@plubbit.local@ WorkflowType DispatcherWorkflow WorkflowID dispatcher-global RunID 63670175-4e77-415a-a405-cb627f1d7ba0 Attempt 1 TimerID 8347 Duration 5s]
+2026/02/06 05:08:04 client.go:105: [Temporal DEBUG] ExecuteActivity [Namespace default TaskQueue agenticorp-tasks WorkerID 13703@plubbit.local@ WorkflowType DispatcherWorkflow WorkflowID dispatcher-global RunID 63670175-4e77-415a-a405-cb627f1d7ba0 Attempt 1 ActivityID 8352 ActivityType DispatchOnceActivity]
+2026/02/06 05:08:04 client.go:105: [Temporal DEBUG] NewTimer [Namespace default TaskQueue agenticorp-tasks WorkerID 13703@plubbit.local@ WorkflowType DispatcherWorkflow WorkflowID dispatcher-global RunID 63670175-4e77-415a-a405-cb627f1d7ba0 Attempt 1 TimerID 8358 Duration 5s]
+2026/02/06 05:08:09 client.go:105: [Temporal DEBUG] ExecuteActivity [Namespace default TaskQueue agenticorp-tasks WorkerID 13703@plubbit.local@ WorkflowType DispatcherWorkflow WorkflowID dispatcher-global RunID 63670175-4e77-415a-a405-cb627f1d7ba0 Attempt 1 ActivityID 8363 ActivityType DispatchOnceActivity]
+2026/02/06 05:08:09 dispatcher.go:154: [Dispatcher] DispatchOnce called for project=, active_providers=1
+2026/02/06 05:08:09 dispatcher.go:220: [Dispatcher] GetReadyBeads returned 61 beads for project 
+2026/02/06 05:08:09 dispatcher.go:331: [Dispatcher] Bead ac-4yo9 has 455 dispatches but is making progress, allowing to continue. Progress: No progress data
+2026/02/06 05:08:09 dispatcher.go:412: [Dispatcher] WARNING: Bead ac-4yo9 has been dispatched 455 times
+2026/02/06 05:08:09 dispatcher.go:449: [Workflow] Bead ac-5r5 workflow node not ready (may have timed out)
+2026/02/06 05:08:09 dispatcher.go:504: [Dispatcher] Skipped beads: map[assigned_agent_not_idle:4 dispatch_limit_but_progressing:1 p0_priority:47 workflow_node_not_ready:1 workflow_role_not_available:9]
+2026/02/06 05:08:09 dispatcher.go:508: [Dispatcher] No dispatchable beads found (ready: 61, idle agents: 0)
+2026/02/06 05:08:09 client.go:105: [Temporal DEBUG] NewTimer [Namespace default TaskQueue agenticorp-tasks WorkerID 13703@plubbit.local@ WorkflowType DispatcherWorkflow WorkflowID dispatcher-global RunID 63670175-4e77-415a-a405-cb627f1d7ba0 Attempt 1 TimerID 8369 Duration 5s]
+2026/02/06 05:08:14 client.go:105: [Temporal DEBUG] ExecuteActivity [Namespace default TaskQueue agenticorp-tasks WorkerID 13703@plubbit.local@ WorkflowType DispatcherWorkflow WorkflowID dispatcher-global RunID 63670175-4e77-415a-a405-cb627f1d7ba0 Attempt 1 ActivityID 8374 ActivityType DispatchOnceActivity]
+2026/02/06 05:08:14 client.go:105: [Temporal DEBUG] NewTimer [Namespace default TaskQueue agenticorp-tasks WorkerID 13703@plubbit.local@ WorkflowType DispatcherWorkflow WorkflowID dispatcher-global RunID 63670175-4e77-415a-a405-cb627f1d7ba0 Attempt 1 TimerID 8380 Duration 5s]
+2026/02/06 05:08:19 client.go:105: [Temporal DEBUG] ExecuteActivity [Namespace default TaskQueue agenticorp-tasks WorkerID 13703@plubbit.local@ WorkflowType DispatcherWorkflow WorkflowID dispatcher-global RunID 63670175-4e77-415a-a405-cb627f1d7ba0 Attempt 1 ActivityID 8385 ActivityType DispatchOnceActivity]
+2026/02/06 05:08:20 client.go:105: [Temporal DEBUG] NewTimer [Namespace default TaskQueue agenticorp-tasks WorkerID 13703@plubbit.local@ WorkflowType DispatcherWorkflow WorkflowID dispatcher-global RunID 63670175-4e77-415a-a405-cb627f1d7ba0 Attempt 1 TimerID 8391 Duration 5s]
+2026/02/06 05:08:25 client.go:105: [Temporal DEBUG] ExecuteActivity [Namespace default TaskQueue agenticorp-tasks WorkerID 13703@plubbit.local@ WorkflowType DispatcherWorkflow WorkflowID dispatcher-global RunID 63670175-4e77-415a-a405-cb627f1d7ba0 Attempt 1 ActivityID 8396 ActivityType DispatchOnceActivity]
+2026/02/06 05:08:25 dispatcher.go:154: [Dispatcher] DispatchOnce called for project=, active_providers=1
+2026/02/06 05:08:25 dispatcher.go:220: [Dispatcher] GetReadyBeads returned 61 beads for project 
+2026/02/06 05:08:25 dispatcher.go:331: [Dispatcher] Bead ac-4yo9 has 455 dispatches but is making progress, allowing to continue. Progress: No progress data
+2026/02/06 05:08:25 dispatcher.go:412: [Dispatcher] WARNING: Bead ac-4yo9 has been dispatched 455 times
+2026/02/06 05:08:25 dispatcher.go:449: [Workflow] Bead ac-5r5 workflow node not ready (may have timed out)
+2026/02/06 05:08:25 dispatcher.go:504: [Dispatcher] Skipped beads: map[assigned_agent_not_idle:4 dispatch_limit_but_progressing:1 p0_priority:47 workflow_node_not_ready:1 workflow_role_not_available:9]
+2026/02/06 05:08:25 dispatcher.go:508: [Dispatcher] No dispatchable beads found (ready: 61, idle agents: 0)
+2026/02/06 05:08:25 client.go:105: [Temporal DEBUG] NewTimer [Namespace default TaskQueue agenticorp-tasks WorkerID 13703@plubbit.local@ WorkflowType DispatcherWorkflow WorkflowID dispatcher-global RunID 63670175-4e77-415a-a405-cb627f1d7ba0 Attempt 1 TimerID 8402 Duration 5s]
+2026/02/06 05:08:30 client.go:105: [Temporal DEBUG] ExecuteActivity [Namespace default TaskQueue agenticorp-tasks WorkerID 13703@plubbit.local@ WorkflowType DispatcherWorkflow WorkflowID dispatcher-global RunID 63670175-4e77-415a-a405-cb627f1d7ba0 Attempt 1 ActivityID 8407 ActivityType DispatchOnceActivity]
+2026/02/06 05:08:30 client.go:105: [Temporal DEBUG] NewTimer [Namespace default TaskQueue agenticorp-tasks WorkerID 13703@plubbit.local@ WorkflowType DispatcherWorkflow WorkflowID dispatcher-global RunID 63670175-4e77-415a-a405-cb627f1d7ba0 Attempt 1 TimerID 8413 Duration 5s]
+2026/02/06 05:08:35 client.go:105: [Temporal DEBUG] ExecuteActivity [Namespace default TaskQueue agenticorp-tasks WorkerID 13703@plubbit.local@ WorkflowType DispatcherWorkflow WorkflowID dispatcher-global RunID 63670175-4e77-415a-a405-cb627f1d7ba0 Attempt 1 ActivityID 8418 ActivityType DispatchOnceActivity]
+2026/02/06 05:08:35 dispatcher.go:154: [Dispatcher] DispatchOnce called for project=, active_providers=1
+2026/02/06 05:08:35 dispatcher.go:220: [Dispatcher] GetReadyBeads returned 61 beads for project 
+2026/02/06 05:08:35 dispatcher.go:331: [Dispatcher] Bead ac-4yo9 has 455 dispatches but is making progress, allowing to continue. Progress: No progress data
+2026/02/06 05:08:35 dispatcher.go:412: [Dispatcher] WARNING: Bead ac-4yo9 has been dispatched 455 times
+2026/02/06 05:08:35 dispatcher.go:449: [Workflow] Bead ac-5r5 workflow node not ready (may have timed out)
+2026/02/06 05:08:35 dispatcher.go:504: [Dispatcher] Skipped beads: map[assigned_agent_not_idle:4 dispatch_limit_but_progressing:1 p0_priority:47 workflow_node_not_ready:1 workflow_role_not_available:9]
+2026/02/06 05:08:35 dispatcher.go:508: [Dispatcher] No dispatchable beads found (ready: 61, idle agents: 0)
+2026/02/06 05:08:35 client.go:105: [Temporal DEBUG] NewTimer [Namespace default TaskQueue agenticorp-tasks WorkerID 13703@plubbit.local@ WorkflowType DispatcherWorkflow WorkflowID dispatcher-global RunID 63670175-4e77-415a-a405-cb627f1d7ba0 Attempt 1 TimerID 8424 Duration 5s]
+2026/02/06 05:08:40 client.go:105: [Temporal DEBUG] ExecuteActivity [Namespace default TaskQueue agenticorp-tasks WorkerID 13703@plubbit.local@ WorkflowType DispatcherWorkflow WorkflowID dispatcher-global RunID 63670175-4e77-415a-a405-cb627f1d7ba0 Attempt 1 ActivityID 8429 ActivityType DispatchOnceActivity]
+2026/02/06 05:08:40 dispatcher.go:154: [Dispatcher] DispatchOnce called for project=, active_providers=1
+2026/02/06 05:08:40 dispatcher.go:220: [Dispatcher] GetReadyBeads returned 61 beads for project 
+2026/02/06 05:08:40 dispatcher.go:331: [Dispatcher] Bead ac-4yo9 has 455 dispatches but is making progress, allowing to continue. Progress: No progress data
+2026/02/06 05:08:40 dispatcher.go:412: [Dispatcher] WARNING: Bead ac-4yo9 has been dispatched 455 times
+2026/02/06 05:08:40 dispatcher.go:449: [Workflow] Bead ac-5r5 workflow node not ready (may have timed out)
+2026/02/06 05:08:40 dispatcher.go:504: [Dispatcher] Skipped beads: map[assigned_agent_not_idle:4 dispatch_limit_but_progressing:1 p0_priority:47 workflow_node_not_ready:1 workflow_role_not_available:9]
+2026/02/06 05:08:40 dispatcher.go:508: [Dispatcher] No dispatchable beads found (ready: 61, idle agents: 0)
+2026/02/06 05:08:40 client.go:105: [Temporal DEBUG] NewTimer [Namespace default TaskQueue agenticorp-tasks WorkerID 13703@plubbit.local@ WorkflowType DispatcherWorkflow WorkflowID dispatcher-global RunID 63670175-4e77-415a-a405-cb627f1d7ba0 Attempt 1 TimerID 8435 Duration 5s]
+2026/02/06 05:08:45 client.go:105: [Temporal DEBUG] ExecuteActivity [Namespace default TaskQueue agenticorp-tasks WorkerID 13703@plubbit.local@ WorkflowType DispatcherWorkflow WorkflowID dispatcher-global RunID 63670175-4e77-415a-a405-cb627f1d7ba0 Attempt 1 ActivityID 8440 ActivityType DispatchOnceActivity]
+2026/02/06 05:08:45 client.go:105: [Temporal DEBUG] NewTimer [Namespace default TaskQueue agenticorp-tasks WorkerID 13703@plubbit.local@ WorkflowType DispatcherWorkflow WorkflowID dispatcher-global RunID 63670175-4e77-415a-a405-cb627f1d7ba0 Attempt 1 TimerID 8446 Duration 5s]
+2026/02/06 05:08:50 client.go:105: [Temporal DEBUG] ExecuteActivity [Namespace default TaskQueue agenticorp-tasks WorkerID 13703@plubbit.local@ WorkflowType DispatcherWorkflow WorkflowID dispatcher-global RunID 63670175-4e77-415a-a405-cb627f1d7ba0 Attempt 1 ActivityID 8451 ActivityType DispatchOnceActivity]
+2026/02/06 05:08:50 dispatcher.go:154: [Dispatcher] DispatchOnce called for project=, active_providers=1
+2026/02/06 05:08:50 dispatcher.go:220: [Dispatcher] GetReadyBeads returned 61 beads for project 
+2026/02/06 05:08:50 dispatcher.go:331: [Dispatcher] Bead ac-4yo9 has 455 dispatches but is making progress, allowing to continue. Progress: No progress data
+2026/02/06 05:08:50 dispatcher.go:412: [Dispatcher] WARNING: Bead ac-4yo9 has been dispatched 455 times
+2026/02/06 05:08:50 dispatcher.go:449: [Workflow] Bead ac-5r5 workflow node not ready (may have timed out)
+2026/02/06 05:08:50 dispatcher.go:504: [Dispatcher] Skipped beads: map[assigned_agent_not_idle:4 dispatch_limit_but_progressing:1 p0_priority:47 workflow_node_not_ready:1 workflow_role_not_available:9]
+2026/02/06 05:08:50 dispatcher.go:508: [Dispatcher] No dispatchable beads found (ready: 61, idle agents: 0)
+2026/02/06 05:08:50 client.go:105: [Temporal DEBUG] NewTimer [Namespace default TaskQueue agenticorp-tasks WorkerID 13703@plubbit.local@ WorkflowType DispatcherWorkflow WorkflowID dispatcher-global RunID 63670175-4e77-415a-a405-cb627f1d7ba0 Attempt 1 TimerID 8457 Duration 5s]
+2026/02/06 05:08:52 client.go:105: [Temporal DEBUG] ExecuteActivity [Namespace default TaskQueue agenticorp-tasks WorkerID 13703@plubbit.local@ WorkflowType DispatcherWorkflow WorkflowID dispatcher-global RunID 63670175-4e77-415a-a405-cb627f1d7ba0 Attempt 1 ActivityID 8462 ActivityType DispatchOnceActivity]
+2026/02/06 05:08:53 client.go:105: [Temporal DEBUG] NewTimer [Namespace default TaskQueue agenticorp-tasks WorkerID 13703@plubbit.local@ WorkflowType DispatcherWorkflow WorkflowID dispatcher-global RunID 63670175-4e77-415a-a405-cb627f1d7ba0 Attempt 1 TimerID 8468 Duration 5s]
+2026/02/06 05:08:58 client.go:105: [Temporal DEBUG] ExecuteActivity [Namespace default TaskQueue agenticorp-tasks WorkerID 13703@plubbit.local@ WorkflowType DispatcherWorkflow WorkflowID dispatcher-global RunID 63670175-4e77-415a-a405-cb627f1d7ba0 Attempt 1 ActivityID 8477 ActivityType DispatchOnceActivity]
+2026/02/06 05:08:58 client.go:105: [Temporal DEBUG] NewTimer [Namespace default TaskQueue agenticorp-tasks WorkerID 13703@plubbit.local@ WorkflowType DispatcherWorkflow WorkflowID dispatcher-global RunID 63670175-4e77-415a-a405-cb627f1d7ba0 Attempt 1 TimerID 8483 Duration 5s]
+2026/02/06 05:09:03 client.go:105: [Temporal DEBUG] ExecuteActivity [Namespace default TaskQueue agenticorp-tasks WorkerID 13703@plubbit.local@ WorkflowType DispatcherWorkflow WorkflowID dispatcher-global RunID 63670175-4e77-415a-a405-cb627f1d7ba0 Attempt 1 ActivityID 8488 ActivityType DispatchOnceActivity]
+2026/02/06 05:09:03 dispatcher.go:154: [Dispatcher] DispatchOnce called for project=, active_providers=2
+2026/02/06 05:09:03 dispatcher.go:220: [Dispatcher] GetReadyBeads returned 61 beads for project 
+2026/02/06 05:09:03 dispatcher.go:331: [Dispatcher] Bead ac-4yo9 has 455 dispatches but is making progress, allowing to continue. Progress: No progress data
+2026/02/06 05:09:03 dispatcher.go:412: [Dispatcher] WARNING: Bead ac-4yo9 has been dispatched 455 times
+2026/02/06 05:09:03 dispatcher.go:504: [Dispatcher] Skipped beads: map[assigned_agent_not_idle:3 dispatch_limit_but_progressing:1 p0_priority:47 workflow_role_not_available:5]
+2026/02/06 05:09:03 dispatcher.go:563: [Dispatcher] Bead ac-4yo9 dispatch count: 456
+2026/02/06 05:09:03 structured.go:41: {"agent_id":"agent-1769932530-Engineering Manager (Default)","bead_id":"ac-4yo9","event":"agent.assign_bead","level":"info","old_bead":"","project_id":"agenticorp-self","provider_id":"sparky-local","ts":"2026-02-06T13:09:03.215469Z"}
+2026/02/06 05:09:03 structured.go:41: {"agent_id":"agent-1769932530-Engineering Manager (Default)","bead_id":"ac-4yo9","event":"dispatch.assign","level":"info","project_id":"agenticorp-self","provider_id":"sparky-local","ts":"2026-02-06T13:09:03.215759Z"}
+2026/02/06 05:09:03 dispatcher.go:856: [Dispatcher] Resuming conversation session 7d0b4ccf-afe0-4525-a2e1-b8fa4bddc515 for bead ac-4yo9
+2026/02/06 05:09:03 dispatcher.go:596: [Dispatcher] Using conversation session 7d0b4ccf-afe0-4525-a2e1-b8fa4bddc515 for bead ac-4yo9 (messages: 127)
+2026/02/06 05:09:03 structured.go:41: {"agent_id":"agent-1769932530-Engineering Manager (Default)","bead_id":"ac-4yo9","event":"agent.task_start","level":"info","project_id":"agenticorp-self","provider_id":"sparky-local","task_id":"task-ac-4yo9-1770383343241386000","ts":"2026-02-06T13:09:03.241435Z"}
+2026/02/06 05:09:03 structured.go:41: {"agent_id":"agent-1769932530-Engineering Manager (Default)","bead_id":"ac-4yo9","event":"agent.status_update","level":"info","previous_status":"working","project_id":"agenticorp-self","provider_id":"sparky-local","status":"working","ts":"2026-02-06T13:09:03.245451Z"}
+2026/02/06 05:09:40 structured.go:41: {"bead_id":"ac-y08j","event":"temporal.workflow_start","level":"info","project_id":"agenticorp-self","ts":"2026-02-06T13:09:40.01873Z","workflow":"bead_processing"}
+2026/02/06 05:09:40 manager.go:217: Started bead workflow for bead ac-y08j
+2026/02/06 05:09:40 structured.go:41: {"bead_id":"ac-y08j","duration_ms":13,"event":"temporal.workflow_started","level":"info","project_id":"agenticorp-self","ts":"2026-02-06T13:09:40.03271Z","workflow":"bead_processing"}
+2026/02/06 05:09:40 structured.go:41: {"action_type":"create_bead","agent_id":"agent-1769932530-Engineering Manager (Default)","bead_id":"ac-y08j","event":"agent.action","level":"info","message":"auto-filed action parse failure","project_id":"agenticorp-self","status":"executed","ts":"2026-02-06T13:09:40.032988Z"}
+2026/02/06 05:09:40 structured.go:41: {"agent_id":"agent-1769932530-Engineering Manager (Default)","bead_id":"ac-4yo9","duration_ms":36796,"error":"action parse failed: invalid character ':' after array element","event":"agent.task_complete","level":"info","project_id":"agenticorp-self","provider_id":"sparky-local","success":false,"task_id":"task-ac-4yo9-1770383343241386000","ts":"2026-02-06T13:09:40.03781Z"}
+2026/02/06 05:09:40 worker_manager.go:407: Agent Engineering Manager (Default) completed task task-ac-4yo9-1770383343241386000
+2026/02/06 05:09:40 structured.go:41: {"agent_id":"agent-1769932530-Engineering Manager (Default)","bead_id":"","event":"agent.status_update","level":"info","previous_status":"working","project_id":"agenticorp-self","provider_id":"sparky-local","status":"idle","ts":"2026-02-06T13:09:40.038962Z"}
+2026/02/06 05:09:40 dispatcher.go:722: [Workflow] Failed to advance workflow for bead ac-4yo9: workflow execution already escalated
+2026/02/06 05:09:40 structured.go:41: {"agent_id":"agent-1769932530-Engineering Manager (Default)","bead_id":"ac-4yo9","event":"dispatch.execute","level":"info","project_id":"agenticorp-self","provider_id":"sparky-local","status":"success","ts":"2026-02-06T13:09:40.040639Z"}
+2026/02/06 05:09:40 client.go:105: [Temporal DEBUG] NewTimer [Namespace default TaskQueue agenticorp-tasks WorkerID 13703@plubbit.local@ WorkflowType DispatcherWorkflow WorkflowID dispatcher-global RunID 63670175-4e77-415a-a405-cb627f1d7ba0 Attempt 1 TimerID 8516 Duration 5s]
+2026/02/06 05:09:40 client.go:105: [Temporal DEBUG] ExecuteActivity [Namespace default TaskQueue agenticorp-tasks WorkerID 13703@plubbit.local@ WorkflowType DispatcherWorkflow WorkflowID dispatcher-global RunID 63670175-4e77-415a-a405-cb627f1d7ba0 Attempt 1 ActivityID 8517 ActivityType DispatchOnceActivity]
+2026/02/06 05:09:41 client.go:105: [Temporal DEBUG] NewTimer [Namespace default TaskQueue agenticorp-tasks WorkerID 13703@plubbit.local@ WorkflowType DispatcherWorkflow WorkflowID dispatcher-global RunID 63670175-4e77-415a-a405-cb627f1d7ba0 Attempt 1 TimerID 8527 Duration 5s]
+2026/02/06 05:09:41 client.go:105: [Temporal DEBUG] ExecuteActivity [Namespace default TaskQueue agenticorp-tasks WorkerID 13703@plubbit.local@ WorkflowType DispatcherWorkflow WorkflowID dispatcher-global RunID 63670175-4e77-415a-a405-cb627f1d7ba0 Attempt 1 ActivityID 8528 ActivityType DispatchOnceActivity]
+2026/02/06 05:09:41 client.go:105: [Temporal DEBUG] NewTimer [Namespace default TaskQueue agenticorp-tasks WorkerID 13703@plubbit.local@ WorkflowType DispatcherWorkflow WorkflowID dispatcher-global RunID 63670175-4e77-415a-a405-cb627f1d7ba0 Attempt 1 TimerID 8534 Duration 5s]
+2026/02/06 05:09:41 client.go:105: [Temporal DEBUG] ExecuteActivity [Namespace default TaskQueue agenticorp-tasks WorkerID 13703@plubbit.local@ WorkflowType DispatcherWorkflow WorkflowID dispatcher-global RunID 63670175-4e77-415a-a405-cb627f1d7ba0 Attempt 1 ActivityID 8535 ActivityType DispatchOnceActivity]
+2026/02/06 05:09:41 dispatcher.go:154: [Dispatcher] DispatchOnce called for project=, active_providers=2
+2026/02/06 05:09:41 dispatcher.go:220: [Dispatcher] GetReadyBeads returned 62 beads for project 
+2026/02/06 05:09:41 dispatcher.go:331: [Dispatcher] Bead ac-4yo9 has 456 dispatches but is making progress, allowing to continue. Progress: No progress data
+2026/02/06 05:09:41 dispatcher.go:412: [Dispatcher] WARNING: Bead ac-4yo9 has been dispatched 456 times
+2026/02/06 05:09:41 dispatcher.go:504: [Dispatcher] Skipped beads: map[assigned_agent_not_idle:2 dispatch_limit_but_progressing:1 p0_priority:48]
+2026/02/06 05:09:41 dispatcher.go:563: [Dispatcher] Bead ac-4yo9 dispatch count: 457
+2026/02/06 05:09:41 structured.go:41: {"agent_id":"agent-1769932530-Engineering Manager (Default)","bead_id":"ac-4yo9","event":"agent.assign_bead","level":"info","old_bead":"","project_id":"agenticorp-self","provider_id":"sparky-local","ts":"2026-02-06T13:09:41.71885Z"}
+2026/02/06 05:09:41 structured.go:41: {"agent_id":"agent-1769932530-Engineering Manager (Default)","bead_id":"ac-4yo9","event":"dispatch.assign","level":"info","project_id":"agenticorp-self","provider_id":"sparky-local","ts":"2026-02-06T13:09:41.718873Z"}
+2026/02/06 05:09:41 dispatcher.go:856: [Dispatcher] Resuming conversation session 7d0b4ccf-afe0-4525-a2e1-b8fa4bddc515 for bead ac-4yo9
+2026/02/06 05:09:41 dispatcher.go:596: [Dispatcher] Using conversation session 7d0b4ccf-afe0-4525-a2e1-b8fa4bddc515 for bead ac-4yo9 (messages: 130)
+2026/02/06 05:09:41 structured.go:41: {"agent_id":"agent-1769932530-Engineering Manager (Default)","bead_id":"ac-4yo9","event":"agent.task_start","level":"info","project_id":"agenticorp-self","provider_id":"sparky-local","task_id":"task-ac-4yo9-1770383381723814000","ts":"2026-02-06T13:09:41.723882Z"}
+2026/02/06 05:09:41 structured.go:41: {"agent_id":"agent-1769932530-Engineering Manager (Default)","bead_id":"ac-4yo9","event":"agent.status_update","level":"info","previous_status":"working","project_id":"agenticorp-self","provider_id":"sparky-local","status":"working","ts":"2026-02-06T13:09:41.724354Z"}

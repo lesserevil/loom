@@ -169,6 +169,7 @@ func (s *Server) SetupRoutes() http.Handler {
 	mux.HandleFunc("/api/v1/agents/", s.handleAgent)
 
 	// Projects (includes /projects/{id}/files/*)
+	mux.HandleFunc("/api/v1/projects/bootstrap", s.handleBootstrapProject)
 	mux.HandleFunc("/api/v1/projects", s.handleProjects)
 	mux.HandleFunc("/api/v1/projects/", s.handleProject)
 
