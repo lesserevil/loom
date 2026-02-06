@@ -1,7 +1,7 @@
 # AgentiCorp Configuration
 
 server:
-  http_port: 8080
+  http_port: 8081
   https_port: 8443
   enable_http: true
   enable_https: false
@@ -22,12 +22,17 @@ beads:
   compact_old_days: 90  # Compact closed beads older than 90 days
 
 agents:
-  max_concurrent: 1
+  max_concurrent: 6
   default_persona_path: ./personas
   heartbeat_interval: 30s
   file_lock_timeout: 10m
   allowed_roles:
+    - ceo
     - engineering-manager
+    - project-manager
+    - code-reviewer
+    - qa
+    - devops-engineer
 
 dispatch:
   max_hops: 20
@@ -79,10 +84,10 @@ providers:
 projects:
   - id: agenticorp-self
     name: AgentiCorp Self-Improvement
-    git_repo: git@github.com:jordanhubbard/AgentiCorp.git
+    git_repo: /Users/jkh/Src/AgentiCorp
     branch: main
     beads_path: .beads
-    git_auth_method: ssh
+    git_auth_method: none
     is_perpetual: true
     is_sticky: true
     context:
