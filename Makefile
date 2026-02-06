@@ -17,7 +17,7 @@ define run_with_failure_bead
 	else \
 		status=$$?; \
 		echo "[make] $$target failed with exit code $$status"; \
-		bead_id="bd-$${target}-failure-$$(date -u +%Y%m%d%H%M%S)"; \
+		bead_id="loom-$${target}-failure-$$(date -u +%Y%m%d%H%M%S)"; \
 		bead_file="$(BEADS_DIR)/$${bead_id}.yaml"; \
 		timestamp=$$(date -u +%Y-%m-%dT%H:%M:%SZ); \
 		output_body=$$(LC_ALL=C sed 's/[[:cntrl:]]//g' "$$output" | sed 's/^/    /'); \

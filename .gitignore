@@ -10,6 +10,7 @@
 bin/
 obj/
 /loom
+/agenticorp
 
 # Test binary, built with `go test -c`
 *.test
@@ -42,4 +43,9 @@ arbiter-*
 # Web UI build artifacts
 web/dist/
 loom-self/
+agenticorp-self/
 .keys.json
+
+# Runtime data
+data/
+logs/
