@@ -1,0 +1,168 @@
+id: "wf-self-improvement"
+name: "Self-Improvement Workflow"
+description: "Autonomous workflow for AgentiCorp self-improvement tasks - no approval gates"
+workflow_type: "self-improvement"
+is_default: false
+
+nodes:
+  - node_key: "investigate"
+    node_type: "task"
+    role_required: "Engineering Manager"
+    persona_hint: "default/engineering-manager"
+    max_attempts: 2
+    timeout_minutes: 60
+    instructions: |
+      Investigate and understand the task:
+      1. Read relevant code files
+      2. Understand the problem or improvement area
+      3. Research best practices and patterns
+      4. Document findings and approach
+
+  - node_key: "implement"
+    node_type: "task"
+    role_required: "Engineering Manager"
+    persona_hint: "default/engineering-manager"
+    max_attempts: 3
+    timeout_minutes: 120
+    instructions: |
+      Implement the solution:
+      1. Write or modify code according to plan
+      2. Follow Go best practices
+      3. Add/update tests
+      4. Ensure code quality and maintainability
+      5. Run tests to verify changes
+
+  - node_key: "verify"
+    node_type: "verify"
+    role_required: "QA"
+    persona_hint: "default/qa-engineer"
+    max_attempts: 2
+    timeout_minutes: 30
+    instructions: |
+      Verify the implementation:
+      1. Run all tests (go test ./...)
+      2. Check for linting issues (golangci-lint)
+      3. Verify no regressions
+      4. Approve if all tests pass
+
+  - node_key: "review"
+    node_type: "task"
+    role_required: "Code Reviewer"
+    persona_hint: "default/code-reviewer"
+    max_attempts: 1
+    timeout_minutes: 30
+    instructions: |
+      Quick code review (optional - auto-approve if verify passed):
+      1. Check code quality
+      2. Verify best practices followed
+      3. Suggest improvements if needed
+      4. Auto-approve if QA verification passed
+
+  - node_key: "commit"
+    node_type: "commit"
+    role_required: "Engineering Manager"
+    persona_hint: "default/engineering-manager"
+    max_attempts: 2
+    timeout_minutes: 15
+    instructions: |
+      Commit the changes:
+      1. Stage modified files (git add)
+      2. Create descriptive commit message
+      3. Include Co-Authored-By: AgentiCorp <noreply@agenticorp.dev>
+      4. Commit changes
+      5. DO NOT push to remote (human will review and push)
+
+edges:
+  # Start → investigate
+  - from_node_key: ""
+    to_node_key: "investigate"
+    condition: "success"
+    priority: 100
+
+  # investigate → implement (on success)
+  - from_node_key: "investigate"
+    to_node_key: "implement"
+    condition: "success"
+    priority: 100
+
+  # investigate → end (on failure - task not feasible)
+  - from_node_key: "investigate"
+    to_node_key: ""
+    condition: "failure"
+    priority: 100
+
+  # implement → verify (on success)
+  - from_node_key: "implement"
+    to_node_key: "verify"
+    condition: "success"
+    priority: 100
+
+  # implement → investigate (on failure - need different approach)
+  - from_node_key: "implement"
+    to_node_key: "investigate"
+    condition: "failure"
+    priority: 50
+
+  # verify → review (on approval)
+  - from_node_key: "verify"
+    to_node_key: "review"
+    condition: "approved"
+    priority: 100
+
+  # verify → implement (on rejection - fix issues)
+  - from_node_key: "verify"
+    to_node_key: "implement"
+    condition: "rejected"
+    priority: 100
+
+  # review → commit (on success)
+  - from_node_key: "review"
+    to_node_key: "commit"
+    condition: "success"
+    priority: 100
+
+  # review → implement (if improvements needed)
+  - from_node_key: "review"
+    to_node_key: "implement"
+    condition: "failure"
+    priority: 50
+
+  # commit → end (on success - complete!)
+  - from_node_key: "commit"
+    to_node_key: ""
+    condition: "success"
+    priority: 100
+
+  # commit → implement (on failure - fix commit issues)
+  - from_node_key: "commit"
+    to_node_key: "implement"
+    condition: "failure"
+    priority: 100
+
+# Matching criteria for auto-assignment
+match_criteria:
+  # Match beads with these labels
+  labels:
+    - "self-improvement"
+    - "code-review"
+    - "refactoring"
+    - "optimization"
+    - "maintainability"
+    - "observability"
+
+  # Match beads with these keywords in title
+  title_keywords:
+    - "[Code Review]"
+    - "[Refactor]"
+    - "[Optimization]"
+    - "[Self-Improvement]"
+    - "[Maintenance]"
+    - "[Feature]"
+    - "best practices"
+    - "circular"
+    - "maintainability"
+    - "observability"
+    - "autonomous"
+
+  # Priority: Higher number = higher priority (will be checked first)
+  priority: 200

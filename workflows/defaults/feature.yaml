@@ -81,23 +81,24 @@ nodes:
       4. Approve or reject with findings
 
 edges:
-  # Start → ceo_review
+  # Start → pm_plan (skip CEO for autonomous operation)
   - from_node_key: ""
-    to_node_key: "ceo_review"
+    to_node_key: "pm_plan"
     condition: "success"
     priority: 100
 
+  # Keep CEO review node for future use, but don't route to it by default
   # ceo_review → pm_plan (on approval)
-  - from_node_key: "ceo_review"
-    to_node_key: "pm_plan"
-    condition: "approved"
-    priority: 100
+  # - from_node_key: "ceo_review"
+  #   to_node_key: "pm_plan"
+  #   condition: "approved"
+  #   priority: 100
 
   # ceo_review → end (on rejection)
-  - from_node_key: "ceo_review"
-    to_node_key: ""
-    condition: "rejected"
-    priority: 100
+  # - from_node_key: "ceo_review"
+  #   to_node_key: ""
+  #   condition: "rejected"
+  #   priority: 100
 
   # pm_plan → pm_approve (on success)
   - from_node_key: "pm_plan"
