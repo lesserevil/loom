@@ -28,6 +28,12 @@ This is the craft of software, elevated by the ancient wisdom of the loom.
 
 ---
 
+## Quick Start
+
+Want to get Loom running? See **[SETUP.md](SETUP.md)** for installation, connecting to the UI, and bootstrapping your first project.
+
+---
+
 ## What is Loom?
 
 Loom is a lightweight AI coding agent orchestration system that manages workflows, handles agent lifecycle, and provides real-time event streaming for monitoring and coordination.
@@ -62,9 +68,10 @@ Loom is a lightweight AI coding agent orchestration system that manages workflow
 
 ## Documentation
 
-**Start here**: [MANUAL.md](MANUAL.md) - Complete system manual with quick start guide
+**Start here**: [SETUP.md](SETUP.md) - Get Loom running in minutes
 
 Then explore:
+- [MANUAL.md](MANUAL.md) - Complete system manual
 - [User Guide](docs/USER_GUIDE.md) - Getting started and operational workflows
 - [Architecture](docs/ARCHITECTURE.md) - System design and components
 - [Entities Reference](docs/ENTITIES_REFERENCE.md) - All data structures explained
@@ -108,38 +115,6 @@ Default personas are available under `./personas/`:
 - `personas/default/public-relations-manager` — Messaging/launch communication support
 - `personas/default/housekeeping-bot` — Cleanup and hygiene tasks
 
-## User Guide
-
-The initial user guide is available in `docs/USER_GUIDE.md`.
-
-## Project Registration
-
-Projects are registered via `config.yaml` under `projects:` (and persisted in the configuration DB when enabled).
-
-Required fields:
-- `id`, `name`, `git_repo`, `branch`, `beads_path`
-
-Optional fields:
-- `is_perpetual` (never closes)
-- `context` (recommended: build/test/lint commands and other agent-relevant context)
-
-Example:
-
-```yaml
-projects:
-  - id: loom
-    name: Loom
-    git_repo: https://github.com/jordanhubbard/loom
-    branch: main
-    beads_path: .beads
-    is_perpetual: true
-    context:
-      test: go test ./...
-      vet: go vet ./...
-```
-
-Loom “dogfoods” itself by registering this repo as a project and loading beads from the project’s `.beads/` directory.
-
 ## Architecture
 
 Loom is built with the following principles:
@@ -148,53 +123,6 @@ Loom is built with the following principles:
 - **Containerized Everything**: Every component runs in containers for consistency across environments
 - **Temporal Workflows**: Reliable, durable workflow orchestration using Temporal
 - **Event-Driven**: Real-time event bus for agent communication and UI updates
-
-## Prerequisites
-
-- Docker (20.10+)
-- Docker Compose (1.29+)
-- Go 1.25+ (for local development only)
-- Make (optional, for convenience commands)
-
-## Quick Start
-
-### Running with Docker (Recommended)
-
-The Docker setup includes:
-- Loom application server (port 8080)
-- Temporal server (port 7233)
-- Temporal UI (port 8088)
-- PostgreSQL database for Temporal
-
-```bash
-# Build and run all services using docker compose
-docker compose up -d
-
-# View logs
-docker compose logs -f loom
-
-# View Temporal UI
-open http://localhost:8088
-
-# Stop all services
-docker compose down
-```
-
-### Using Make Commands
-
-```bash
-# Build and run
-make docker-run
-
-# Build Docker image
-make docker-build
-
-# Stop services
-make docker-stop
-
-# Clean Docker resources
-make docker-clean
-```
 
 ## Temporal Workflow Engine
 
@@ -214,14 +142,6 @@ The system includes:
 3. **PostgreSQL**: Persistence layer for workflow state
 4. **Temporal Worker**: Executes workflow and activity code
 
-1. Ensure all code follows the architecture principles above
-2. All new features must be containerized
-3. **File a bead for your work** - See [BEADS_WORKFLOW.md](docs/BEADS_WORKFLOW.md)
-4. Update documentation for any new features or changes
-5. Run tests and linters before submitting changes
-
-For detailed contribution guidelines, see [CONTRIBUTING.md](CONTRIBUTING.md).
-An AI Coding Agent Orchestrator for both on-prem and off-prem development.
 ### Workflows
 
 Loom implements several key workflows:
@@ -342,67 +262,6 @@ eventSource.addEventListener('bead.created', (e) => {
 });
 ```
 
-## Configuration
-
-Configuration is managed via `config.yaml`:
-
-```yaml
-server:
-  http_port: 8080
-  enable_http: true
-
-temporal:
-  host: localhost:7233              # Temporal server address
-  namespace: loom-default        # Temporal namespace
-  task_queue: loom-tasks         # Task queue name
-  workflow_execution_timeout: 24h   # Max workflow duration
-  workflow_task_timeout: 10s        # Workflow task timeout
-  enable_event_bus: true            # Enable event bus
-  event_buffer_size: 1000           # Event buffer size
-
-agents:
-  max_concurrent: 10
-  default_persona_path: ./personas
-  heartbeat_interval: 30s
-  file_lock_timeout: 10m
-
-## Completed Features
-
-- [x] Project state management (open, closed, reopened)
-- [x] Project comments and closure workflow
-- [x] Loom persona for self-improvement
-- [x] Perpetual projects that never close
-- [x] Provider registration and health checking
-- [x] Agent orchestration with personas
-- [x] Work item (bead) management with dependencies
-- [x] Decision approval workflows
-- [x] Real-time event streaming (SSE)
-- [x] Temporal workflow orchestration
-- [x] Database state persistence (SQLite)
-- [x] Web UI for monitoring and control
-- [x] Provider status detection and activation
-- [x] Master heartbeat and dispatcher workflows
-- [x] Temporal DSL for agent workflow requests
-- [x] Complete documentation and user manual
-- [x] Analytics dashboard with real-time usage monitoring
-- [x] Per-user and per-provider cost tracking
-- [x] Data export (CSV/JSON) for external analysis
-- [x] Spending alerts with anomaly detection
-- [x] Privacy-first logging with GDPR compliance
-
-## Planned Features
-
-- [ ] Implement HTTP response streaming for real-time provider output
-- [ ] Implement provider pooling and load balancing
-- [ ] Add per-provider rate limiting and quotas
-- [ ] Support custom provider plugins
-- [ ] Add caching layer for frequently used models
-- [ ] Implement multi-region provider failover
-- [ ] Support for custom authentication to providers
-- [ ] Metrics and monitoring endpoints (Prometheus compatible)
-- [ ] Email/webhook notifications for alerts
-- [ ] Advanced charting and trend analysis
-
 ## Project State Management
 
 Loom supports sophisticated project lifecycle management:
@@ -457,56 +316,42 @@ The Loom system includes a special **loom** persona that works on improving the 
 
 See `personas/loom/` for the complete persona definition.
 
-## Support
+## Completed Features
 
-## Local Development
+- [x] Project state management (open, closed, reopened)
+- [x] Project comments and closure workflow
+- [x] Loom persona for self-improvement
+- [x] Perpetual projects that never close
+- [x] Provider registration and health checking
+- [x] Agent orchestration with personas
+- [x] Work item (bead) management with dependencies
+- [x] Decision approval workflows
+- [x] Real-time event streaming (SSE)
+- [x] Temporal workflow orchestration
+- [x] Database state persistence (SQLite)
+- [x] Web UI for monitoring and control
+- [x] Provider status detection and activation
+- [x] Master heartbeat and dispatcher workflows
+- [x] Temporal DSL for agent workflow requests
+- [x] Complete documentation and user manual
+- [x] Analytics dashboard with real-time usage monitoring
+- [x] Per-user and per-provider cost tracking
+- [x] Data export (CSV/JSON) for external analysis
+- [x] Spending alerts with anomaly detection
+- [x] Privacy-first logging with GDPR compliance
 
-### Building Locally
+## Planned Features
 
-```bash
-# Install dependencies
-go mod download
-
-# Build the binary
-go build -o loom ./cmd/loom
-
-# Run the application
-./loom
-```
-
-### Running Tests
-
-```bash
-# Run all tests
-go test ./...
-
-# Run tests with coverage
-go test -v -coverprofile=coverage.out ./...
-go tool cover -html=coverage.out
-
-# Run specific package tests
-go test ./internal/temporal/...
-```
-
-### Development with Temporal
-
-For local development with Temporal:
-
-1. Start Temporal server:
-```bash
-docker compose up -d temporal temporal-postgresql temporal-ui
-```
-
-2. Build and run loom locally:
-```bash
-go build -o loom ./cmd/loom
-./loom
-```
-
-3. Access Temporal UI:
-```bash
-open http://localhost:8088
-```
+- [ ] Implement HTTP response streaming for real-time provider output
+- [ ] Implement provider pooling and load balancing
+- [ ] Add per-provider rate limiting and quotas
+- [ ] Support custom provider plugins
+- [ ] Add caching layer for frequently used models
+- [ ] Implement multi-region provider failover
+- [ ] Support for custom authentication to providers
+- [ ] Metrics and monitoring endpoints (Prometheus compatible)
+- [ ] Email/webhook notifications for alerts
+- [ ] Advanced charting and trend analysis
 
 ## Project Structure
 
@@ -538,83 +383,6 @@ loom/
 └── README.md              # This file
 ```
 
-## Monitoring
-
-### Temporal UI
-
-Access the Temporal UI at http://localhost:8088 to:
-- View workflow executions
-- Inspect workflow history
-- Monitor active workflows
-- Debug workflow failures
-- Query workflow state
-
-### Event Stream Monitoring
-
-Monitor real-time events:
-```bash
-# Watch all events
-curl -N http://localhost:8080/api/v1/events/stream
-
-# Monitor specific project
-curl -N "http://localhost:8080/api/v1/events/stream?project_id=my-project"
-```
-
-### Logs
-
-View service logs:
-```bash
-# All services
-docker compose logs -f
-
-# Specific service
-docker compose logs -f loom
-docker compose logs -f temporal
-```
-
-## Troubleshooting
-
-### Temporal Connection Issues
-
-If loom can't connect to Temporal:
-
-1. Check Temporal is running:
-```bash
-docker compose ps temporal
-```
-
-2. Check Temporal logs:
-```bash
-docker compose logs temporal
-```
-
-3. Verify connectivity:
-```bash
-docker exec loom nc -zv temporal 7233
-```
-
-### Workflow Not Starting
-
-If workflows aren't starting:
-
-1. Check worker is running:
-```bash
-docker compose logs loom | grep "Temporal worker"
-```
-
-2. Verify task queue in Temporal UI
-3. Check workflow registration in logs
-
-### Event Stream Not Working
-
-If event stream endpoint returns errors:
-
-1. Verify Temporal is enabled in config
-2. Check event bus initialization:
-```bash
-docker compose logs loom | grep "event bus"
-```
-
 ## Development Guidelines
 
 1. **Primary Language**: Implement all core functionality in Go
@@ -630,10 +398,13 @@ When contributing to this project:
 
 1. Ensure all code follows the architecture principles
 2. All new features must be containerized
-3. Write Temporal workflows for async operations
-4. Add appropriate event publishing
-5. Update documentation
-6. Run tests and linters before submitting
+3. **File a bead for your work** — See [BEADS_WORKFLOW.md](docs/BEADS_WORKFLOW.md)
+4. Write Temporal workflows for async operations
+5. Add appropriate event publishing
+6. Update documentation
+7. Run tests and linters before submitting
+
+For detailed contribution guidelines, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 

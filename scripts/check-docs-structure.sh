@@ -21,6 +21,7 @@ ALLOWED_ROOT=(
   "./LICENSE.md"
   "./MILESTONES.md"
   "./QUICKSTART.md"
+  "./SETUP.md"
   "./README_OLD.md"
 )
 
