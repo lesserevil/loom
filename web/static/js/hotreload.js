@@ -100,8 +100,12 @@
             case 'json':
             case 'yaml':
             case 'yml':
-                // Config files - might need full reload
-                reloadPage('Config file changed');
+                // Only reload for config files in web/static, not beads data
+                if (path.includes('/static/') || path === 'config.yaml') {
+                    reloadPage('Config file changed');
+                } else {
+                    console.log(`[HotReload] Ignoring non-static data file: ${path}`);
+                }
                 break;
 
             default:

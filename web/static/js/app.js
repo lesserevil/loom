@@ -536,7 +536,7 @@ function scheduleReload(kind, delayMs = 150) {
             if (kind === 'providers') await loadProviders();
             if (kind === 'decisions') await loadDecisions();
             if (kind === 'status') await loadSystemStatus();
-            render();
+            if (!modalState.activeId) render();
         } catch (e) {
             // Errors are already surfaced via apiCall toasts.
         } finally {
@@ -658,6 +658,7 @@ async function loadSystemStatus() {
 }
 
 async function loadUsers() {
+    if (!AUTH_ENABLED) { state.users = []; return; }
     try {
         state.users = await apiCall('/auth/users', { suppressToast: true, skipAutoFile: true });
     } catch (error) {
@@ -667,6 +668,7 @@ async function loadUsers() {
 }
 
 async function loadAPIKeys() {
+    if (!AUTH_ENABLED) { state.apiKeys = []; return; }
     try {
         state.apiKeys = await apiCall('/auth/api-keys', { suppressToast: true, skipAutoFile: true });
     } catch (error) {
@@ -677,6 +679,7 @@ async function loadAPIKeys() {
 
 // Render functions
 function render() {
+    if (modalState.activeId) return; // Skip render while a modal is open
     renderSystemStatus();
     renderProjectViewer();
     renderKanban();
@@ -2822,10 +2825,13 @@ function viewBead(beadId) {
     if (!bead) return;
 
     const statusClass = getCondensedBeadStatusClass(bead);
-    const blockedBy = Array.isArray(bead.blocked_by) ? bead.blocked_by : [];
-    const blocks = Array.isArray(bead.blocks) ? bead.blocks : [];
     const tagsValue = Array.isArray(bead.tags) ? bead.tags.join(', ') : '';
+    const blockedByValue = Array.isArray(bead.blocked_by) ? bead.blocked_by.join(', ') : '';
+    const blocksValue = Array.isArray(bead.blocks) ? bead.blocks.join(', ') : '';
+    const relatedToValue = Array.isArray(bead.related_to) ? bead.related_to.join(', ') : '';
+    const childrenValue = Array.isArray(bead.children) ? bead.children.join(', ') : '';
     const contextJson = bead.context ? JSON.stringify(bead.context, null, 2) : '';
+    const dueDateValue = bead.due_date ? new Date(bead.due_date).toISOString().slice(0, 16) : '';
 
     const statusOptions = ['open', 'in_progress', 'blocked', 'closed', 'deferred', 'ready', 'tombstone', 'pinned']
         .map(s => `<option value="${s}"${bead.status === s ? ' selected' : ''}>${s}</option>`)
@@ -2851,17 +2857,50 @@ function viewBead(beadId) {
                 <label for="bead-modal-title">Title</label>
                 <input id="bead-modal-title" type="text" value="${escapeHtml(bead.title || '')}" />
 
+                <label for="bead-modal-type">Type</label>
+                <input id="bead-modal-type" type="text" value="${escapeHtml(bead.type || '')}" />
+
                 <label for="bead-modal-status">Status</label>
                 <select id="bead-modal-status">${statusOptions}</select>
 
                 <label for="bead-modal-priority">Priority</label>
                 <select id="bead-modal-priority">${priorityOptions}</select>
 
+                <label for="bead-modal-project">Project ID</label>
+                <input id="bead-modal-project" type="text" value="${escapeHtml(bead.project_id || '')}" />
+
+                <label for="bead-modal-parent">Parent</label>
+                <input id="bead-modal-parent" type="text" value="${escapeHtml(bead.parent || '')}" placeholder="parent bead ID" />
+
                 <label for="bead-modal-tags">Tags</label>
                 <input id="bead-modal-tags" type="text" value="${escapeHtml(tagsValue)}" placeholder="comma-separated" />
 
+                <label for="bead-modal-blocked-by">Blocked by</label>
+                <input id="bead-modal-blocked-by" type="text" value="${escapeHtml(blockedByValue)}" placeholder="comma-separated bead IDs" />
+
+                <label for="bead-modal-blocks">Blocks</label>
+                <input id="bead-modal-blocks" type="text" value="${escapeHtml(blocksValue)}" placeholder="comma-separated bead IDs" />
+
+                <label for="bead-modal-related">Related to</label>
+                <input id="bead-modal-related" type="text" value="${escapeHtml(relatedToValue)}" placeholder="comma-separated bead IDs" />
+
+                <label for="bead-modal-children">Children</label>
+                <input id="bead-modal-children" type="text" value="${escapeHtml(childrenValue)}" placeholder="comma-separated bead IDs" />
+
+                <label for="bead-modal-due">Due date</label>
+                <input id="bead-modal-due" type="datetime-local" value="${dueDateValue}" />
+
+                <label for="bead-modal-milestone">Milestone ID</label>
+                <input id="bead-modal-milestone" type="text" value="${escapeHtml(bead.milestone_id || '')}" />
+
+                <label for="bead-modal-estimate">Est. minutes</label>
+                <input id="bead-modal-estimate" type="number" value="${bead.estimated_time || 0}" min="0" />
+
                 <label for="bead-modal-desc">Description</label>
                 <textarea id="bead-modal-desc" rows="4">${escapeHtml(bead.description || '')}</textarea>
+
+                <label for="bead-modal-context">Context (JSON)</label>
+                <textarea id="bead-modal-context" rows="3">${escapeHtml(contextJson)}</textarea>
             </div>
 
             <div class="bead-modal-assign">
@@ -2873,14 +2912,10 @@ function viewBead(beadId) {
             </div>
 
             <details class="bead-modal-meta">
-                <summary>Metadata</summary>
-                <div><strong>Assigned to:</strong> ${bead.assigned_to ? escapeHtml(bead.assigned_to) : '<em>unassigned</em>'}</div>
-                <div><strong>Project:</strong> ${escapeHtml(bead.project_id || '')}</div>
-                <div><strong>Blocked by:</strong> ${blockedBy.length ? escapeHtml(blockedBy.join(', ')) : '<em>none</em>'}</div>
-                <div><strong>Blocks:</strong> ${blocks.length ? escapeHtml(blocks.join(', ')) : '<em>none</em>'}</div>
+                <summary>Timestamps</summary>
                 <div><strong>Created:</strong> ${bead.created_at ? new Date(bead.created_at).toLocaleString() : 'unknown'}</div>
                 <div><strong>Updated:</strong> ${bead.updated_at ? new Date(bead.updated_at).toLocaleString() : 'unknown'}</div>
-                ${contextJson ? `<div style="margin-top:0.5rem"><strong>Context:</strong><pre style="max-height:10rem;overflow:auto;font-size:0.8rem">${escapeHtml(contextJson)}</pre></div>` : ''}
+                <div><strong>Closed:</strong> ${bead.closed_at ? new Date(bead.closed_at).toLocaleString() : '<em>n/a</em>'}</div>
             </details>
         </div>
     `;
@@ -2904,19 +2939,39 @@ function viewBead(beadId) {
 }
 
 async function saveBeadFromModal(beadId) {
-    const title = (document.getElementById('bead-modal-title') || {}).value;
-    const status = (document.getElementById('bead-modal-status') || {}).value;
-    const priority = Number((document.getElementById('bead-modal-priority') || {}).value);
-    const tags = String((document.getElementById('bead-modal-tags') || {}).value || '')
-        .split(',').map(t => t.trim()).filter(t => t.length > 0);
-    const description = (document.getElementById('bead-modal-desc') || {}).value;
+    const val = (id) => (document.getElementById(id) || {}).value || '';
+    const parseList = (v) => String(v).split(',').map(s => s.trim()).filter(s => s.length > 0);
 
-    const payload = {};
-    if (title !== undefined) payload.title = title;
-    if (status) payload.status = status;
-    if (!isNaN(priority)) payload.priority = priority;
-    payload.tags = tags;
-    if (description !== undefined) payload.description = description;
+    const contextRaw = val('bead-modal-context').trim();
+    let parsedContext = {};
+    if (contextRaw) {
+        try {
+            parsedContext = JSON.parse(contextRaw);
+        } catch (e) {
+            showToast('Context must be valid JSON.', 'error');
+            return;
+        }
+    }
+
+    const dueRaw = val('bead-modal-due');
+    const payload = {
+        title: val('bead-modal-title'),
+        type: val('bead-modal-type'),
+        status: val('bead-modal-status'),
+        priority: Number(val('bead-modal-priority')),
+        project_id: val('bead-modal-project'),
+        parent: val('bead-modal-parent'),
+        tags: parseList(val('bead-modal-tags')),
+        blocked_by: parseList(val('bead-modal-blocked-by')),
+        blocks: parseList(val('bead-modal-blocks')),
+        related_to: parseList(val('bead-modal-related')),
+        children: parseList(val('bead-modal-children')),
+        milestone_id: val('bead-modal-milestone'),
+        estimated_time: Number(val('bead-modal-estimate')) || 0,
+        description: val('bead-modal-desc'),
+        context: parsedContext
+    };
+    if (dueRaw) payload.due_date = new Date(dueRaw).toISOString();
 
     try {
         setBusy(`editBead:${beadId}`, true);
@@ -3454,6 +3509,7 @@ function openModal(modalId, options = {}) {
     modalState.activeId = modalId;
 
     modal.style.display = 'block';
+    modal.classList.add('show');
     modal.setAttribute('aria-hidden', 'false');
     document.body.style.overflow = 'hidden';
 
@@ -3464,8 +3520,8 @@ function openModal(modalId, options = {}) {
 function closeModal(modalId) {
     const modal = document.getElementById(modalId);
     if (!modal) return;
-
     modal.style.display = 'none';
+    modal.classList.remove('show');
     modal.setAttribute('aria-hidden', 'true');
     document.body.style.overflow = '';
 
