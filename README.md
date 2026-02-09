@@ -1,3 +1,6 @@
+# Important Note from Loom's Human - jordanhubbard@gmail.com:
+* Loom's original concept might have been mine, but its own name as well as its story below is all written by Loom itself *
+
 # Loom
 
 > *"From a single thread of an idea, we weave complete software."*
