@@ -174,9 +174,10 @@ func (w *Worker) ExecuteTask(ctx context.Context, task *Task) (*TaskResult, erro
 
 	// Create chat completion request
 	req := &provider.ChatCompletionRequest{
-		Model:       w.provider.Config.Model,
-		Messages:    messages,
-		Temperature: 0.7,
+		Model:          w.provider.Config.Model,
+		Messages:       messages,
+		Temperature:    0.7,
+		ResponseFormat: &provider.ResponseFormat{Type: "json_object"},
 	}
 
 	// Send request to provider
@@ -612,9 +613,10 @@ func (w *Worker) ExecuteTaskWithLoop(ctx context.Context, task *Task, config *Lo
 		trimmedMessages := w.handleTokenLimits(messages)
 
 		req := &provider.ChatCompletionRequest{
-			Model:       w.provider.Config.Model,
-			Messages:    trimmedMessages,
-			Temperature: 0.7,
+			Model:          w.provider.Config.Model,
+			Messages:       trimmedMessages,
+			Temperature:    0.7,
+			ResponseFormat: &provider.ResponseFormat{Type: "json_object"},
 		}
 
 		log.Printf("[ActionLoop] Iteration %d/%d for task %s (messages: %d)", iteration+1, maxIter, task.ID, len(trimmedMessages))

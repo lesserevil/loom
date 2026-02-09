@@ -1,6 +1,8 @@
 package provider_test
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/jordanhubbard/loom/internal/provider"
@@ -88,6 +90,40 @@ func TestChatCompletionRequest(t *testing.T) {
 
 	if len(req.Messages) != 2 {
 		t.Errorf("Expected 2 messages, got %d", len(req.Messages))
+	}
+}
+
+func TestResponseFormatSerialization(t *testing.T) {
+	// Verify response_format serializes correctly for vLLM/OpenAI
+	req := &provider.ChatCompletionRequest{
+		Model: "test-model",
+		Messages: []provider.ChatMessage{
+			{Role: "user", Content: "test"},
+		},
+		ResponseFormat: &provider.ResponseFormat{Type: "json_object"},
+	}
+
+	data, err := json.Marshal(req)
+	if err != nil {
+		t.Fatalf("Marshal failed: %v", err)
+	}
+
+	jsonStr := string(data)
+	if !strings.Contains(jsonStr, `"response_format"`) {
+		t.Error("response_format not in serialized JSON")
+	}
+	if !strings.Contains(jsonStr, `"type":"json_object"`) {
+		t.Errorf("Expected type:json_object, got: %s", jsonStr)
+	}
+
+	// Without response_format, field should be omitted
+	reqNoFormat := &provider.ChatCompletionRequest{
+		Model:    "test-model",
+		Messages: []provider.ChatMessage{{Role: "user", Content: "test"}},
+	}
+	data2, _ := json.Marshal(reqNoFormat)
+	if strings.Contains(string(data2), "response_format") {
+		t.Error("response_format should be omitted when nil")
 	}
 }
 

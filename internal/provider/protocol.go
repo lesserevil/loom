@@ -34,13 +34,21 @@ type ChatMessage struct {
 	Content string `json:"content"` // message content
 }
 
+// ResponseFormat specifies the output format for the LLM response.
+// Setting Type to "json_object" enables constrained JSON decoding in
+// vLLM and OpenAI-compatible APIs, guaranteeing valid JSON output.
+type ResponseFormat struct {
+	Type string `json:"type"` // "text" (default) or "json_object"
+}
+
 // ChatCompletionRequest represents a chat completion request
 type ChatCompletionRequest struct {
-	Model       string        `json:"model"`
-	Messages    []ChatMessage `json:"messages"`
-	Temperature float64       `json:"temperature,omitempty"`
-	MaxTokens   int           `json:"max_tokens,omitempty"`
-	Stream      bool          `json:"stream,omitempty"`
+	Model          string          `json:"model"`
+	Messages       []ChatMessage   `json:"messages"`
+	Temperature    float64         `json:"temperature,omitempty"`
+	MaxTokens      int             `json:"max_tokens,omitempty"`
+	Stream         bool            `json:"stream,omitempty"`
+	ResponseFormat *ResponseFormat `json:"response_format,omitempty"`
 }
 
 // ChatCompletionResponse represents a chat completion response

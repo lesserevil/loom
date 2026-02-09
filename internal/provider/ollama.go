@@ -81,7 +81,8 @@ func (p *OllamaProvider) CreateChatCompletion(ctx context.Context, req *ChatComp
 			Role    string `json:"role"`
 			Content string `json:"content"`
 		} `json:"messages"`
-		Stream  bool `json:"stream"`
+		Stream  bool   `json:"stream"`
+		Format  string `json:"format,omitempty"`
 		Options struct {
 			Temperature float64 `json:"temperature,omitempty"`
 		} `json:"options,omitempty"`
@@ -90,6 +91,9 @@ func (p *OllamaProvider) CreateChatCompletion(ctx context.Context, req *ChatComp
 		Stream: false,
 	}
 	ollamaReq.Options.Temperature = req.Temperature
+	if req.ResponseFormat != nil && req.ResponseFormat.Type == "json_object" {
+		ollamaReq.Format = "json"
+	}
 	for _, msg := range req.Messages {
 		ollamaReq.Messages = append(ollamaReq.Messages, struct {
 			Role    string `json:"role"`
