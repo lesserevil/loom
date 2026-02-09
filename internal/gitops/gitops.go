@@ -22,6 +22,7 @@ type Manager struct {
 	projectKeyDir string                    // Base directory for per-project SSH keys
 	db            *database.Database        // Database for credential persistence (optional)
 	keyManager    *keymanager.KeyManager    // Key manager for encryption (optional)
+	workDirOverrides map[string]string      // Per-project workdir overrides (e.g., loom-self → ".")
 }
 
 func logGitEvent(event string, project *models.Project, fields map[string]interface{}) {
@@ -576,12 +577,24 @@ func (m *Manager) GetCurrentCommit(workDir string) (string, error) {
 	return strings.TrimSpace(string(output)), nil
 }
 
-// GetProjectWorkDir returns the work directory path for a project
+// SetProjectWorkDir sets an explicit working directory for a project,
+// overriding the default baseWorkDir/projectID path.
+// Use this for projects that run from their own source tree (e.g., loom-self).
+func (m *Manager) SetProjectWorkDir(projectID, workDir string) {
+	if m.workDirOverrides == nil {
+		m.workDirOverrides = make(map[string]string)
+	}
+	m.workDirOverrides[projectID] = workDir
+}
+
+// GetProjectWorkDir returns the work directory path for a project.
+// Checks overrides first, then falls back to baseWorkDir/projectID.
 func (m *Manager) GetProjectWorkDir(projectID string) string {
-	// Always use baseWorkDir/projectID for cloned projects
-	// The special case for loom-self was removed because in Docker,
-	// the repo is cloned separately to baseWorkDir/loom-self even though
-	// baseWorkDir/.git may exist from the image build.
+	if m.workDirOverrides != nil {
+		if override, ok := m.workDirOverrides[projectID]; ok {
+			return override
+		}
+	}
 	return filepath.Join(m.baseWorkDir, projectID)
 }
 

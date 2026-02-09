@@ -145,16 +145,30 @@ func New(cfg *config.Config) (*Loom, error) {
 		}
 	}
 
-	// Initialize gitops manager for project repository management
+	// Initialize gitops manager for project repository management.
+	// baseWorkDir is where project repos are cloned to.
+	// projectKeyDir is where SSH keys are stored (separate from clones to prevent
+	// git stash/clean from destroying them).
 	projectKeyDir := cfg.Git.ProjectKeyDir
 	if projectKeyDir == "" {
 		projectKeyDir = "/app/data/projects"
 	}
-	// SSH keys go in a separate directory from clones so git stash/clean can't destroy them
 	sshKeyDir := filepath.Join(filepath.Dir(projectKeyDir), "keys")
 	gitopsMgr, err := gitops.NewManager(projectKeyDir, sshKeyDir, db, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize gitops manager: %w", err)
+	}
+
+	// For sticky projects running from their own source tree, override the
+	// workdir to point to the actual source (cwd) instead of a separate clone.
+	cwd, _ := os.Getwd()
+	for _, p := range cfg.Projects {
+		if p.IsSticky && cwd != "" {
+			if _, err := os.Stat(filepath.Join(cwd, ".git")); err == nil {
+				gitopsMgr.SetProjectWorkDir(p.ID, cwd)
+				log.Printf("[Loom] Project %s workdir set to source tree: %s", p.ID, cwd)
+			}
+		}
 	}
 
 	agentMgr := agent.NewWorkerManager(cfg.Agents.MaxConcurrent, providerRegistry, eb)

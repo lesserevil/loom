@@ -245,10 +245,12 @@ func (d *Dispatcher) DispatchOnce(ctx context.Context, projectID string) (*Dispa
 				continue
 			}
 		} else {
-			activeProviders := d.providers.ListActive()
+			activeProviders := d.providers.ListActive() // sorted by capability score
 			if len(activeProviders) > 0 {
-				candidateAgent.ProviderID = activeProviders[0].Config.ID
-				log.Printf("[Dispatcher] Auto-assigned provider %s to agent %s", candidateAgent.ProviderID, candidateAgent.Name)
+				best := activeProviders[0]
+				candidateAgent.ProviderID = best.Config.ID
+				log.Printf("[Dispatcher] Auto-assigned provider %s (score=%.0f, latency=%dms) to agent %s",
+					best.Config.ID, best.Config.CapabilityScore, best.Config.LastHeartbeatLatencyMs, candidateAgent.Name)
 			} else {
 				continue
 			}

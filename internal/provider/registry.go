@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 )
@@ -21,6 +22,8 @@ type ProviderConfig struct {
 	Status                 string    `json:"status,omitempty"`
 	LastHeartbeatAt        time.Time `json:"last_heartbeat_at,omitempty"`
 	LastHeartbeatLatencyMs int64     `json:"last_heartbeat_latency_ms,omitempty"`
+	CapabilityScore        float64   `json:"capability_score,omitempty"` // Composite score: 60% quality + 20% throughput + 20% latency
+	ContextWindow          int       `json:"context_window,omitempty"`
 }
 
 // MetricsCallback is called after each provider request to record metrics
@@ -152,7 +155,9 @@ func (r *Registry) List() []*RegisteredProvider {
 	return providers
 }
 
-// ListActive returns registered providers with active status.
+// ListActive returns registered providers with active status, sorted by
+// capability score (highest first). Providers with no explicit score are
+// ranked by inverse heartbeat latency as a fallback.
 func (r *Registry) ListActive() []*RegisteredProvider {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -163,6 +168,27 @@ func (r *Registry) ListActive() []*RegisteredProvider {
 			providers = append(providers, provider)
 		}
 	}
+
+	// Sort by capability score descending, then by latency ascending as tiebreak
+	sort.SliceStable(providers, func(i, j int) bool {
+		si := providers[i].Config.CapabilityScore
+		sj := providers[j].Config.CapabilityScore
+
+		// If neither has an explicit score, use inverse latency
+		if si == 0 && sj == 0 {
+			li := providers[i].Config.LastHeartbeatLatencyMs
+			lj := providers[j].Config.LastHeartbeatLatencyMs
+			if li == 0 {
+				li = 999999
+			}
+			if lj == 0 {
+				lj = 999999
+			}
+			return li < lj // Lower latency = better
+		}
+
+		return si > sj // Higher score = better
+	})
 
 	return providers
 }

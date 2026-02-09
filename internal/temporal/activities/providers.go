@@ -211,6 +211,8 @@ func (a *ProviderActivities) syncRegistry(record *internalmodels.Provider) {
 		Status:                 record.Status,
 		LastHeartbeatAt:        record.LastHeartbeatAt,
 		LastHeartbeatLatencyMs: record.LastHeartbeatLatencyMs,
+		CapabilityScore:        record.Metrics.OverallScore,
+		ContextWindow:          record.ContextWindow,
 	})
 }
 
