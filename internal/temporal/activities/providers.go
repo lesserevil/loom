@@ -339,19 +339,30 @@ func buildProviderCandidates(raw string, preferredOpenAIType string) ([]provider
 	if scheme == "" {
 		scheme = "http"
 	}
-	port := u.Port()
-	var ports []string
-	if port != "" {
-		ports = []string{port}
-	} else {
-		ports = []string{"8000", "11434"}
-	}
-
-	candidates := make([]providerCandidate, 0, len(ports)*2)
 	openAIType := "openai"
 	switch preferredOpenAIType {
 	case "local", "custom", "anthropic", "openai":
 		openAIType = preferredOpenAIType
+	}
+
+	var candidates []providerCandidate
+
+	// If the URL has a path (e.g. /v1), use it as-is first — the user told us
+	// exactly where the API is. Don't probe random ports on cloud endpoints.
+	path := strings.TrimSuffix(u.Path, "/")
+	if path != "" {
+		full := fmt.Sprintf("%s://%s%s", scheme, u.Host, path)
+		candidates = append(candidates, providerCandidate{ProviderType: openAIType, Endpoint: full})
+	}
+
+	// For explicit ports or bare hostnames, also try OpenAI + Ollama combos.
+	port := u.Port()
+	var ports []string
+	if port != "" {
+		ports = []string{port}
+	} else if path == "" {
+		// Only scan default ports when no path was provided (bare hostname).
+		ports = []string{"8000", "11434"}
 	}
 
 	for _, p := range ports {
@@ -360,19 +371,6 @@ func buildProviderCandidates(raw string, preferredOpenAIType string) ([]provider
 			providerCandidate{ProviderType: openAIType, Endpoint: base + "/v1"},
 			providerCandidate{ProviderType: "ollama", Endpoint: base},
 		)
-	}
-
-	// If the user already provided a full /v1 endpoint with a port, prefer it first.
-	if u.Port() != "" {
-		path := strings.TrimSuffix(u.Path, "/")
-		if strings.HasSuffix(path, "/v1") {
-			full := fmt.Sprintf("%s://%s%s", scheme, u.Host, path)
-			candidates = append([]providerCandidate{{ProviderType: openAIType, Endpoint: full}}, candidates...)
-		} else {
-			fullBase := fmt.Sprintf("%s://%s", scheme, u.Host)
-			candidates = append([]providerCandidate{{ProviderType: openAIType, Endpoint: fullBase + "/v1"}}, candidates...)
-			candidates = append([]providerCandidate{{ProviderType: "ollama", Endpoint: fullBase}}, candidates...)
-		}
 	}
 
 	return uniqueCandidates(candidates), nil
