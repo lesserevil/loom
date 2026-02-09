@@ -3,7 +3,9 @@ package provider
 import (
 	"context"
 	"fmt"
+	"log"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -259,6 +261,25 @@ func (r *Registry) SendChatCompletion(ctx context.Context, providerID string, re
 
 	// Make the request
 	resp, err := provider.Protocol.CreateChatCompletion(ctx, req)
+
+	// If model not found (404), the vLLM server may have restarted with a
+	// different model. Rediscover available models and retry once.
+	if err != nil && (strings.Contains(err.Error(), "status code 404") || strings.Contains(err.Error(), "not found")) {
+		log.Printf("[Registry] Model %q returned 404 on provider %s — rediscovering models", req.Model, providerID)
+		models, modelErr := provider.Protocol.GetModels(ctx)
+		if modelErr == nil && len(models) > 0 {
+			newModel := models[0].ID
+			log.Printf("[Registry] Provider %s model changed: %q → %q", providerID, req.Model, newModel)
+			r.mu.Lock()
+			if p, ok := r.providers[providerID]; ok && p.Config != nil {
+				p.Config.Model = newModel
+				p.Config.SelectedModel = newModel
+			}
+			r.mu.Unlock()
+			req.Model = newModel
+			resp, err = provider.Protocol.CreateChatCompletion(ctx, req)
+		}
+	}
 
 	// Record metrics
 	latencyMs := time.Since(startTime).Milliseconds()
