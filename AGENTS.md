@@ -282,28 +282,32 @@ See [TEMPORAL_DSL.md](docs/TEMPORAL_DSL.md) for complete reference.
 
 ### Makefile Targets
 
+**IMPORTANT: Always use `make` targets to manage the loom process. Never use `pkill`, `kill`, `docker compose` commands, or other manual process management directly.**
+
 | Target | Description | When to Use |
 |--------|-------------|-------------|
-| `make start` | Build and start loom natively (no Docker), PID in `.loom.pid`, logs to `loom.log`, serves on `http://localhost:8081` | Local development |
+| `make start` | Build and start loom natively, PID in `.loom.pid`, logs to `loom.log`, serves on `http://localhost:8081` | Local development |
 | `make stop` | Stop the locally-running loom process | End of dev session |
-| `make build` | Lint YAML + build Docker containers | Before deploying |
+| `make restart` | Stop then rebuild and restart loom | After code changes |
+| `make build` | Build the Go binary | Compile without running |
 | `make build-all` | Cross-compile for linux/darwin/windows | Release builds |
-| `make run` | Build + `docker compose up --build` | Full Docker dev |
-| `make restart` | `docker compose down` then build + up | Reset Docker state |
-| `make test` | Run unit tests in Docker | CI or pre-commit |
+| `make test` | Run unit tests locally (`go test ./...`) | Pre-commit, quick check |
+| `make test-docker` | Run tests in Docker with Temporal | Full integration tests |
 | `make test-api` | Run post-flight API validation | After deployment |
 | `make coverage` | Run tests with coverage HTML report | Code review |
+| `make lint` | fmt + vet + lint-yaml + lint-docs | Full lint pass |
 | `make fmt` | `go fmt ./...` | Before committing |
 | `make vet` | `go vet ./...` | Before committing |
-| `make lint` | fmt + vet + lint-yaml + lint-docs | Full lint pass |
 | `make deps` | `go mod download && go mod tidy` | After dependency changes |
 | `make clean` | Remove binaries and coverage files | Quick cleanup |
 | `make distclean` | Stop containers, remove images, prune Docker, clear Go cache | Full reset |
+| `make run` | `docker compose up --build` (foreground) | Full Docker stack |
+| `make docker-build` | Build Docker images | Before Docker deploy |
+| `make docker-up` | Start containers (background) | Docker deployment |
+| `make docker-down` | Stop containers | Stop Docker stack |
 | `make release` | Create patch release (x.y.Z) | Versioned release |
 | `make release-minor` | Create minor release (x.Y.0) | Feature release |
 | `make release-major` | Create major release (X.0.0) | Breaking change release |
-
-**Build failures auto-file P0 beads** in `.beads/beads/` with full error output.
 
 ### Local Development Workflow
 
@@ -322,7 +326,10 @@ curl -s http://localhost:8081/health | jq .status
 **Logs:** `tail -f loom.log`
 **PID file:** `.loom.pid`
 
+**After code changes:** `make restart`
 **Stop:** `make stop`
+
+**IMPORTANT:** Always use `make start`, `make stop`, and `make restart` to manage the loom process. Do not use `pkill loom`, `kill`, or raw `docker compose` commands — the Makefile tracks the PID and ensures clean lifecycle management.
 
 ### Telemetry & Observability APIs
 
@@ -481,17 +488,20 @@ bd doctor
 ## Building & Testing
 
 ```bash
-# Build Docker images
+# Build the Go binary
 make build
 
-# Run tests
+# Run tests locally
 make test
+
+# Run tests in Docker with Temporal
+make test-docker
 
 # Run specific package tests
 go test ./internal/git/... ./internal/actions/... ./internal/dispatch/...
 
-# Format code
-make fmt
+# Format and lint
+make lint
 
 # Clean reset (wipes database)
 make distclean

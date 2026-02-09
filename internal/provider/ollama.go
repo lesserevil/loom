@@ -123,7 +123,11 @@ func (p *OllamaProvider) CreateChatCompletion(ctx context.Context, req *ChatComp
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code %d: %s", resp.StatusCode, string(respBody))
+		bodyStr := string(respBody)
+		if resp.StatusCode == http.StatusBadRequest && isContextLengthError(bodyStr) {
+			return nil, &ContextLengthError{StatusCode: resp.StatusCode, Body: bodyStr}
+		}
+		return nil, fmt.Errorf("unexpected status code %d: %s", resp.StatusCode, bodyStr)
 	}
 
 	var ollamaResp struct {

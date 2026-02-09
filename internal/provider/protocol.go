@@ -11,6 +11,40 @@ import (
 	"time"
 )
 
+// ContextLengthError is returned when the provider rejects a request because
+// the input exceeds the model's context window. Callers can check for this
+// with errors.As and retry with fewer/shorter messages.
+type ContextLengthError struct {
+	StatusCode int
+	Body       string
+}
+
+func (e *ContextLengthError) Error() string {
+	return fmt.Sprintf("context length exceeded (HTTP %d): %s", e.StatusCode, e.Body)
+}
+
+// isContextLengthError checks whether a provider error body indicates the
+// prompt exceeded the model's context window.
+func isContextLengthError(body string) bool {
+	lower := strings.ToLower(body)
+	patterns := []string{
+		"context length",
+		"context_length",
+		"prompt is too long",
+		"input is too long",
+		"maximum context",
+		"token limit",
+		"too many tokens",
+		"exceed",
+	}
+	for _, p := range patterns {
+		if strings.Contains(lower, p) {
+			return true
+		}
+	}
+	return false
+}
+
 // Protocol defines the interface for communicating with AI providers
 // using OpenAI-compatible APIs
 type Protocol interface {
@@ -132,7 +166,11 @@ func (p *OpenAIProvider) CreateChatCompletion(ctx context.Context, req *ChatComp
 
 	// Check status code
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code %d: %s", resp.StatusCode, string(respBody))
+		bodyStr := string(respBody)
+		if resp.StatusCode == http.StatusBadRequest && isContextLengthError(bodyStr) {
+			return nil, &ContextLengthError{StatusCode: resp.StatusCode, Body: bodyStr}
+		}
+		return nil, fmt.Errorf("unexpected status code %d: %s", resp.StatusCode, bodyStr)
 	}
 
 	// Extract and unmarshal JSON response (handling extraneous text)

@@ -1,69 +1,16 @@
-.PHONY: all build build-all run restart start stop test test-api coverage fmt vet deps clean distclean install config dev-setup docker-build docker-run docker-stop docker-clean help lint lint-yaml lint-docs release release-major release-minor release-patch
+.PHONY: all build build-all run start stop restart test test-docker test-api coverage fmt vet lint lint-yaml lint-docs deps clean distclean install config dev-setup docker-build docker-up docker-down help release release-major release-minor release-patch
 
 # Build variables
 BINARY_NAME=loom
 VERSION?=dev
 LDFLAGS=-ldflags "-X main.version=$(VERSION)"
-BEADS_DIR=.beads/beads
-
-define run_with_failure_bead
-	@set -e; \
-	target="$(1)"; \
-	cmd='$(2)'; \
-	output=$$(mktemp); \
-	echo "[make] $$target: $$cmd"; \
-	if OUTPUT="$$output" CMD="$$cmd" bash -c 'set -o pipefail; eval "$$CMD" 2>&1 | tee "$$OUTPUT"'; then \
-		rm -f $$output; \
-	else \
-		status=$$?; \
-		echo "[make] $$target failed with exit code $$status"; \
-		bead_id="loom-$${target}-failure-$$(date -u +%Y%m%d%H%M%S)"; \
-		bead_file="$(BEADS_DIR)/$${bead_id}.yaml"; \
-		timestamp=$$(date -u +%Y-%m-%dT%H:%M:%SZ); \
-		output_body=$$(LC_ALL=C sed 's/[[:cntrl:]]//g' "$$output" | sed 's/^/    /'); \
-		mkdir -p "$(BEADS_DIR)"; \
-		printf "%s\n" \
-			"id: $${bead_id}" \
-			"type: task" \
-			"title: \"P0 - $${target} failed\"" \
-			"description: |" \
-			"  Command: $${cmd}" \
-			"  Exit code: $${status}" \
-			"" \
-			"  Output:" \
-			"$${output_body}" \
-			"" \
-			"status: open" \
-			"priority: 0" \
-			"project_id: loom" \
-			"assigned_to: null" \
-			"blocked_by: []" \
-			"blocks: []" \
-			"parent: null" \
-			"children: []" \
-			"tags:" \
-			"  - p0" \
-			"  - failure" \
-			"  - $${target}" \
-			"created_at: $${timestamp}" \
-			"updated_at: $${timestamp}" \
-			"closed_at: null" \
-			"context:" \
-			"  source: makefile" \
-			"  target: $${target}" \
-			> "$$bead_file"; \
-		rm -f $$output; \
-		exit $$status; \
-	fi
-endef
+PIDFILE=.loom.pid
 
 all: build
 
-# Build the application
+# Build the Go binary
 build:
-	@echo "Building $(BINARY_NAME) containers..."
-	$(call run_with_failure_bead,build,go run ./cmd/yaml-lint)
-	$(call run_with_failure_bead,build,docker compose build)
+	go build $(LDFLAGS) -o $(BINARY_NAME) ./cmd/loom
 
 # Build for multiple platforms
 build-all: lint-yaml
@@ -73,24 +20,11 @@ build-all: lint-yaml
 	GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o $(BINARY_NAME)-darwin-arm64 ./cmd/loom
 	GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o $(BINARY_NAME)-windows-amd64.exe ./cmd/loom
 
-# Run the application
-run: build
-	$(call run_with_failure_bead,run,docker compose up --build)
-
-# Restart: build, stop running containers, then run
-restart: build
-	@docker compose down
-	$(call run_with_failure_bead,run,docker compose up --build)
-
-PIDFILE=.loom.pid
-
 # Start loom locally (native, no Docker)
-start:
+start: build
 	@if [ -f $(PIDFILE) ] && kill -0 $$(cat $(PIDFILE)) 2>/dev/null; then \
 		echo "Loom is already running (PID $$(cat $(PIDFILE)))"; \
 	else \
-		echo "Building loom..."; \
-		go build $(LDFLAGS) -o $(BINARY_NAME) ./cmd/loom; \
 		echo "Starting loom (logging to loom.log)..."; \
 		bash -c './$(BINARY_NAME) > loom.log 2>&1 & echo $$! > $(PIDFILE)'; \
 		sleep 2; \
@@ -118,19 +52,28 @@ stop:
 		echo "Loom not running (no pidfile)"; \
 	fi
 
-# Run tests
+# Restart locally-running loom (stop + start)
+restart: stop start
+
+# Run tests locally
 test:
-	$(call run_with_failure_bead,test,bash -c "docker compose up -d --build && docker compose run --rm loom-test; status=$$?; docker compose down; exit $$status")
+	go test -v ./...
+
+# Run tests in Docker (with Temporal)
+test-docker:
+	docker compose up -d --build temporal-postgresql temporal temporal-ui
+	docker compose run --rm loom-test
+	docker compose down
+
+# Run post-flight API tests
+test-api:
+	@echo "Running post-flight API tests..."
+	@./tests/postflight/api_test.sh $(BASE_URL)
 
 # Run tests with coverage
 coverage:
 	go test -v -coverprofile=coverage.out ./...
 	go tool cover -html=coverage.out -o coverage.html
-
-# Run post-flight API tests (validates all APIs are responding)
-test-api:
-	@echo "Running post-flight API tests..."
-	@./tests/postflight/api_test.sh $(BASE_URL)
 
 # Format code
 fmt:
@@ -140,6 +83,15 @@ fmt:
 vet:
 	go vet ./...
 
+# Run all linters
+lint: fmt vet lint-yaml lint-docs
+
+lint-yaml:
+	go run ./cmd/yaml-lint
+
+lint-docs:
+	@bash scripts/check-docs-structure.sh
+
 # Install dependencies
 deps:
 	go mod download
@@ -147,45 +99,26 @@ deps:
 
 # Clean build artifacts
 clean:
-	@echo "Cleaning build artifacts..."
-	rm -f $(BINARY_NAME)
-	rm -f $(BINARY_NAME)-*-*
-	rm -f $(BINARY_NAME)-*.exe
+	rm -f $(BINARY_NAME) $(BINARY_NAME)-*-* $(BINARY_NAME)-*.exe
 	rm -f coverage.out coverage.html
 	rm -f *.db
 
-# Deep clean: stop containers, remove images, prune docker, clean all artifacts
+# Deep clean: stop containers, remove images, prune docker, clean all
 distclean: clean
-	@echo "Stopping containers..."
 	@docker compose down -v --remove-orphans 2>/dev/null || true
-	@echo "Removing loom docker images..."
 	@docker rmi loom:latest loom-loom-test:latest 2>/dev/null || true
-	@echo "Pruning dangling docker images..."
 	@docker image prune -f
-	@echo "Removing Go build cache for this module..."
 	@go clean -cache -testcache
-	@echo "Clean complete. Next build will start fresh."
 
-# Run linters
-lint: fmt vet lint-yaml lint-docs
-
-lint-yaml:
-	go run ./cmd/yaml-lint
-
-lint-docs:
-	@echo "Checking documentation structure..."
-	@bash scripts/check-docs-structure.sh
-
-# Install the binary to $GOPATH/bin
+# Install binary to $GOPATH/bin
 install: build
-	@echo "Installing $(BINARY_NAME) to $(GOPATH)/bin..."
 	cp $(BINARY_NAME) $(GOPATH)/bin/
 
-# Create example config if it doesn't exist
+# Create config.yaml from example if missing
 config:
 	@if [ ! -f config.yaml ]; then \
-		echo "Creating config.yaml from example..."; \
 		cp config.yaml.example config.yaml; \
+		echo "Created config.yaml from example"; \
 	else \
 		echo "config.yaml already exists"; \
 	fi
@@ -193,83 +126,60 @@ config:
 # Development setup
 dev-setup: deps config
 	@echo "Development environment setup complete"
-	@echo "Run 'make run' to start the server"
+	@echo "Run 'make start' to start the server"
 
-# Docker build (for future use)
+# Docker targets
 docker-build:
-	docker build -t $(BINARY_NAME):$(VERSION) .
+	docker compose build
 
-# Run application in Docker using docker compose
-docker-run:
-	@echo "Starting loom in Docker..."
-	@docker compose up -d
+docker-up:
+	docker compose up -d
 
-# Stop Docker containers
-docker-stop:
-	@echo "Stopping Docker containers..."
-	@docker compose down
+docker-down:
+	docker compose down
 
-# Clean Docker resources
-docker-clean: docker-stop
-	@echo "Cleaning Docker resources..."
-	@docker compose down -v
-	@docker rmi $(BINARY_NAME):$(VERSION) || true
+# Run full stack in Docker (foreground)
+run:
+	docker compose up --build
+
+# Release automation
+release:
+	@BATCH=$(BATCH) ./scripts/release.sh patch
+
+release-minor:
+	@BATCH=$(BATCH) ./scripts/release.sh minor
+
+release-major:
+	@BATCH=$(BATCH) ./scripts/release.sh major
 
 help:
 	@echo "Loom - Makefile Commands"
 	@echo ""
 	@echo "Development:"
+	@echo "  make build        - Build the Go binary"
+	@echo "  make build-all    - Cross-compile for linux/darwin/windows"
 	@echo "  make start        - Build and start loom locally (native)"
 	@echo "  make stop         - Stop locally-running loom"
-	@echo "  make build        - Build the application"
-	@echo "  make build-all    - Build for multiple platforms"
-	@echo "  make run          - Build and run the application (Docker)"
-	@echo "  make restart      - Build, stop containers, and run (Docker)"
-	@echo "  make test         - Run unit tests"
+	@echo "  make restart      - Stop and restart loom locally"
+	@echo "  make test         - Run tests locally"
+	@echo "  make test-docker  - Run tests in Docker (with Temporal)"
 	@echo "  make test-api     - Run post-flight API tests"
 	@echo "  make coverage     - Run tests with coverage report"
-	@echo "  make fmt          - Format code"
-	@echo "  make vet          - Run go vet"
-	@echo "  make lint         - Run all linters"
-	@echo "  make lint-yaml    - Validate YAML files"
-	@echo "  make lint-docs    - Check documentation structure"
+	@echo "  make lint         - Run all linters (fmt, vet, yaml, docs)"
 	@echo "  make deps         - Download and tidy dependencies"
 	@echo "  make clean        - Clean build artifacts"
-	@echo "  make distclean    - Deep clean: prune docker, remove all artifacts"
+	@echo "  make distclean    - Deep clean (docker + build cache)"
 	@echo "  make install      - Install binary to GOPATH/bin"
 	@echo "  make config       - Create config.yaml from example"
 	@echo "  make dev-setup    - Set up development environment"
 	@echo ""
 	@echo "Docker:"
-	@echo "  make docker-build - Build Docker image"
-	@echo "  make docker-run   - Run application in Docker"
-	@echo "  make docker-stop  - Stop Docker containers"
-	@echo "  make docker-clean - Clean Docker resources"
+	@echo "  make run          - Run full stack in Docker (foreground)"
+	@echo "  make docker-build - Build Docker images"
+	@echo "  make docker-up    - Start containers (background)"
+	@echo "  make docker-down  - Stop containers"
 	@echo ""
 	@echo "Release:"
-	@echo "  make release        - Create patch release (x.y.Z)"
-	@echo "  make release-minor  - Create minor release (x.Y.0)"
-	@echo "  make release-major  - Create major release (X.0.0)"
-	@echo ""
-	@echo "  make help         - Show this help message"
-
-# ============================================================================
-# RELEASE AUTOMATION
-# ============================================================================
-
-# Create a new release (default: patch version bump)
-# Usage:
-#   make release              # Bump patch version (x.y.Z)
-#   make release-minor        # Bump minor version (x.Y.0)
-#   make release-major        # Bump major version (X.0.0)
-release:
-	@echo "Creating patch release..."
-	@BATCH=$(BATCH) ./scripts/release.sh patch
-
-release-minor:
-	@echo "Creating minor release..."
-	@BATCH=$(BATCH) ./scripts/release.sh minor
-
-release-major:
-	@echo "Creating major release..."
-	@BATCH=$(BATCH) ./scripts/release.sh major
+	@echo "  make release       - Patch release (x.y.Z)"
+	@echo "  make release-minor - Minor release (x.Y.0)"
+	@echo "  make release-major - Major release (X.0.0)"

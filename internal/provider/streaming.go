@@ -65,7 +65,11 @@ func (p *OpenAIProvider) CreateChatCompletionStream(ctx context.Context, req *Ch
 	// Check status code
 	if resp.StatusCode != http.StatusOK {
 		respBody, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("unexpected status code %d: %s", resp.StatusCode, string(respBody))
+		bodyStr := string(respBody)
+		if resp.StatusCode == http.StatusBadRequest && isContextLengthError(bodyStr) {
+			return &ContextLengthError{StatusCode: resp.StatusCode, Body: bodyStr}
+		}
+		return fmt.Errorf("unexpected status code %d: %s", resp.StatusCode, bodyStr)
 	}
 
 	// Read streaming response

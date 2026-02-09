@@ -182,8 +182,8 @@ func (w *Worker) ExecuteTask(ctx context.Context, task *Task) (*TaskResult, erro
 		ResponseFormat: &provider.ResponseFormat{Type: "json_object"},
 	}
 
-	// Send request to provider
-	resp, err := w.provider.Protocol.CreateChatCompletion(ctx, req)
+	// Send request to provider (with automatic context-length retry)
+	resp, usedMessages, err := w.callWithContextRetry(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get completion: %w", err)
 	}
@@ -196,7 +196,7 @@ func (w *Worker) ExecuteTask(ctx context.Context, task *Task) (*TaskResult, erro
 	// Store assistant response in conversation context
 	if conversationCtx != nil && w.db != nil {
 		// Convert provider messages back to conversation messages
-		for _, msg := range messages {
+		for _, msg := range usedMessages {
 			// Only add new messages (not already in history)
 			if len(conversationCtx.Messages) == 0 ||
 			   !w.messageExists(conversationCtx.Messages, msg.Content) {
@@ -354,6 +354,103 @@ func (w *Worker) getModelTokenLimit() int {
 
 	// Default to 100K for unknown models
 	return 100000
+}
+
+// truncateMessages drops older conversation messages to reduce token count.
+// It always keeps the first message (system prompt) and the last message
+// (current user request), dropping middle messages progressively.
+// fraction is the portion of middle messages to keep (0.5 = keep half).
+func truncateMessages(messages []provider.ChatMessage, fraction float64) []provider.ChatMessage {
+	if len(messages) <= 2 {
+		return messages
+	}
+
+	system := messages[0]
+	last := messages[len(messages)-1]
+	middle := messages[1 : len(messages)-1]
+
+	keep := int(float64(len(middle)) * fraction)
+	if keep < 0 {
+		keep = 0
+	}
+
+	// Keep the most recent middle messages
+	var result []provider.ChatMessage
+	result = append(result, system)
+	if keep > 0 {
+		dropped := len(middle) - keep
+		result = append(result, provider.ChatMessage{
+			Role:    "system",
+			Content: fmt.Sprintf("[Note: %d older messages dropped to fit context window]", dropped),
+		})
+		result = append(result, middle[len(middle)-keep:]...)
+	} else {
+		result = append(result, provider.ChatMessage{
+			Role:    "system",
+			Content: fmt.Sprintf("[Note: %d older messages dropped to fit context window]", len(middle)),
+		})
+	}
+	result = append(result, last)
+	return result
+}
+
+// callWithContextRetry calls CreateChatCompletion and retries with
+// progressively smaller message windows on ContextLengthError.
+// Returns the response and the final messages used (which may be truncated).
+func (w *Worker) callWithContextRetry(ctx context.Context, req *provider.ChatCompletionRequest) (*provider.ChatCompletionResponse, []provider.ChatMessage, error) {
+	// Attempt 1: use messages as-is
+	resp, err := w.provider.Protocol.CreateChatCompletion(ctx, req)
+	if err == nil {
+		return resp, req.Messages, nil
+	}
+
+	var ctxErr *provider.ContextLengthError
+	if !errors.As(err, &ctxErr) {
+		return nil, req.Messages, err
+	}
+
+	// Retry with progressively smaller context windows.
+	// Each attempt keeps a smaller fraction of the conversation history.
+	fractions := []float64{0.5, 0.25, 0.0}
+	messages := req.Messages
+
+	for _, frac := range fractions {
+		truncated := truncateMessages(messages, frac)
+		log.Printf("[ContextRetry] Retrying with %.0f%% of history (%d -> %d messages)",
+			frac*100, len(messages), len(truncated))
+
+		retryReq := *req
+		retryReq.Messages = truncated
+
+		resp, err = w.provider.Protocol.CreateChatCompletion(ctx, &retryReq)
+		if err == nil {
+			return resp, truncated, nil
+		}
+		if !errors.As(err, &ctxErr) {
+			return nil, truncated, err
+		}
+	}
+
+	// Final fallback: we're at system+user only and still too big.
+	// Truncate the user message content to half its size.
+	minimal := truncateMessages(messages, 0.0)
+	if len(minimal) >= 2 {
+		last := &minimal[len(minimal)-1]
+		if len(last.Content) > 2000 {
+			half := len(last.Content) / 2
+			last.Content = last.Content[:half] + "\n\n[Content truncated to fit context window]"
+			log.Printf("[ContextRetry] Final attempt: truncated user message to %d chars", len(last.Content))
+
+			retryReq := *req
+			retryReq.Messages = minimal
+			resp, err = w.provider.Protocol.CreateChatCompletion(ctx, &retryReq)
+			if err == nil {
+				return resp, minimal, nil
+			}
+		}
+	}
+
+	return nil, minimal, fmt.Errorf("context length exceeded after all retry attempts: %w", err)
 }
 
 // messageExists checks if a message with the same content already exists in history
@@ -632,7 +729,7 @@ func (w *Worker) ExecuteTaskWithLoop(ctx context.Context, task *Task, config *Lo
 
 		log.Printf("[ActionLoop] Iteration %d/%d for task %s (messages: %d, textMode: %v)", iteration+1, maxIter, task.ID, len(trimmedMessages), config.TextMode)
 
-		resp, err := w.provider.Protocol.CreateChatCompletion(ctx, req)
+		resp, usedMsgs, err := w.callWithContextRetry(ctx, req)
 		if err != nil {
 			loopResult.TerminalReason = "error"
 			loopResult.Iterations = iteration + 1
@@ -641,6 +738,10 @@ func (w *Worker) ExecuteTaskWithLoop(ctx context.Context, task *Task, config *Lo
 			loopResult.Error = err.Error()
 			loopResult.CompletedAt = time.Now()
 			return loopResult, fmt.Errorf("LLM call failed on iteration %d: %w", iteration+1, err)
+		}
+		// If messages were truncated by retry, update the working set
+		if len(usedMsgs) < len(trimmedMessages) {
+			messages = usedMsgs
 		}
 
 		if len(resp.Choices) == 0 {
