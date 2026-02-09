@@ -189,6 +189,34 @@ func (r *Router) executeAction(ctx context.Context, action Action, actx ActionCo
 		if r.Files == nil {
 			return r.createBeadFromAction("Edit code", fmt.Sprintf("%s\n\nPatch:\n%s", action.Path, action.Patch), actx)
 		}
+		// Text-based EDIT: use OldText/NewText string replacement (from text parser)
+		if action.OldText != "" && action.Path != "" {
+			res, readErr := r.Files.ReadFile(ctx, actx.ProjectID, action.Path)
+			if readErr != nil {
+				return Result{ActionType: action.Type, Status: "error", Message: fmt.Sprintf("cannot read %s: %v", action.Path, readErr)}
+			}
+			if !strings.Contains(res.Content, action.OldText) {
+				return Result{ActionType: action.Type, Status: "error",
+					Message: fmt.Sprintf("OLD text not found in %s. Re-read the file and copy the exact text to replace.", action.Path)}
+			}
+			newContent := strings.Replace(res.Content, action.OldText, action.NewText, 1)
+			writeRes, writeErr := r.Files.WriteFile(ctx, actx.ProjectID, action.Path, newContent)
+			if writeErr != nil {
+				return Result{ActionType: action.Type, Status: "error", Message: fmt.Sprintf("write failed: %v", writeErr)}
+			}
+			return Result{
+				ActionType: action.Type,
+				Status:     "executed",
+				Message:    fmt.Sprintf("edited %s: replaced %d chars", action.Path, len(action.OldText)),
+				Metadata: map[string]interface{}{
+					"path":          writeRes.Path,
+					"bytes_written": writeRes.BytesWritten,
+					"old_length":    len(action.OldText),
+					"new_length":    len(action.NewText),
+				},
+			}
+		}
+		// Legacy: unified diff patch
 		res, err := r.Files.ApplyPatch(ctx, actx.ProjectID, action.Patch)
 		if err != nil {
 			message := err.Error()

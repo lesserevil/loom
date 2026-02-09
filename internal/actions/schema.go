@@ -98,6 +98,8 @@ type Action struct {
 	Path     string `json:"path,omitempty"`
 	Content  string `json:"content,omitempty"`
 	Patch    string `json:"patch,omitempty"`
+	OldText  string `json:"old_text,omitempty"`  // For text-based EDIT: exact text to replace
+	NewText  string `json:"new_text,omitempty"`  // For text-based EDIT: replacement text
 	Query    string `json:"query,omitempty"`
 	MaxDepth int    `json:"max_depth,omitempty"`
 	Limit    int    `json:"limit,omitempty"`

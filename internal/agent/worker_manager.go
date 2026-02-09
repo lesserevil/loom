@@ -416,6 +416,7 @@ func (m *WorkerManager) ExecuteTask(ctx context.Context, agentID string, task *w
 			},
 			LessonsProvider: m.lessonsProvider,
 			DB:              m.db,
+			TextMode:        true, // Default to simple text actions for local model effectiveness
 		}
 
 		loopResult, loopErr := workerInstance.ExecuteTaskWithLoop(ctx, task, loopConfig)

@@ -24,6 +24,7 @@ type Worker struct {
 	agent       *models.Agent
 	provider    *provider.RegisteredProvider
 	db          *database.Database
+	textMode    bool // Use simple text-based actions instead of JSON
 	status      WorkerStatus
 	currentTask string
 	startedAt   time.Time
@@ -408,7 +409,12 @@ func (w *Worker) buildSystemPrompt() string {
 		prompt += fmt.Sprintf("# Decision Making\n%s\n\n", persona.DecisionInstructions)
 	}
 
-	prompt += fmt.Sprintf("# Required Output Format\n%s\n\n", actions.ActionPrompt)
+	// Use text-based prompt for simple action mode, JSON for legacy
+	if w.textMode {
+		prompt += fmt.Sprintf("# Required Output Format\n%s\n\n", actions.TextActionPrompt)
+	} else {
+		prompt += fmt.Sprintf("# Required Output Format\n%s\n\n", actions.ActionPrompt)
+	}
 
 	return prompt
 }
@@ -489,6 +495,7 @@ type LoopConfig struct {
 	ActionContext   actions.ActionContext
 	LessonsProvider LessonsProvider
 	DB              *database.Database
+	TextMode        bool // Use simple text-based actions (~10 commands) instead of JSON (60+)
 }
 
 // LoopResult contains the result of a multi-turn action loop.
@@ -510,6 +517,7 @@ type ActionLogEntry struct {
 // ExecuteTaskWithLoop runs the task in a multi-turn action loop:
 // call LLM → parse actions → execute → format results → feed back → repeat.
 func (w *Worker) ExecuteTaskWithLoop(ctx context.Context, task *Task, config *LoopConfig) (*LoopResult, error) {
+	w.textMode = config.TextMode
 	w.mu.Lock()
 	if w.status != WorkerStatusIdle {
 		w.mu.Unlock()
@@ -615,13 +623,16 @@ func (w *Worker) ExecuteTaskWithLoop(ctx context.Context, task *Task, config *Lo
 		trimmedMessages := w.handleTokenLimits(messages)
 
 		req := &provider.ChatCompletionRequest{
-			Model:          w.provider.Config.Model,
-			Messages:       trimmedMessages,
-			Temperature:    0.7,
-			ResponseFormat: &provider.ResponseFormat{Type: "json_object"},
+			Model:       w.provider.Config.Model,
+			Messages:    trimmedMessages,
+			Temperature: 0.7,
+		}
+		// Only enforce JSON output for legacy JSON action mode
+		if !config.TextMode {
+			req.ResponseFormat = &provider.ResponseFormat{Type: "json_object"}
 		}
 
-		log.Printf("[ActionLoop] Iteration %d/%d for task %s (messages: %d)", iteration+1, maxIter, task.ID, len(trimmedMessages))
+		log.Printf("[ActionLoop] Iteration %d/%d for task %s (messages: %d, textMode: %v)", iteration+1, maxIter, task.ID, len(trimmedMessages), config.TextMode)
 
 		resp, err := w.provider.Protocol.CreateChatCompletion(ctx, req)
 		if err != nil {
@@ -654,8 +665,14 @@ func (w *Worker) ExecuteTaskWithLoop(ctx context.Context, task *Task, config *Lo
 			conversationCtx.AddMessage("assistant", llmResponse, resp.Usage.CompletionTokens)
 		}
 
-		// Parse actions
-		env, parseErr := actions.DecodeLenient([]byte(llmResponse))
+		// Parse actions — text mode uses regex parser, JSON mode uses strict decoder
+		var env *actions.ActionEnvelope
+		var parseErr error
+		if config.TextMode {
+			env, parseErr = actions.ParseTextAction(llmResponse)
+		} else {
+			env, parseErr = actions.DecodeLenient([]byte(llmResponse))
+		}
 		if parseErr != nil {
 			var validationErr *actions.ValidationError
 			if errors.As(parseErr, &validationErr) {
