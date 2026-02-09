@@ -189,17 +189,17 @@ func (r *Router) executeAction(ctx context.Context, action Action, actx ActionCo
 		if r.Files == nil {
 			return r.createBeadFromAction("Edit code", fmt.Sprintf("%s\n\nPatch:\n%s", action.Path, action.Patch), actx)
 		}
-		// Text-based EDIT: use OldText/NewText string replacement (from text parser)
+		// Text-based EDIT: use OldText/NewText with multi-strategy matching
 		if action.OldText != "" && action.Path != "" {
 			res, readErr := r.Files.ReadFile(ctx, actx.ProjectID, action.Path)
 			if readErr != nil {
 				return Result{ActionType: action.Type, Status: "error", Message: fmt.Sprintf("cannot read %s: %v", action.Path, readErr)}
 			}
-			if !strings.Contains(res.Content, action.OldText) {
+			newContent, matched, strategy := MatchAndReplace(res.Content, action.OldText, action.NewText)
+			if !matched {
 				return Result{ActionType: action.Type, Status: "error",
-					Message: fmt.Sprintf("OLD text not found in %s. Re-read the file and copy the exact text to replace.", action.Path)}
+					Message: fmt.Sprintf("OLD text not found in %s (tried exact, line-trimmed, whitespace-normalized, indentation-flexible, block-anchor matching). Re-read the file with ACTION: READ and copy the exact text.", action.Path)}
 			}
-			newContent := strings.Replace(res.Content, action.OldText, action.NewText, 1)
 			writeRes, writeErr := r.Files.WriteFile(ctx, actx.ProjectID, action.Path, newContent)
 			if writeErr != nil {
 				return Result{ActionType: action.Type, Status: "error", Message: fmt.Sprintf("write failed: %v", writeErr)}
@@ -207,12 +207,13 @@ func (r *Router) executeAction(ctx context.Context, action Action, actx ActionCo
 			return Result{
 				ActionType: action.Type,
 				Status:     "executed",
-				Message:    fmt.Sprintf("edited %s: replaced %d chars", action.Path, len(action.OldText)),
+				Message:    fmt.Sprintf("edited %s (match: %s)", action.Path, strategy),
 				Metadata: map[string]interface{}{
-					"path":          writeRes.Path,
-					"bytes_written": writeRes.BytesWritten,
-					"old_length":    len(action.OldText),
-					"new_length":    len(action.NewText),
+					"path":           writeRes.Path,
+					"bytes_written":  writeRes.BytesWritten,
+					"match_strategy": strategy,
+					"old_length":     len(action.OldText),
+					"new_length":     len(action.NewText),
 				},
 			}
 		}

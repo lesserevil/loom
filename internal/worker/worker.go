@@ -858,13 +858,22 @@ func (w *Worker) buildEnhancedSystemPrompt(lp LessonsProvider, projectID, progre
 		}
 	}
 
-	// Get lessons
+	// Get lessons — try file-based LESSONS.md first, fall back to DB
 	var lessons string
-	if lp != nil && projectID != "" {
+	if projectID != "" {
+		lessonsFile := actions.NewLessonsFile(".")
+		lessons = lessonsFile.GetLessonsForPrompt()
+	}
+	if lessons == "" && lp != nil && projectID != "" {
 		lessons = lp.GetLessonsForPrompt(projectID)
 	}
 
-	prompt += fmt.Sprintf("# Required Output Format\n%s\n\n", actions.BuildEnhancedPrompt(lessons, progressCtx))
+	// Use simple JSON prompt in text mode, full prompt in legacy mode
+	if w.textMode {
+		prompt += fmt.Sprintf("# Required Output Format\n%s\n\n", actions.BuildSimpleJSONPrompt(lessons, progressCtx))
+	} else {
+		prompt += fmt.Sprintf("# Required Output Format\n%s\n\n", actions.BuildEnhancedPrompt(lessons, progressCtx))
+	}
 
 	return prompt
 }

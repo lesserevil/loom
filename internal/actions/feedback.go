@@ -40,7 +40,8 @@ func formatSingleResult(r Result) string {
 
 	if r.Status == "error" {
 		sb.WriteString(fmt.Sprintf("**Error:** %s\n", r.Message))
-		sb.WriteString("Consider adjusting your approach based on this error.\n")
+		// Phase 4: Specific recovery suggestions based on error type
+		writeErrorSuggestion(&sb, r)
 		return sb.String()
 	}
 
@@ -360,4 +361,47 @@ func truncateOutput(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen] + "\n... (truncated)"
+}
+
+// writeErrorSuggestion provides specific recovery hints based on the error.
+func writeErrorSuggestion(sb *strings.Builder, r Result) {
+	msg := strings.ToLower(r.Message)
+
+	switch {
+	case strings.Contains(msg, "not found in") && r.ActionType == ActionEditCode:
+		sb.WriteString("\n**Suggestion:** The OLD text didn't match the file content. Try:\n")
+		sb.WriteString("1. READ the file first to see its current content\n")
+		sb.WriteString("2. Copy the exact text from the READ output\n")
+		sb.WriteString("3. Include 3-5 lines of surrounding context\n")
+
+	case strings.Contains(msg, "no such file") || strings.Contains(msg, "does not exist"):
+		sb.WriteString("\n**Suggestion:** File not found. Try:\n")
+		sb.WriteString("1. Use SCOPE or TREE to see available files\n")
+		sb.WriteString("2. Check that the path is relative to the project root\n")
+		sb.WriteString("3. Use SEARCH to find the right file name\n")
+
+	case strings.Contains(msg, "escapes project") || strings.Contains(msg, "must be relative"):
+		sb.WriteString("\n**Suggestion:** Use relative paths from the project root, e.g. 'internal/actions/router.go'\n")
+
+	case strings.Contains(msg, "build") && strings.Contains(msg, "fail"):
+		sb.WriteString("\n**Suggestion:** Read the error output above, fix the issue, then BUILD again.\n")
+
+	case strings.Contains(msg, "not cloned"):
+		sb.WriteString("\n**Suggestion:** The project repository is not cloned locally. This may be a configuration issue.\n")
+
+	default:
+		sb.WriteString("Consider adjusting your approach based on this error.\n")
+	}
+}
+
+// FormatResultsWithContext enhances feedback with project spatial context.
+// Phase 3: Every response reminds the agent where it is and what's available.
+func FormatResultsWithContext(results []Result, projectRoot string) string {
+	base := FormatResultsAsUserMessage(results)
+
+	if projectRoot != "" {
+		base += fmt.Sprintf("\n\n**Working directory:** `%s`\n", projectRoot)
+	}
+
+	return base
 }
