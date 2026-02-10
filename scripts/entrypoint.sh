@@ -3,11 +3,28 @@ set -e
 
 # Entrypoint script for loom container
 # Starts Dolt SQL server for beads backend, then starts loom
+# Runs as PID 1 and reaps child processes.
 
 BEADS_DIR="/app/data/projects/loom-self/.beads"
 BEADS_DOLT_DIR="$BEADS_DIR/dolt"
 DOLT_PORT="${DOLT_PORT:-3307}"
 SCHEMA_SQL="/app/scripts/beads-schema.sql"
+DOLT_PID=""
+
+cleanup() {
+    echo "[entrypoint] Shutting down..."
+    if [ -n "$LOOM_PID" ]; then
+        kill "$LOOM_PID" 2>/dev/null
+        wait "$LOOM_PID" 2>/dev/null
+    fi
+    if [ -n "$DOLT_PID" ]; then
+        kill "$DOLT_PID" 2>/dev/null
+        wait "$DOLT_PID" 2>/dev/null
+    fi
+    exit 0
+}
+
+trap cleanup TERM INT QUIT
 
 start_dolt() {
     # Configure Dolt identity if not set
@@ -22,7 +39,6 @@ start_dolt() {
         mkdir -p "$BEADS_DOLT_DIR"
         cd "$BEADS_DOLT_DIR"
         dolt init --name loom --email loom@localhost
-        # Write config with correct port
         cat > config.yaml <<DOLTCFG
 listener:
   host: 0.0.0.0
@@ -41,12 +57,7 @@ DOLTCFG
     echo "[entrypoint] Starting Dolt SQL server on port $DOLT_PORT..."
     cd "$BEADS_DOLT_DIR"
 
-    # Start Dolt SQL server in background
-    dolt sql-server \
-        --host 0.0.0.0 \
-        --port "$DOLT_PORT" \
-        &
-
+    dolt sql-server --host 0.0.0.0 --port "$DOLT_PORT" &
     DOLT_PID=$!
     echo "[entrypoint] Dolt SQL server started (PID $DOLT_PID)"
 
@@ -61,15 +72,13 @@ DOLTCFG
                 if [ -f "$SCHEMA_SQL" ]; then
                     dolt sql < "$SCHEMA_SQL" 2>&1 || \
                         echo "[entrypoint] Warning: schema creation had errors (may be partial)"
-                    # Write metadata.json so bd knows this is a Dolt backend
                     cat > "$BEADS_DIR/metadata.json" <<METAJSON
 {"database":"dolt","jsonl_export":"issues.jsonl","backend":"dolt","dolt_server_port":${DOLT_PORT}}
 METAJSON
                     echo "[entrypoint] Beads schema created"
-                    # Import JSONL data if available
                     if [ -f "$BEADS_DIR/issues.jsonl" ]; then
                         echo "[entrypoint] Importing beads from JSONL..."
-                        cd "$PROJECT_DIR"
+                        cd /app/data/projects/loom-self
                         bd sync --import-only 2>&1 || \
                             echo "[entrypoint] Warning: JSONL import had errors"
                         cd "$BEADS_DOLT_DIR"
@@ -93,6 +102,20 @@ METAJSON
 # Try to start Dolt (non-fatal if it fails)
 start_dolt || echo "[entrypoint] Continuing without Dolt server"
 
-# Return to app directory and start loom
+# Start loom in background (not exec) so this shell stays PID 1 and reaps children
 cd /app
-exec /app/loom "$@"
+/app/loom "$@" &
+LOOM_PID=$!
+echo "[entrypoint] Loom started (PID $LOOM_PID)"
+
+# Wait for loom to exit; if it dies, we exit too
+wait "$LOOM_PID"
+LOOM_EXIT=$?
+
+# Clean up Dolt
+if [ -n "$DOLT_PID" ]; then
+    kill "$DOLT_PID" 2>/dev/null
+    wait "$DOLT_PID" 2>/dev/null
+fi
+
+exit $LOOM_EXIT
