@@ -493,14 +493,21 @@ func (d *Dispatcher) DispatchOnce(ctx context.Context, projectID string) (*Dispa
 			log.Printf("[Dispatcher] Bead %s has persona hint '%s' but no exact match - will assign to any idle agent", b.ID, personaHint)
 		}
 
-		// Pick any idle agent (either no persona hint, or hint didn't match)
-		if len(idleAgents) == 0 {
-			skippedReasons["no_idle_agents"]++
-			log.Printf("[Dispatcher] Bead %s: no idle agents available", b.ID)
+		// Pick any idle agent for this bead's project
+		var matchedAgent *models.Agent
+		for _, a := range idleAgents {
+			// Prefer agents assigned to the same project as the bead
+			if a.ProjectID == b.ProjectID || a.ProjectID == "" || b.ProjectID == "" {
+				matchedAgent = a
+				break
+			}
+		}
+		if matchedAgent == nil {
+			skippedReasons["no_idle_agents_for_project"]++
 			continue
 		}
-		log.Printf("[Dispatcher] Assigning bead %s to agent %s (any idle agent)", b.ID, idleAgents[0].Name)
-		ag = idleAgents[0]
+		log.Printf("[Dispatcher] Assigning bead %s (project %s) to agent %s", b.ID, b.ProjectID, matchedAgent.Name)
+		ag = matchedAgent
 		candidate = b
 		break
 	}
