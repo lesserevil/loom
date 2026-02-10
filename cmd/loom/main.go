@@ -105,8 +105,7 @@ func main() {
 	go arb.StartMaintenanceLoop(runCtx)
 
 	// Ralph dispatch loop: drain all dispatchable work every 10 seconds.
-	// Runs alongside the Temporal LoomHeartbeatWorkflow (which also dispatches)
-	// as a reliable fallback — DispatchOnce is idempotent.
+	log.Printf("Starting dispatch loop goroutine")
 	go arb.StartDispatchLoop(runCtx, 10*time.Second)
 
 	// Initialize auth manager (JWT + API key support)
