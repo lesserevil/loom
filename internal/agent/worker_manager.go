@@ -109,10 +109,7 @@ func (m *WorkerManager) CreateAgent(ctx context.Context, name, personaName, proj
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// Check if we've reached max agents
-	if len(m.agents) >= m.maxAgents {
-		return nil, fmt.Errorf("maximum number of agents (%d) reached", m.maxAgents)
-	}
+	// No artificial agent limit — every project can have as many agents as it needs
 
 	// Generate agent ID
 	agentID := fmt.Sprintf("agent-%d-%s", time.Now().Unix(), name)
@@ -161,10 +158,7 @@ func (m *WorkerManager) SpawnAgentWorker(ctx context.Context, name, personaName,
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// Check if we've reached max agents
-	if len(m.agents) >= m.maxAgents {
-		return nil, fmt.Errorf("maximum number of agents (%d) reached", m.maxAgents)
-	}
+	// No artificial agent limit — every project can have as many agents as it needs
 
 	// Generate agent ID
 	agentID := fmt.Sprintf("agent-%d-%s", time.Now().Unix(), name)
