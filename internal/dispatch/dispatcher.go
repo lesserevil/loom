@@ -295,12 +295,9 @@ func (d *Dispatcher) DispatchOnce(ctx context.Context, projectID string) (*Dispa
 			}
 		}
 
-		// Skip P0 beads UNLESS they are auto-filed bugs (which we want to dispatch)
-		isAutoFiled := strings.Contains(strings.ToLower(b.Title), "[auto-filed]")
-		if b.Priority == models.BeadPriorityP0 && !isAutoFiled {
-			skippedReasons["p0_priority"]++
-			continue
-		}
+		// P0 beads are dispatched like any other priority.
+		// CEO escalation is handled via the escalate_ceo action, not by
+		// filtering at dispatch time.
 
 		if b.Type == "decision" {
 			skippedReasons["decision_type"]++
