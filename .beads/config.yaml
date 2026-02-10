@@ -13,8 +13,8 @@ issue-prefix: "loom"
 # instead of SQLite database
 # no-db: false
 
-# Disable daemon for RPC communication (forces direct database access)
-# no-daemon: false
+# Disable daemon — host connects directly to container's Dolt via port 3307
+no-daemon: true
 
 # Disable auto-flush of database to JSONL after mutations
 # no-auto-flush: false

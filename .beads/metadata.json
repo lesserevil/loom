@@ -1,5 +1,1 @@
-{
-  "database": "dolt",
-  "jsonl_export": "issues.jsonl",
-  "backend": "dolt"
-}
+{"database":"dolt","jsonl_export":"issues.jsonl","backend":"dolt","dolt_server_port":3307,"dolt_server_host":"localhost"}
