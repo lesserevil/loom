@@ -2900,7 +2900,13 @@ func (a *Loom) StartMaintenanceLoop(ctx context.Context) {
 
 // StartDispatchLoop runs a periodic dispatcher that fills all idle agents with work.
 func (a *Loom) StartDispatchLoop(ctx context.Context, interval time.Duration) {
-	if a.dispatcher == nil {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("[DispatchLoop] PANIC recovered: %v", r)
+		}
+	}()
+
+	if a == nil || a.dispatcher == nil {
 		log.Printf("[DispatchLoop] No dispatcher configured, skipping")
 		return
 	}
@@ -2917,7 +2923,6 @@ func (a *Loom) StartDispatchLoop(ctx context.Context, interval time.Duration) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			// Dispatch as many beads as possible (one per idle agent)
 			for i := 0; i < 50; i++ {
 				dr, err := a.dispatcher.DispatchOnce(ctx, "")
 				if err != nil || dr == nil || !dr.Dispatched {
