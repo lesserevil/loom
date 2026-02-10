@@ -30,7 +30,7 @@ beads:
     peers: []            # Add peers via API or config for multi-container sync
 
 agents:
-  max_concurrent: 6
+  max_concurrent: 12
   default_persona_path: ./personas
   heartbeat_interval: 30s
   file_lock_timeout: 10m
