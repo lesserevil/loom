@@ -601,7 +601,7 @@ func (w *Worker) ExecuteTaskWithLoop(ctx context.Context, task *Task, config *Lo
 
 	maxIter := config.MaxIterations
 	if maxIter <= 0 {
-		maxIter = 15
+		maxIter = 25
 	}
 
 	// Build initial messages

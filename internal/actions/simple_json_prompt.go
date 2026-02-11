@@ -20,13 +20,14 @@ Pattern:
   {"action": "...", "notes": "Thought: Edit done. Acting: building to verify."}
   → ...continue until commit and done
 
-## Budget: You have ~15 iterations. Spend them wisely:
-- Iterations 1-2: Locate (scope, search, read ONE file)
-- Iterations 3-6: Change (edit or write files)
-- Iteration 7: Build to verify
-- Iteration 8: git_commit
-- Iteration 9: git_push
-- Iteration 10: done
+## Budget: You have ~25 iterations. Spend them wisely:
+- Iterations 1-3: Locate (scope, search, read files)
+- Iterations 4-15: Change (edit or write files)
+- Iterations 16-18: Build and test to verify
+- Iteration 19: git_commit
+- Iteration 20: git_push
+- Iteration 21: done
+- Remaining: fix any issues from build/test/push
 
 UNCOMMITTED WORK IS LOST. Always git_commit before done.
 
