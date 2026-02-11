@@ -2,63 +2,95 @@ package actions
 
 import "strings"
 
-// SimpleJSONPrompt is a minimal JSON action prompt — only ~10 action types
-// instead of 60+, designed for local 30B models with response_format: json_object.
+// SimpleJSONPrompt is a minimal JSON action prompt using the ReAct pattern.
+// Designed for local 30B models with response_format: json_object.
 const SimpleJSONPrompt = `You must respond with strict JSON only. No text outside JSON.
 
-Response format:
-{"action": "<type>", ...required fields..., "notes": "your reasoning"}
+## Operating Model: ReAct (Reason → Act → Observe → Repeat)
+
+Every response is ONE action. Use the "notes" field to reason briefly about what
+you're doing and why. Then pick the best action. You will see the result and
+choose the next action. Repeat until done.
+
+Pattern:
+  {"action": "...", "notes": "Thought: I need to find X. Acting: searching for it."}
+  → You see the result
+  {"action": "...", "notes": "Thought: Found X in file.go line 42. Acting: editing it."}
+  → You see the result
+  {"action": "...", "notes": "Thought: Edit done. Acting: building to verify."}
+  → ...continue until commit and done
+
+## Budget: You have ~15 iterations. Spend them wisely:
+- Iterations 1-2: Locate (scope, search, read ONE file)
+- Iterations 3-6: Change (edit or write files)
+- Iteration 7: Build to verify
+- Iteration 8: git_commit
+- Iteration 9: git_push
+- Iteration 10: done
+
+UNCOMMITTED WORK IS LOST. Always git_commit before done.
 
 ## Available Actions
 
-### Navigation & Reading
-{"action": "scope", "path": "dir/"}                    — List directory contents
+### Locate
+{"action": "scope", "path": "."}                       — List directory contents
 {"action": "read", "path": "file.go"}                   — Read a file
 {"action": "search", "query": "pattern"}                 — Search for text in project
-{"action": "search", "query": "pattern", "path": "dir/"} — Search in specific directory
 
-### Editing
+### Change
 {"action": "edit", "path": "file.go", "old": "exact text to find", "new": "replacement text"}
 {"action": "write", "path": "file.go", "content": "full file content"}
 
-### Build & Test
+### Verify
 {"action": "build"}                                      — Build the project
 {"action": "test"}                                       — Run all tests
 {"action": "test", "pattern": "TestFoo"}                 — Run specific tests
 {"action": "bash", "command": "go vet ./..."}            — Run shell command
 
-### Git & Completion
-{"action": "git_commit", "message": "fix: description"}  — Commit changes
+### Land
+{"action": "git_commit", "message": "fix: description"}  — Commit all changes
 {"action": "git_push"}                                    — Push to remote
 {"action": "done", "reason": "summary of work done"}     — Signal completion
-{"action": "close_bead", "reason": "work complete"}       — Close the bead
-
-## Workflow
-
-1. scope "." to see the project structure
-2. read files to understand the code
-3. search for relevant patterns
-4. edit files (use exact old text from read output)
-5. build to verify
-6. test to verify
-7. done when finished
 
 ## Rules
 
-- Paths relative to project root
-- For edit: "old" must match file content EXACTLY
-- Only one action per response
-- Always build after editing
-- Respond with JSON only — no text outside the JSON object
+- ONE action per response. Use "notes" for reasoning.
+- Paths relative to project root.
+- For edit: "old" must match file content EXACTLY (copy from read output).
+- ALWAYS commit after making changes. ALWAYS push after committing.
+- JSON only — no text outside the JSON object.
 
 LESSONS_PLACEHOLDER
 
 ## Example
 
-Task: Fix a bug in the status check.
+Task: Fix the port number in config.go
 
-Response:
-{"action": "search", "query": "isProviderHealthy", "notes": "Finding the status check function"}
+{"action": "search", "query": "8081", "notes": "Thought: Need to find where port 8081 is used. Acting: searching."}
+
+→ Result shows config.go line 42
+
+{"action": "read", "path": "config.go", "notes": "Thought: Found it. Acting: reading the file to get exact text for edit."}
+
+→ Result shows file content
+
+{"action": "edit", "path": "config.go", "old": "port: 8081", "new": "port: 8080", "notes": "Thought: Changing port. Acting: editing."}
+
+→ Edit applied
+
+{"action": "build", "notes": "Thought: Edit done. Acting: building to verify."}
+
+→ Build passed
+
+{"action": "git_commit", "message": "fix: Change port from 8081 to 8080", "notes": "Thought: Build passed. Acting: committing."}
+
+→ Committed
+
+{"action": "git_push", "notes": "Thought: Committed. Acting: pushing."}
+
+→ Pushed
+
+{"action": "done", "reason": "Changed port from 8081 to 8080, committed and pushed", "notes": "Work complete."}
 `
 
 // BuildSimpleJSONPrompt replaces the lessons placeholder.

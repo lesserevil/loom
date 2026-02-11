@@ -451,55 +451,32 @@ func (w *Worker) messageExists(messages []models.ChatMessage, content string) bo
 	return false
 }
 
-// buildSystemPrompt builds the system prompt from the agent's persona
+// buildSystemPrompt builds the system prompt: ReAct operating model first,
+// brief persona role second.
 func (w *Worker) buildSystemPrompt() string {
-	if w.agent.Persona == nil {
-		return fmt.Sprintf("You are %s, an AI agent.", w.agent.Name)
+	// 1. Action format with ReAct pattern FIRST
+	var prompt string
+	if w.textMode {
+		prompt = actions.SimpleJSONPrompt + "\n\n"
+	} else {
+		prompt = actions.ActionPrompt + "\n\n"
 	}
 
+	// 2. Brief persona role context
 	persona := w.agent.Persona
-	prompt := ""
-
-	// Add identity
-	if persona.Character != "" {
-		prompt += fmt.Sprintf("# Your Character\n%s\n\n", persona.Character)
-	}
-
-	// Add mission
-	if persona.Mission != "" {
-		prompt += fmt.Sprintf("# Your Mission\n%s\n\n", persona.Mission)
-	}
-
-	// Add personality
-	if persona.Personality != "" {
-		prompt += fmt.Sprintf("# Your Personality\n%s\n\n", persona.Personality)
-	}
-
-	// Add capabilities
-	if len(persona.Capabilities) > 0 {
-		prompt += "# Your Capabilities\n"
-		for _, cap := range persona.Capabilities {
-			prompt += fmt.Sprintf("- %s\n", cap)
+	if persona == nil {
+		prompt += fmt.Sprintf("# Your Role\nYou are %s. Act on the task given to you.\n\n", w.agent.Name)
+	} else {
+		prompt += "# Your Role\n"
+		if persona.Character != "" {
+			prompt += persona.Character + "\n"
+		} else {
+			prompt += fmt.Sprintf("You are %s.\n", w.agent.Name)
+		}
+		if persona.Mission != "" {
+			prompt += "Mission: " + persona.Mission + "\n"
 		}
 		prompt += "\n"
-	}
-
-	// Add autonomy instructions
-	if persona.AutonomyInstructions != "" {
-		prompt += fmt.Sprintf("# Autonomy Guidelines\n%s\n\n", persona.AutonomyInstructions)
-	}
-
-	// Add decision instructions
-	if persona.DecisionInstructions != "" {
-		prompt += fmt.Sprintf("# Decision Making\n%s\n\n", persona.DecisionInstructions)
-	}
-
-	// Use simple JSON prompt for text mode (fewer actions, same JSON constraint),
-	// full JSON prompt for legacy mode.
-	if w.textMode {
-		prompt += fmt.Sprintf("# Required Output Format\n%s\n\n", actions.SimpleJSONPrompt)
-	} else {
-		prompt += fmt.Sprintf("# Required Output Format\n%s\n\n", actions.ActionPrompt)
 	}
 
 	return prompt
@@ -915,38 +892,9 @@ func (w *Worker) ExecuteTaskWithLoop(ctx context.Context, task *Task, config *Lo
 	return loopResult, nil
 }
 
-// buildEnhancedSystemPrompt builds the system prompt with lessons and progress context.
+// buildEnhancedSystemPrompt builds the system prompt with ReAct operating model first,
+// brief persona role second, and action format last.
 func (w *Worker) buildEnhancedSystemPrompt(lp LessonsProvider, projectID, progressCtx string) string {
-	persona := w.agent.Persona
-	prompt := ""
-
-	if persona == nil {
-		prompt = fmt.Sprintf("You are %s, an AI agent.\n\n", w.agent.Name)
-	} else {
-		if persona.Character != "" {
-			prompt += fmt.Sprintf("# Your Character\n%s\n\n", persona.Character)
-		}
-		if persona.Mission != "" {
-			prompt += fmt.Sprintf("# Your Mission\n%s\n\n", persona.Mission)
-		}
-		if persona.Personality != "" {
-			prompt += fmt.Sprintf("# Your Personality\n%s\n\n", persona.Personality)
-		}
-		if len(persona.Capabilities) > 0 {
-			prompt += "# Your Capabilities\n"
-			for _, cap := range persona.Capabilities {
-				prompt += fmt.Sprintf("- %s\n", cap)
-			}
-			prompt += "\n"
-		}
-		if persona.AutonomyInstructions != "" {
-			prompt += fmt.Sprintf("# Autonomy Guidelines\n%s\n\n", persona.AutonomyInstructions)
-		}
-		if persona.DecisionInstructions != "" {
-			prompt += fmt.Sprintf("# Decision Making\n%s\n\n", persona.DecisionInstructions)
-		}
-	}
-
 	// Get lessons — try file-based LESSONS.md first, fall back to DB
 	var lessons string
 	if projectID != "" {
@@ -957,11 +905,30 @@ func (w *Worker) buildEnhancedSystemPrompt(lp LessonsProvider, projectID, progre
 		lessons = lp.GetLessonsForPrompt(projectID)
 	}
 
-	// Use simple JSON prompt in text mode, full prompt in legacy mode
+	// 1. Action format with ReAct pattern FIRST — this is the operating model
+	var prompt string
 	if w.textMode {
-		prompt += fmt.Sprintf("# Required Output Format\n%s\n\n", actions.BuildSimpleJSONPrompt(lessons, progressCtx))
+		prompt = actions.BuildSimpleJSONPrompt(lessons, progressCtx) + "\n\n"
 	} else {
-		prompt += fmt.Sprintf("# Required Output Format\n%s\n\n", actions.BuildEnhancedPrompt(lessons, progressCtx))
+		prompt = actions.BuildEnhancedPrompt(lessons, progressCtx) + "\n\n"
+	}
+
+	// 2. Brief persona role context — just enough for the model to know its specialization.
+	// NOT the verbose analysis instructions that override the ReAct action bias.
+	persona := w.agent.Persona
+	if persona == nil {
+		prompt += fmt.Sprintf("# Your Role\nYou are %s. Act on the task given to you.\n\n", w.agent.Name)
+	} else {
+		prompt += "# Your Role\n"
+		if persona.Character != "" {
+			prompt += persona.Character + "\n"
+		} else {
+			prompt += fmt.Sprintf("You are %s.\n", w.agent.Name)
+		}
+		if persona.Mission != "" {
+			prompt += "Mission: " + persona.Mission + "\n"
+		}
+		prompt += "\n"
 	}
 
 	return prompt
