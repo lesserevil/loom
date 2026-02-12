@@ -218,6 +218,7 @@ func New(cfg *config.Config) (*Loom, error) {
 	var logMgr *logging.Manager
 	if db != nil {
 		logMgr = logging.NewManager(db.DB())
+		logMgr.InstallLogInterceptor()
 	}
 
 	// Initialize motivation system

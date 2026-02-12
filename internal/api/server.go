@@ -564,8 +564,11 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		// Skip auth if disabled
+		// Skip auth if disabled — treat all requests as admin
 		if !s.config.Security.EnableAuth || s.authManager == nil {
+			r.Header.Set("X-User-ID", "admin")
+			r.Header.Set("X-Username", "admin")
+			r.Header.Set("X-Role", "admin")
 			next.ServeHTTP(w, r)
 			return
 		}

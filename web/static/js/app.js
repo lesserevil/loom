@@ -754,21 +754,17 @@ async function loadSystemStatus() {
 }
 
 async function loadUsers() {
-    if (!AUTH_ENABLED) { state.users = []; return; }
     try {
         state.users = await apiCall('/auth/users', { suppressToast: true, skipAutoFile: true });
     } catch (error) {
-        // Users endpoint may not be available without auth
         state.users = [];
     }
 }
 
 async function loadAPIKeys() {
-    if (!AUTH_ENABLED) { state.apiKeys = []; return; }
     try {
         state.apiKeys = await apiCall('/auth/api-keys', { suppressToast: true, skipAutoFile: true });
     } catch (error) {
-        // API keys endpoint may not be available without auth
         state.apiKeys = [];
     }
 }
@@ -995,7 +991,14 @@ function renderProjectAgentsList(agents, projectId) {
 
 function formatAgentDisplayName(name) {
     if (!name) return 'Agent';
-    // Capitalize CEO and CFO as acronyms
+    // Convert persona paths like "default/web-designer" to "Web Designer (Default)"
+    if (name.includes('/')) {
+        const parts = name.split('/');
+        const role = parts[parts.length - 1].split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        const ns = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
+        name = `${role} (${ns})`;
+    }
+    // Fix acronyms
     return name
         .replace(/\bCeo\b/gi, 'CEO')
         .replace(/\bCfo\b/gi, 'CFO');
@@ -1860,18 +1863,6 @@ function resolveAgentName(agentId) {
     if (!agentId) return '';
     const agent = (state.agents || []).find(a => a.id === agentId);
     return agent ? (agent.name || agent.role || agentId) : agentId;
-}
-
-function formatAgentDisplayName(name) {
-    if (!name) return 'Unknown';
-    // Convert persona paths like "default/web-designer" to "Web Designer (Default)"
-    if (name.includes('/')) {
-        const parts = name.split('/');
-        const role = parts[parts.length - 1].split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-        const ns = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
-        return `${role} (${ns})`;
-    }
-    return name;
 }
 
 function resolveProjectName(projectId) {

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"time"
 )
@@ -342,4 +343,51 @@ func (m *Manager) Warn(source, message string, metadata map[string]interface{}) 
 // Error logs an error-level message
 func (m *Manager) Error(source, message string, metadata map[string]interface{}) {
 	m.Log(LogLevelError, source, message, metadata)
+}
+
+// logInterceptWriter implements io.Writer so that Go's standard log package
+// output is captured and routed through the logging manager.
+type logInterceptWriter struct {
+	manager *Manager
+}
+
+// Write implements io.Writer. It parses "[Component] message" format from
+// standard log.Printf calls and routes them into the structured log system.
+func (w *logInterceptWriter) Write(p []byte) (n int, err error) {
+	msg := strings.TrimSpace(string(p))
+	// Strip the default log prefix (date/time) if present
+	// Standard log format: "2006/01/02 15:04:05 message"
+	if len(msg) > 20 && msg[4] == '/' && msg[7] == '/' && msg[10] == ' ' {
+		msg = strings.TrimSpace(msg[20:])
+	}
+
+	level := LogLevelInfo
+	source := "system"
+
+	// Detect level from content
+	lowerMsg := strings.ToLower(msg)
+	if strings.Contains(lowerMsg, "error") || strings.Contains(lowerMsg, "fail") {
+		level = LogLevelError
+	} else if strings.Contains(lowerMsg, "warn") {
+		level = LogLevelWarn
+	}
+
+	// Parse [Source] prefix: "[Dispatcher] message" → source=dispatcher
+	if len(msg) > 2 && msg[0] == '[' {
+		end := strings.Index(msg, "]")
+		if end > 1 {
+			source = strings.ToLower(msg[1:end])
+			msg = strings.TrimSpace(msg[end+1:])
+		}
+	}
+
+	w.manager.Log(level, source, msg, nil)
+	return len(p), nil
+}
+
+// InstallLogInterceptor redirects Go's standard log package through this manager.
+// Call this once at startup after creating the manager.
+func (m *Manager) InstallLogInterceptor() {
+	log.SetOutput(&logInterceptWriter{manager: m})
+	log.SetFlags(0) // We handle timestamps ourselves
 }
