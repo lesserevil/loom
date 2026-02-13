@@ -293,6 +293,11 @@ func (mb *AgentMessageBus) Unsubscribe(subscriptionID string) {
 	mb.subsMu.Lock()
 	defer mb.subsMu.Unlock()
 
+	mb.unsubscribeNoLock(subscriptionID)
+}
+
+// unsubscribeNoLock removes a subscription without acquiring lock (internal use)
+func (mb *AgentMessageBus) unsubscribeNoLock(subscriptionID string) {
 	if sub, exists := mb.subscriptions[subscriptionID]; exists {
 		sub.cancel()
 		mb.eventBus.Unsubscribe(subscriptionID)
@@ -431,6 +436,6 @@ func (mb *AgentMessageBus) Close() {
 	defer mb.subsMu.Unlock()
 
 	for id := range mb.subscriptions {
-		mb.Unsubscribe(id)
+		mb.unsubscribeNoLock(id)
 	}
 }
