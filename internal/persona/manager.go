@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/jordanhubbard/loom/pkg/models"
+	"gopkg.in/yaml.v3"
 )
 
 // Manager handles persona loading, saving, and live editing
@@ -28,7 +29,16 @@ func NewManager(personaDir string) *Manager {
 	}
 }
 
-// LoadPersona loads a persona from a directory
+// SkillFrontmatter represents the YAML frontmatter of a SKILL.md file
+type SkillFrontmatter struct {
+	Name          string            `yaml:"name"`
+	Description   string            `yaml:"description"`
+	License       string            `yaml:"license"`
+	Compatibility string            `yaml:"compatibility"`
+	Metadata      map[string]interface{} `yaml:"metadata"`
+}
+
+// LoadPersona loads a persona from a directory (SKILL.md format)
 func (m *Manager) LoadPersona(name string) (*models.Persona, error) {
 	personaPath := filepath.Join(m.personaDir, name)
 
@@ -37,44 +47,88 @@ func (m *Manager) LoadPersona(name string) (*models.Persona, error) {
 		return persona, nil
 	}
 
-	// Load PERSONA.md
-	personaFile := filepath.Join(personaPath, "PERSONA.md")
-	personaContent, err := os.ReadFile(personaFile)
+	// Load SKILL.md (Agent Skills format)
+	skillFile := filepath.Join(personaPath, "SKILL.md")
+	skillContent, err := os.ReadFile(skillFile)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read PERSONA.md: %w", err)
+		return nil, fmt.Errorf("failed to read SKILL.md: %w", err)
 	}
 
-	// Load AI_START_HERE.md
-	instructionsFile := filepath.Join(personaPath, "AI_START_HERE.md")
-	instructionsContent, err := os.ReadFile(instructionsFile)
+	// Parse frontmatter and body
+	frontmatter, body, err := m.parseSkillMd(string(skillContent))
 	if err != nil {
-		return nil, fmt.Errorf("failed to read AI_START_HERE.md: %w", err)
+		return nil, fmt.Errorf("failed to parse SKILL.md: %w", err)
 	}
 
-	// Parse the markdown files (basic parsing for now)
+	// Create persona from frontmatter (Agent Skills format)
 	persona := &models.Persona{
-		Name:             name,
-		PersonaFile:      personaFile,
-		InstructionsFile: instructionsFile,
-		CreatedAt:        time.Now(),
-		UpdatedAt:        time.Now(),
+		Name:          frontmatter.Name,
+		Description:   frontmatter.Description,
+		Instructions:  body,
+		License:       frontmatter.License,
+		Compatibility: frontmatter.Compatibility,
+		Metadata:      frontmatter.Metadata,
+		PersonaFile:   skillFile,
+		CreatedAt:     time.Now(),
+		UpdatedAt:     time.Now(),
 	}
 
-	// Parse PERSONA.md sections
-	m.parsePersonaFile(persona, string(personaContent))
+	// Populate deprecated fields for backward compatibility
+	// TODO: Remove after full migration
+	persona.Character = frontmatter.Description
+	persona.Mission = body
 
-	// Parse AI_START_HERE.md sections
-	m.parseInstructionsFile(persona, string(instructionsContent))
+	if autonomy, ok := frontmatter.Metadata["autonomy_level"].(string); ok {
+		persona.AutonomyLevel = autonomy
+	} else {
+		persona.AutonomyLevel = string(models.AutonomySemi) // Default
+	}
 
-	// Default autonomy to "semi" if not defined in persona file
-	if persona.AutonomyLevel == "" {
-		persona.AutonomyLevel = string(models.AutonomySemi)
+	if specialties, ok := frontmatter.Metadata["specialties"].([]interface{}); ok {
+		for _, s := range specialties {
+			if str, ok := s.(string); ok {
+				persona.FocusAreas = append(persona.FocusAreas, str)
+			}
+		}
 	}
 
 	// Cache it
 	m.personas[name] = persona
 
 	return persona, nil
+}
+
+// parseSkillMd parses SKILL.md format with YAML frontmatter
+func (m *Manager) parseSkillMd(content string) (*SkillFrontmatter, string, error) {
+	// Check for frontmatter delimiters
+	if !strings.HasPrefix(content, "---\n") {
+		return nil, "", fmt.Errorf("missing frontmatter: SKILL.md must start with '---'")
+	}
+
+	// Find closing delimiter
+	parts := strings.SplitN(content[4:], "\n---\n", 2)
+	if len(parts) != 2 {
+		return nil, "", fmt.Errorf("malformed frontmatter: missing closing '---'")
+	}
+
+	frontmatterStr := parts[0]
+	body := strings.TrimSpace(parts[1])
+
+	// Parse YAML frontmatter
+	var frontmatter SkillFrontmatter
+	if err := yaml.Unmarshal([]byte(frontmatterStr), &frontmatter); err != nil {
+		return nil, "", fmt.Errorf("failed to parse YAML frontmatter: %w", err)
+	}
+
+	// Validate required fields
+	if frontmatter.Name == "" {
+		return nil, "", fmt.Errorf("frontmatter missing required field: name")
+	}
+	if frontmatter.Description == "" {
+		return nil, "", fmt.Errorf("frontmatter missing required field: description")
+	}
+
+	return &frontmatter, body, nil
 }
 
 // parsePersonaFile parses PERSONA.md content
@@ -195,24 +249,11 @@ func (m *Manager) extractAutonomyLevel(content string) string {
 	return string(models.AutonomySemi) // default
 }
 
-// SavePersona saves a persona back to disk
+// SavePersona saves a persona back to disk in SKILL.md format
 func (m *Manager) SavePersona(persona *models.Persona) error {
-	// Generate PERSONA.md content
-	personaContent := m.generatePersonaContent(persona)
-	if err := os.WriteFile(persona.PersonaFile, []byte(personaContent), 0644); err != nil {
-		return fmt.Errorf("failed to write PERSONA.md: %w", err)
-	}
-
-	// Generate AI_START_HERE.md content
-	instructionsContent := m.generateInstructionsContent(persona)
-	if err := os.WriteFile(persona.InstructionsFile, []byte(instructionsContent), 0644); err != nil {
-		return fmt.Errorf("failed to write AI_START_HERE.md: %w", err)
-	}
-
-	persona.UpdatedAt = time.Now()
-	m.personas[persona.Name] = persona
-
-	return nil
+	// TODO: Implement SKILL.md generation with YAML frontmatter
+	// For now, return an error to prevent corruption
+	return fmt.Errorf("SavePersona not yet implemented for SKILL.md format - edit SKILL.md files directly")
 }
 
 // generatePersonaContent generates PERSONA.md content from a persona
@@ -344,12 +385,9 @@ func (m *Manager) ListPersonas() ([]string, error) {
 			return nil
 		}
 
-		personaFile := filepath.Join(path, "PERSONA.md")
-		instructionsFile := filepath.Join(path, "AI_START_HERE.md")
-		if _, err := os.Stat(personaFile); err != nil {
-			return nil
-		}
-		if _, err := os.Stat(instructionsFile); err != nil {
+		// Look for SKILL.md (Agent Skills format)
+		skillFile := filepath.Join(path, "SKILL.md")
+		if _, err := os.Stat(skillFile); err != nil {
 			return nil
 		}
 

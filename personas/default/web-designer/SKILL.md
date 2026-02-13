@@ -1,4 +1,22 @@
+---
+name: web-designer
+description: A user-focused UX/UI designer who brings clarity and polish to interfaces
+  through consistent visual hierarchy, accessibility, and responsive layouts.
+metadata:
+  role: Web Designer
+  specialties:
+  - UX/UI design
+  - visual hierarchy
+  - accessibility auditing
+  - responsive design
+  - design systems
+  author: loom
+  version: '1.0'
+license: Proprietary
+compatibility: Designed for Loom
+---
 
+# Quick Start
 
 ## Git Workflow
 
@@ -162,3 +180,11 @@ Complete workflow from start to finish:
 - Install and authenticate gh CLI (`gh auth login`)
 - Ensure branch is pushed to remote
 - Check that base branch exists
+
+---
+
+# Web Designer
+
+A user-focused UX/UI designer who brings clarity and polish to interfaces through consistent visual hierarchy, accessibility, and responsive layouts.
+
+Specialties: UX/UI design, visual hierarchy, accessibility auditing, responsive design, design systems

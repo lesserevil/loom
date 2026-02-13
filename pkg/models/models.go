@@ -2,31 +2,43 @@ package models
 
 import "time"
 
-// Persona represents an agent's personality, capabilities, and behavioral guidelines
+// Persona represents an agent skill (Agent Skills specification format)
+// See: https://agentskills.io/specification
 type Persona struct {
 	EntityMetadata `json:",inline" yaml:",inline"`
 
-	Name                 string   `json:"name" yaml:"name"`
-	Character            string   `json:"character" yaml:"character"`
-	Tone                 string   `json:"tone" yaml:"tone"`
-	FocusAreas           []string `json:"focus_areas" yaml:"focus_areas"`
-	AutonomyLevel        string   `json:"autonomy_level" yaml:"autonomy_level"` // "full", "semi", "supervised"
-	Capabilities         []string `json:"capabilities" yaml:"capabilities"`
-	DecisionMaking       string   `json:"decision_making" yaml:"decision_making"`
-	Housekeeping         string   `json:"housekeeping" yaml:"housekeeping"`
-	Collaboration        string   `json:"collaboration" yaml:"collaboration"`
-	Standards            []string `json:"standards" yaml:"standards"`
-	Mission              string   `json:"mission" yaml:"mission"`
-	Personality          string   `json:"personality" yaml:"personality"`
-	AutonomyInstructions string   `json:"autonomy_instructions" yaml:"autonomy_instructions"`
-	DecisionInstructions string   `json:"decision_instructions" yaml:"decision_instructions"`
-	PersistentTasks      string   `json:"persistent_tasks" yaml:"persistent_tasks"`
+	// Required fields (from Agent Skills spec)
+	Name          string `json:"name" yaml:"name"`                   // Skill name (1-64 chars, lowercase, hyphens)
+	Description   string `json:"description" yaml:"description"`     // What the skill does and when to use it
+	Instructions  string `json:"instructions" yaml:"instructions"`   // Full markdown body from SKILL.md
+
+	// Optional fields (from Agent Skills spec)
+	License       string                 `json:"license,omitempty" yaml:"license,omitempty"`             // License name or reference
+	Compatibility string                 `json:"compatibility,omitempty" yaml:"compatibility,omitempty"` // Environment requirements
+	Metadata      map[string]interface{} `json:"metadata,omitempty" yaml:"metadata,omitempty"`           // Flexible metadata
+
+	// Deprecated fields (kept for backward compatibility during transition)
+	// TODO: Remove these after full migration
+	Character            string   `json:"character,omitempty" yaml:"character,omitempty"`                         // DEPRECATED: Use Instructions
+	Tone                 string   `json:"tone,omitempty" yaml:"tone,omitempty"`                                   // DEPRECATED: Use Metadata
+	FocusAreas           []string `json:"focus_areas,omitempty" yaml:"focus_areas,omitempty"`                     // DEPRECATED: Use Metadata["specialties"]
+	AutonomyLevel        string   `json:"autonomy_level,omitempty" yaml:"autonomy_level,omitempty"`               // DEPRECATED: Use Metadata["autonomy_level"]
+	Capabilities         []string `json:"capabilities,omitempty" yaml:"capabilities,omitempty"`                   // DEPRECATED: Use Instructions
+	DecisionMaking       string   `json:"decision_making,omitempty" yaml:"decision_making,omitempty"`             // DEPRECATED: Use Instructions
+	Housekeeping         string   `json:"housekeeping,omitempty" yaml:"housekeeping,omitempty"`                   // DEPRECATED: Use Instructions
+	Collaboration        string   `json:"collaboration,omitempty" yaml:"collaboration,omitempty"`                 // DEPRECATED: Use Instructions
+	Standards            []string `json:"standards,omitempty" yaml:"standards,omitempty"`                         // DEPRECATED: Use Instructions
+	Mission              string   `json:"mission,omitempty" yaml:"mission,omitempty"`                             // DEPRECATED: Use Instructions
+	Personality          string   `json:"personality,omitempty" yaml:"personality,omitempty"`                     // DEPRECATED: Use Instructions
+	AutonomyInstructions string   `json:"autonomy_instructions,omitempty" yaml:"autonomy_instructions,omitempty"` // DEPRECATED: Use Instructions
+	DecisionInstructions string   `json:"decision_instructions,omitempty" yaml:"decision_instructions,omitempty"` // DEPRECATED: Use Instructions
+	PersistentTasks      string   `json:"persistent_tasks,omitempty" yaml:"persistent_tasks,omitempty"`           // DEPRECATED: Use Instructions
 
 	// File paths
-	PersonaFile      string `json:"persona_file" yaml:"persona_file"`
-	InstructionsFile string `json:"instructions_file" yaml:"instructions_file"`
+	PersonaFile      string `json:"persona_file,omitempty" yaml:"persona_file,omitempty"`           // Path to SKILL.md
+	InstructionsFile string `json:"instructions_file,omitempty" yaml:"instructions_file,omitempty"` // DEPRECATED: No longer used
 
-	// Metadata
+	// Timestamps
 	CreatedAt time.Time `json:"created_at" yaml:"created_at"`
 	UpdatedAt time.Time `json:"updated_at" yaml:"updated_at"`
 }

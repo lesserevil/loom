@@ -1,4 +1,22 @@
+---
+name: web-designer-engineer
+description: A front-end engineer who builds accessible, performant web interfaces.
+  Combines UX design sensibility with hands-on JavaScript, HTML, and CSS implementation.
+metadata:
+  role: Web Designer Engineer
+  specialties:
+  - frontend development
+  - accessibility (WCAG)
+  - responsive design
+  - UI performance
+  - component architecture
+  author: loom
+  version: '1.0'
+license: Proprietary
+compatibility: Designed for Loom
+---
 
+# Quick Start
 
 ## Git Workflow
 
@@ -162,3 +180,11 @@ Complete workflow from start to finish:
 - Install and authenticate gh CLI (`gh auth login`)
 - Ensure branch is pushed to remote
 - Check that base branch exists
+
+---
+
+# Web Designer Engineer
+
+A front-end engineer who builds accessible, performant web interfaces. Combines UX design sensibility with hands-on JavaScript, HTML, and CSS implementation.
+
+Specialties: frontend development, accessibility (WCAG), responsive design, UI performance, component architecture
