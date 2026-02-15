@@ -327,7 +327,7 @@ func (m *mockDatabase) GetWorkflowExecution(id string) (*WorkflowExecution, erro
 func (m *mockDatabase) GetWorkflowExecutionByBeadID(beadID string) (*WorkflowExecution, error) {
 	exec, ok := m.beadExecutions[beadID]
 	if !ok {
-		return nil, &workflowError{msg: "execution not found for bead"}
+		return nil, nil // No execution found, but not an error
 	}
 	return exec, nil
 }
@@ -495,6 +495,154 @@ func TestAdvanceWorkflow_SetsRedispatchFlag(t *testing.T) {
 
 	if ctx["workflow_status"] != string(ExecutionStatusCompleted) {
 		t.Errorf("Expected workflow_status = %q, got %q", ExecutionStatusCompleted, ctx["workflow_status"])
+	}
+}
+
+// TestStartWorkflow_Validation tests input validation for StartWorkflow
+func TestStartWorkflow_Validation(t *testing.T) {
+	tests := []struct {
+		name        string
+		beadID      string
+		workflowID  string
+		projectID   string
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name:        "empty beadID",
+			beadID:      "",
+			workflowID:  "wf-test",
+			projectID:   "proj-1",
+			expectError: true,
+			errorMsg:    "beadID cannot be empty",
+		},
+		{
+			name:        "empty workflowID",
+			beadID:      "bead-1",
+			workflowID:  "",
+			projectID:   "proj-1",
+			expectError: true,
+			errorMsg:    "workflowID cannot be empty",
+		},
+		{
+			name:        "empty projectID",
+			beadID:      "bead-1",
+			workflowID:  "wf-test",
+			projectID:   "",
+			expectError: true,
+			errorMsg:    "projectID cannot be empty",
+		},
+		{
+			name:        "all parameters empty",
+			beadID:      "",
+			workflowID:  "",
+			projectID:   "",
+			expectError: true,
+			errorMsg:    "beadID cannot be empty",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			db := newMockDatabase()
+			beads := newMockBeadManager()
+			engine := NewEngine(db, beads)
+
+			exec, err := engine.StartWorkflow(tt.beadID, tt.workflowID, tt.projectID)
+
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("Expected error %q, got nil", tt.errorMsg)
+				} else if err.Error() != tt.errorMsg {
+					t.Errorf("Expected error %q, got %q", tt.errorMsg, err.Error())
+				}
+				if exec != nil {
+					t.Errorf("Expected nil execution, got %v", exec)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Expected no error, got %v", err)
+				}
+				if exec == nil {
+					t.Error("Expected execution, got nil")
+				}
+			}
+		})
+	}
+}
+
+// TestStartWorkflow_Success tests successful workflow start
+func TestStartWorkflow_Success(t *testing.T) {
+	db := newMockDatabase()
+	beads := newMockBeadManager()
+	engine := NewEngine(db, beads)
+
+	// Create test workflow
+	workflow := &Workflow{
+		ID:           "wf-test",
+		Name:         "Test Workflow",
+		WorkflowType: "test",
+		ProjectID:    "proj-1",
+	}
+	db.workflows["wf-test"] = workflow
+
+	// Start workflow
+	exec, err := engine.StartWorkflow("bead-1", "wf-test", "proj-1")
+	if err != nil {
+		t.Fatalf("StartWorkflow() error = %v", err)
+	}
+
+	if exec == nil {
+		t.Fatal("Expected execution, got nil")
+	}
+
+	if exec.BeadID != "bead-1" {
+		t.Errorf("Expected BeadID = %q, got %q", "bead-1", exec.BeadID)
+	}
+
+	if exec.WorkflowID != "wf-test" {
+		t.Errorf("Expected WorkflowID = %q, got %q", "wf-test", exec.WorkflowID)
+	}
+
+	if exec.ProjectID != "proj-1" {
+		t.Errorf("Expected ProjectID = %q, got %q", "proj-1", exec.ProjectID)
+	}
+
+	if exec.Status != ExecutionStatusActive {
+		t.Errorf("Expected Status = %q, got %q", ExecutionStatusActive, exec.Status)
+	}
+
+	// Check bead was updated
+	beadUpdates := beads.beads["bead-1"]
+	if beadUpdates == nil {
+		t.Fatal("Expected bead updates, got nil")
+	}
+}
+
+// TestStartWorkflow_AlreadyExists tests that existing workflow is returned
+func TestStartWorkflow_AlreadyExists(t *testing.T) {
+	db := newMockDatabase()
+	beads := newMockBeadManager()
+	engine := NewEngine(db, beads)
+
+	// Create existing execution
+	existing := &WorkflowExecution{
+		ID:         "exec-existing",
+		WorkflowID: "wf-test",
+		BeadID:     "bead-1",
+		ProjectID:  "proj-1",
+		Status:     ExecutionStatusActive,
+	}
+	db.beadExecutions["bead-1"] = existing
+
+	// Try to start workflow again
+	exec, err := engine.StartWorkflow("bead-1", "wf-test", "proj-1")
+	if err != nil {
+		t.Fatalf("StartWorkflow() error = %v", err)
+	}
+
+	if exec.ID != "exec-existing" {
+		t.Errorf("Expected existing execution ID = %q, got %q", "exec-existing", exec.ID)
 	}
 }
 

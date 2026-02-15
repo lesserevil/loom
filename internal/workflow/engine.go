@@ -53,6 +53,17 @@ func (e *Engine) GetDatabase() Database {
 
 // StartWorkflow initiates a workflow for a bead
 func (e *Engine) StartWorkflow(beadID, workflowID, projectID string) (*WorkflowExecution, error) {
+	// Validate required parameters
+	if beadID == "" {
+		return nil, fmt.Errorf("beadID cannot be empty")
+	}
+	if workflowID == "" {
+		return nil, fmt.Errorf("workflowID cannot be empty")
+	}
+	if projectID == "" {
+		return nil, fmt.Errorf("projectID cannot be empty")
+	}
+
 	// Check if execution already exists
 	existing, err := e.db.GetWorkflowExecutionByBeadID(beadID)
 	if err != nil {
