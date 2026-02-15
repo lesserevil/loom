@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"strings"
 
@@ -209,6 +210,83 @@ func (s *Server) handleBeadWorkflow(w http.ResponseWriter, r *http.Request) {
 		"execution":    execution,
 		"current_node": currentNode,
 		"history":      history,
+	}); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
+}
+
+// StartWorkflowRequest represents a request to start a workflow
+type StartWorkflowRequest struct {
+	BeadID     string `json:"bead_id"`
+	WorkflowID string `json:"workflow_id"`
+	ProjectID  string `json:"project_id"`
+}
+
+// handleWorkflowStart handles POST /api/v1/workflows/start - start a workflow execution
+func (s *Server) handleWorkflowStart(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Parse request body
+	var req StartWorkflowRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Validate required fields
+	if req.BeadID == "" {
+		http.Error(w, "bead_id is required", http.StatusBadRequest)
+		return
+	}
+	if req.WorkflowID == "" {
+		http.Error(w, "workflow_id is required", http.StatusBadRequest)
+		return
+	}
+	if req.ProjectID == "" {
+		http.Error(w, "project_id is required", http.StatusBadRequest)
+		return
+	}
+
+	// Get workflow engine
+	engine := s.app.GetWorkflowEngine()
+	if engine == nil {
+		http.Error(w, "Workflow engine not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	// Start workflow
+	execution, err := engine.StartWorkflow(req.BeadID, req.WorkflowID, req.ProjectID)
+	if err != nil {
+		http.Error(w, "Failed to start workflow: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Automatically advance to first node with "success" condition
+	// This moves the workflow from start ("") to the first node
+	if err := engine.AdvanceWorkflow(execution.ID, workflow.EdgeConditionSuccess, "api", nil); err != nil {
+		log.Printf("[Workflow API] Warning: failed to advance to first node: %v", err)
+		// Don't fail the request - the workflow is created, just needs manual advancement
+	}
+
+	// Get updated execution after advancement
+	execution, err = engine.GetDatabase().GetWorkflowExecution(execution.ID)
+	if err != nil {
+		// Use original execution if we can't fetch updated one
+		log.Printf("[Workflow API] Warning: failed to fetch updated execution: %v", err)
+	}
+
+	// Return execution details
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
+		"message":    "Workflow started successfully",
+		"execution":  execution,
+		"bead_id":    req.BeadID,
+		"workflow_id": req.WorkflowID,
+		"project_id": req.ProjectID,
 	}); err != nil {
 		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 	}

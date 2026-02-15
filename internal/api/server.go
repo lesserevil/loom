@@ -324,6 +324,7 @@ func (s *Server) SetupRoutes() http.Handler {
 
 	// Workflows (Phase 4 & 5)
 	mux.HandleFunc("/api/v1/workflows", s.handleWorkflows)
+	mux.HandleFunc("/api/v1/workflows/start", s.handleWorkflowStart)
 	mux.HandleFunc("/api/v1/workflows/", s.handleWorkflow)
 	mux.HandleFunc("/api/v1/workflows/executions", s.handleWorkflowExecutions)
 	mux.HandleFunc("/api/v1/workflows/analytics", s.handleWorkflowAnalytics)

@@ -4,7 +4,7 @@ FROM golang:1.25-alpine AS builder
 ARG GITHUB_TOKEN
 
 # Install build dependencies (including gcc for CGO/sqlite3 and icu-dev for beads)
-RUN apk add --no-cache git ca-certificates tzdata gcc g++ musl-dev openssh-client icu-dev
+RUN apk add --no-cache git ca-certificates tzdata gcc g++ musl-dev openssh-client icu-dev wget
 
 # Set working directory
 WORKDIR /build
@@ -16,12 +16,13 @@ COPY go.sum ./
 # Download dependencies
 RUN go mod download
 
-# Install bd CLI for bead operations (build from source due to replace directives)
-# Temporarily disabled due to import cycle errors in upstream beads repo (Feb 15, 2026)
-# RUN git clone --depth 1 https://github.com/steveyegge/beads.git /tmp/beads && \
-#     cd /tmp/beads && \
-#     CGO_ENABLED=1 go build -o /go/bin/bd ./cmd/bd && \
-#     rm -rf /tmp/beads
+# Install bd CLI for bead operations (download pre-built v0.50.3)
+# Using pre-built binary instead of building from source to avoid import cycle errors
+RUN wget -q https://github.com/steveyegge/beads/releases/download/v0.50.3/beads_0.50.3_linux_amd64.tar.gz && \
+    tar -xzf beads_0.50.3_linux_amd64.tar.gz && \
+    mv bd /go/bin/bd && \
+    chmod +x /go/bin/bd && \
+    rm -f beads_0.50.3_linux_amd64.tar.gz
 
 # Install Dolt binary for version-controlled beads backend
 RUN if [ -n "$GITHUB_TOKEN" ]; then \
@@ -45,8 +46,8 @@ RUN CGO_ENABLED=1 GOOS=linux go build \
 # Runtime stage
 FROM alpine:latest
 
-# Install runtime dependencies including git and openssh for git operations
-RUN apk add --no-cache ca-certificates tzdata git openssh-client
+# Install runtime dependencies including git, openssh, and wget for git operations
+RUN apk add --no-cache ca-certificates tzdata git openssh-client wget
 
 # Create non-root user
 RUN addgroup -g 1000 loom && \
@@ -58,9 +59,8 @@ WORKDIR /app
 # Copy binary from builder
 COPY --from=builder /build/loom /app/loom
 
-# Copy bd CLI
-# Temporarily disabled (Feb 15, 2026) - bd build failing with import cycles
-# COPY --from=builder /go/bin/bd /usr/local/bin/bd
+# Copy bd CLI (v0.50.3 pre-built binary)
+COPY --from=builder /go/bin/bd /usr/local/bin/bd
 
 # Copy dolt binary for version-controlled beads backend
 COPY --from=builder /go/bin/dolt /usr/local/bin/dolt
