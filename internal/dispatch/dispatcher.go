@@ -1288,7 +1288,16 @@ func (d *Dispatcher) ensureBeadHasWorkflow(ctx context.Context, bead *models.Bea
 		return nil, err
 	}
 
-	log.Printf("[Workflow] Started workflow %s for bead %s", workflows[0].Name, bead.ID)
+	// Automatically advance to first node
+	if err := d.workflowEngine.AdvanceWorkflow(execution.ID, workflow.EdgeConditionSuccess, "dispatcher", nil); err != nil {
+		log.Printf("[Workflow] Warning: failed to advance bead %s to first node: %v", bead.ID, err)
+		// Don't fail - the workflow is created, just needs manual advancement
+	} else {
+		// Refresh execution to get updated current node
+		execution, _ = d.workflowEngine.GetDatabase().GetWorkflowExecution(execution.ID)
+	}
+
+	log.Printf("[Workflow] Started workflow %s for bead %s at node %s", workflows[0].Name, bead.ID, execution.CurrentNodeKey)
 	return execution, nil
 }
 
