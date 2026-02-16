@@ -311,6 +311,7 @@ func New(cfg *config.Config) (*Loom, error) {
 		Logger:    arb,
 		Workflow:  arb,
 		BeadType:  "task",
+		BeadReader: arb,
 		DefaultP0: true,
 	}
 	arb.actionRouter = actionRouter
@@ -3475,4 +3476,23 @@ func (a *Loom) attachProviderToPausedAgents(ctx context.Context, providerID stri
 		log.Printf("Provider %s: attached to %d agent(s), updated status for %d agent(s), skipped %d agent(s)",
 			providerID, attachedCount, updatedCount, skippedCount)
 	}
+}
+
+// GetBead retrieves a bead by ID (implements actions.BeadReader interface)
+func (a *Loom) GetBead(beadID string) (*models.Bead, error) {
+	return a.beadsManager.GetBead(beadID)
+}
+
+// GetBeadConversation retrieves a bead's conversation history (implements actions.BeadReader interface)
+func (a *Loom) GetBeadConversation(beadID string) ([]models.ChatMessage, error) {
+	if a.database == nil {
+		return nil, fmt.Errorf("database not configured")
+	}
+
+	ctx, err := a.database.GetConversationContextByBeadID(beadID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get conversation: %w", err)
+	}
+
+	return ctx.Messages, nil
 }
