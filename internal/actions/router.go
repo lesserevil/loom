@@ -89,6 +89,11 @@ type MessageSender interface {
 	FindAgentByRole(ctx context.Context, role string) (string, error)
 }
 
+type BeadReader interface {
+	GetBead(beadID string) (*models.Bead, error)
+	GetBeadConversation(beadID string) ([]models.ChatMessage, error)
+}
+
 type ActionContext struct {
 	AgentID   string
 	BeadID    string
@@ -116,9 +121,10 @@ type Router struct {
 	Workflow     WorkflowOperator
 	LSP          LSPOperator
 	MessageBus   MessageSender
+	BeadReader   BeadReader
 	BeadType     string
 	BeadTags     []string
-	DefaultP0 bool
+	DefaultP0    bool
 }
 
 func (r *Router) Execute(ctx context.Context, env *ActionEnvelope, actx ActionContext) ([]Result, error) {
@@ -959,6 +965,12 @@ func (r *Router) executeAction(ctx context.Context, action Action, actx ActionCo
 	case ActionDelegateTask:
 		return r.handleDelegateTask(ctx, action, actx)
 
+	case ActionReadBeadConversation:
+		return r.handleReadBeadConversation(ctx, action, actx)
+
+	case ActionReadBeadContext:
+		return r.handleReadBeadContext(ctx, action, actx)
+
 	default:
 		return Result{ActionType: action.Type, Status: "error", Message: "unsupported action"}
 	}
@@ -1367,6 +1379,86 @@ func (r *Router) handleDelegateTask(ctx context.Context, action Action, actx Act
 			"delegate_to_role": action.DelegateToRole,
 			"task_title":       action.TaskTitle,
 			"task_priority":    priority,
+		},
+	}
+}
+
+func (r *Router) handleReadBeadConversation(ctx context.Context, action Action, actx ActionContext) Result {
+	if r.BeadReader == nil {
+		return Result{ActionType: action.Type, Status: "error", Message: "bead reader not configured"}
+	}
+
+	if action.BeadID == "" {
+		return Result{ActionType: action.Type, Status: "error", Message: "bead_id is required"}
+	}
+
+	conversation, err := r.BeadReader.GetBeadConversation(action.BeadID)
+	if err != nil {
+		return Result{ActionType: action.Type, Status: "error", Message: fmt.Sprintf("failed to read conversation: %v", err)}
+	}
+
+	// Limit messages if requested
+	messages := conversation
+	if action.MaxMessages > 0 && len(messages) > action.MaxMessages {
+		messages = messages[len(messages)-action.MaxMessages:]
+	}
+
+	// Convert to simple format for the agent
+	var conversationText strings.Builder
+	conversationText.WriteString(fmt.Sprintf("## Conversation for Bead %s\n\n", action.BeadID))
+	conversationText.WriteString(fmt.Sprintf("Total messages: %d\n\n", len(conversation)))
+
+	for i, msg := range messages {
+		conversationText.WriteString(fmt.Sprintf("### Message %d (%s)\n", i+1, msg.Role))
+		if !msg.Timestamp.IsZero() {
+			conversationText.WriteString(fmt.Sprintf("Time: %s\n", msg.Timestamp.Format("2006-01-02 15:04:05")))
+		}
+		conversationText.WriteString(fmt.Sprintf("\n%s\n\n", msg.Content))
+	}
+
+	return Result{
+		ActionType: action.Type,
+		Status:     "executed",
+		Message:    fmt.Sprintf("read %d messages from bead %s", len(messages), action.BeadID),
+		Metadata: map[string]interface{}{
+			"bead_id":        action.BeadID,
+			"message_count":  len(messages),
+			"total_messages": len(conversation),
+			"conversation":   conversationText.String(),
+		},
+	}
+}
+
+func (r *Router) handleReadBeadContext(ctx context.Context, action Action, actx ActionContext) Result {
+	if r.BeadReader == nil {
+		return Result{ActionType: action.Type, Status: "error", Message: "bead reader not configured"}
+	}
+
+	if action.BeadID == "" {
+		return Result{ActionType: action.Type, Status: "error", Message: "bead_id is required"}
+	}
+
+	bead, err := r.BeadReader.GetBead(action.BeadID)
+	if err != nil {
+		return Result{ActionType: action.Type, Status: "error", Message: fmt.Sprintf("failed to read bead: %v", err)}
+	}
+
+	return Result{
+		ActionType: action.Type,
+		Status:     "executed",
+		Message:    fmt.Sprintf("read bead %s context", action.BeadID),
+		Metadata: map[string]interface{}{
+			"bead_id":     bead.ID,
+			"title":       bead.Title,
+			"description": bead.Description,
+			"status":      bead.Status,
+			"priority":    bead.Priority,
+			"type":        bead.Type,
+			"project_id":  bead.ProjectID,
+			"assigned_to": bead.AssignedTo,
+			"context":     bead.Context,
+			"created_at":  bead.CreatedAt,
+			"updated_at":  bead.UpdatedAt,
 		},
 	}
 }

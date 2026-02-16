@@ -83,6 +83,10 @@ const (
 	// Agent communication actions
 	ActionSendAgentMessage = "send_agent_message"
 	ActionDelegateTask     = "delegate_task"
+
+	// Remediation/meta-analysis actions
+	ActionReadBeadConversation = "read_bead_conversation"
+	ActionReadBeadContext      = "read_bead_context"
 )
 
 type ActionEnvelope struct {
@@ -176,6 +180,11 @@ type Action struct {
 	CommentBody    string   `json:"comment_body,omitempty"`     // Comment text for add_pr_comment
 	CommentPath    string   `json:"comment_path,omitempty"`     // File path for inline comment
 	CommentLine    int      `json:"comment_line,omitempty"`     // Line number for inline comment
+
+	// Remediation/meta-analysis fields
+	BeadID          string `json:"bead_id,omitempty"`           // Bead ID to read conversation/context from
+	IncludeMetadata bool   `json:"include_metadata,omitempty"`  // Include metadata in response
+	MaxMessages     int    `json:"max_messages,omitempty"`      // Maximum number of messages to return
 	CommentSide    string   `json:"comment_side,omitempty"`     // Side for inline comment (LEFT, RIGHT)
 	ReviewEvent    string   `json:"review_event,omitempty"`     // Review event (APPROVE, REQUEST_CHANGES, COMMENT)
 	Reviewer       string   `json:"reviewer,omitempty"`         // Reviewer for request_review
@@ -197,7 +206,6 @@ type Action struct {
 
 	Bead *BeadPayload `json:"bead,omitempty"`
 
-	BeadID     string `json:"bead_id,omitempty"`
 	Reason     string `json:"reason,omitempty"`     // Reason for bead operations or phase transitions
 	ReturnedTo string `json:"returned_to,omitempty"`
 }
