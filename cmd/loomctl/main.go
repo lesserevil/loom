@@ -139,6 +139,7 @@ func newBeadCommand() *cobra.Command {
 	cmd.AddCommand(newBeadCreateCommand())
 	cmd.AddCommand(newBeadShowCommand())
 	cmd.AddCommand(newBeadClaimCommand())
+	cmd.AddCommand(newBeadPokeCommand())
 
 	return cmd
 }
@@ -366,6 +367,54 @@ func newBeadClaimCommand() *cobra.Command {
 
 	cmd.Flags().StringVarP(&agentID, "agent", "a", "", "Agent ID (required)")
 	cmd.MarkFlagRequired("agent")
+
+	return cmd
+}
+
+func newBeadPokeCommand() *cobra.Command {
+	var reason string
+
+	cmd := &cobra.Command{
+		Use:   "poke <bead-id>",
+		Short: "Poke a stuck bead back into action",
+		Long:  "Reset a bead to open status and flag it for redispatch, causing the dispatcher to pick it up on the next cycle",
+		Args:  cobra.ExactArgs(1),
+		Example: `  loomctl bead poke loom-001
+  loomctl bead poke loom-001 --reason="autonomy fixes deployed, retrying"`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client := newClient()
+
+			data := map[string]interface{}{}
+			if reason != "" {
+				data["reason"] = reason
+			}
+
+			respData, err := client.post(fmt.Sprintf("/api/v1/beads/%s/redispatch", args[0]), data)
+			if err != nil {
+				return err
+			}
+
+			if outputFormat == "json" {
+				fmt.Println(string(respData))
+				return nil
+			}
+
+			var bead map[string]interface{}
+			if err := json.Unmarshal(respData, &bead); err != nil {
+				fmt.Printf("Poked bead %s\n", args[0])
+				return nil
+			}
+
+			fmt.Printf("Poked bead %s -> status: %s\n", args[0], getString(bead, "status"))
+			if reason != "" {
+				fmt.Printf("Reason: %s\n", reason)
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVarP(&reason, "reason", "r", "", "Reason for poking the bead")
 
 	return cmd
 }
