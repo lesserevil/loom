@@ -5,7 +5,8 @@ set -e
 # Starts Dolt SQL server for beads backend, then starts loom
 # Runs as PID 1 and reaps child processes.
 
-BEADS_DIR="/app/data/projects/loom-self/.beads"
+# For loom-self project with git_repo: "." (current directory /app)
+BEADS_DIR="/app/.beads"
 BEADS_DOLT_DIR="$BEADS_DIR/dolt"
 DOLT_PORT="${DOLT_PORT:-3307}"
 SCHEMA_SQL="/app/scripts/beads-schema.sql"
@@ -78,7 +79,7 @@ METAJSON
                     echo "[entrypoint] Beads schema created"
                     if [ -f "$BEADS_DIR/issues.jsonl" ]; then
                         echo "[entrypoint] Importing beads from JSONL..."
-                        cd /app/data/projects/loom-self
+                        cd /app
                         bd sync --import-only 2>&1 || \
                             echo "[entrypoint] Warning: JSONL import had errors"
                         cd "$BEADS_DOLT_DIR"
