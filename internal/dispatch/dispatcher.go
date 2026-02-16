@@ -343,6 +343,7 @@ func (d *Dispatcher) DispatchOnce(ctx context.Context, projectID string) (*Dispa
 	}
 
 	log.Printf("[Dispatcher] GetReadyBeads returned %d beads for project %s", len(ready), projectID)
+	os.WriteFile("/tmp/dispatch-ready-beads.txt", []byte(fmt.Sprintf("ready=%d project=%s\n", len(ready), projectID)), 0644)
 
 	sort.SliceStable(ready, func(i, j int) bool {
 		if ready[i] == nil {
@@ -391,6 +392,7 @@ func (d *Dispatcher) DispatchOnce(ctx context.Context, projectID string) (*Dispa
 		filteredAgents = append(filteredAgents, candidateAgent)
 	}
 	idleAgents = filteredAgents
+	os.WriteFile("/tmp/dispatch-idle-agents.txt", []byte(fmt.Sprintf("idle=%d\n", len(idleAgents))), 0644)
 	idleByID := make(map[string]*models.Agent, len(idleAgents))
 	for _, a := range idleAgents {
 		if a != nil {
@@ -586,7 +588,9 @@ func (d *Dispatcher) DispatchOnce(ctx context.Context, projectID string) (*Dispa
 				log.Printf("[Workflow] Error ensuring workflow for bead %s: %v", b.ID, err)
 			} else if execution != nil {
 				// Check for timeout before processing
-				if !d.workflowEngine.IsNodeReady(execution) {
+				isReady := d.workflowEngine.IsNodeReady(execution)
+				os.WriteFile("/tmp/dispatch-workflow-check.txt", []byte(fmt.Sprintf("bead=%s execution_id=%s current_node=%s status=%s is_ready=%v\n", b.ID, execution.ID, execution.CurrentNodeKey, execution.Status, isReady)), 0644)
+				if !isReady {
 					skippedReasons["workflow_node_not_ready"]++
 					log.Printf("[Workflow] Bead %s workflow node not ready (may have timed out)", b.ID)
 					continue
@@ -662,7 +666,9 @@ func (d *Dispatcher) DispatchOnce(ctx context.Context, projectID string) (*Dispa
 	}
 
 	if candidate == nil {
-		log.Printf("[Dispatcher] No dispatchable beads found (ready: %d, idle agents: %d)", len(ready), len(idleAgents))
+		reasonsJSON, _ := json.Marshal(skippedReasons)
+		log.Printf("[Dispatcher] No dispatchable beads found (ready: %d, idle agents: %d, skipped: %s)", len(ready), len(idleAgents), string(reasonsJSON))
+		os.WriteFile("/tmp/dispatch-no-candidate.txt", []byte(fmt.Sprintf("ready=%d idle=%d skipped=%s\n", len(ready), len(idleAgents), string(reasonsJSON))), 0644)
 		d.setStatus(StatusParked, "no dispatchable beads")
 		return &DispatchResult{Dispatched: false, ProjectID: projectID}, nil
 	}
