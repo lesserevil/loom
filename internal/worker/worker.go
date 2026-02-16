@@ -572,9 +572,10 @@ type LoopConfig struct {
 // LoopResult contains the result of a multi-turn action loop.
 type LoopResult struct {
 	*TaskResult
-	Iterations     int              `json:"iterations"`
-	TerminalReason string           `json:"terminal_reason"` // "completed", "max_iterations", "escalated", "error", "no_actions", "parse_failures"
-	ActionLog      []ActionLogEntry `json:"action_log"`
+	Iterations     int                    `json:"iterations"`
+	TerminalReason string                 `json:"terminal_reason"` // "completed", "max_iterations", "escalated", "error", "no_actions", "parse_failures", "progress_stagnant"
+	ActionLog      []ActionLogEntry       `json:"action_log"`
+	Metadata       map[string]interface{} `json:"metadata,omitempty"` // For progress metrics and remediation analysis
 }
 
 // ActionLogEntry records a single iteration of the action loop.
@@ -713,7 +714,8 @@ func (w *Worker) ExecuteTaskWithLoop(ctx context.Context, task *Task, config *Lo
 	var allActions []actions.Result
 	consecutiveParseFailures := 0
 	consecutiveValidationFailures := 0
-	actionHashes := make(map[string]int) // for inner loop detection
+	actionHashes := make(map[string]int)     // for inner loop detection
+	actionTypeCount := make(map[string]int) // for progress stagnation detection
 
 	for iteration := 0; iteration < maxIter; iteration++ {
 		select {
@@ -873,6 +875,11 @@ func (w *Worker) ExecuteTaskWithLoop(ctx context.Context, task *Task, config *Lo
 		allActions = append(allActions, results...)
 		tracker.Update(iteration+1, results)
 
+		// Track action types for progress stagnation detection
+		for _, act := range env.Actions {
+			actionTypeCount[act.Type]++
+		}
+
 		// Log the iteration
 		loopResult.ActionLog = append(loopResult.ActionLog, ActionLogEntry{
 			Iteration: iteration + 1,
@@ -921,6 +928,28 @@ func (w *Worker) ExecuteTaskWithLoop(ctx context.Context, task *Task, config *Lo
 		}
 		if actionHashes[hash] >= 5 {
 			log.Printf("[ActionLoop] Warning: same actions repeated %d times (hash %s)", actionHashes[hash], hash[:8])
+		}
+
+		// Progress stagnation detection: check if agent is looping without making meaningful progress
+		if stagnant, reason := tracker.IsProgressStagnant(iteration+1, actionTypeCount); stagnant {
+			loopResult.TerminalReason = "progress_stagnant"
+			loopResult.Iterations = iteration + 1
+			loopResult.Actions = allActions
+			loopResult.Success = false
+			loopResult.Error = fmt.Sprintf("agent making no meaningful progress: %s", reason)
+			loopResult.CompletedAt = time.Now()
+
+			log.Printf("[ActionLoop] Progress stagnant for task %s: %s", task.ID, reason)
+
+			// Store progress metrics for remediation analysis
+			if loopResult.Metadata == nil {
+				loopResult.Metadata = make(map[string]interface{})
+			}
+			loopResult.Metadata["progress_metrics"] = tracker.GetProgressMetrics()
+			loopResult.Metadata["stagnation_reason"] = reason
+			loopResult.Metadata["action_type_counts"] = actionTypeCount
+
+			return loopResult, nil
 		}
 
 		// Format results as user message, prepended with progress summary

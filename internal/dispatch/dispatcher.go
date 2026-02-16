@@ -927,6 +927,15 @@ func (d *Dispatcher) DispatchOnce(ctx context.Context, projectID string) (*Dispa
 		switch result.LoopTerminalReason {
 		case "parse_failures", "validation_failures", "error":
 			ctxUpdates["last_failed_at"] = time.Now().UTC().Format(time.RFC3339)
+		case "progress_stagnant", "inner_loop":
+			// Agent is stuck - trigger remediation
+			ctxUpdates["last_failed_at"] = time.Now().UTC().Format(time.RFC3339)
+			ctxUpdates["remediation_needed"] = "true"
+			ctxUpdates["remediation_requested_at"] = time.Now().UTC().Format(time.RFC3339)
+			log.Printf("[Dispatcher] Agent stuck on bead %s (reason: %s), remediation needed", candidate.ID, result.LoopTerminalReason)
+
+			// Create remediation bead to analyze and fix the blocker
+			go d.createRemediationBead(candidate, ag, result)
 		}
 	}
 
@@ -1494,4 +1503,164 @@ func (d *Dispatcher) findDefaultTriageAgent(projectID string) string {
 		}
 	}
 	return ""
+}
+
+// createRemediationBead creates a P0 remediation bead when an agent gets stuck
+func (d *Dispatcher) createRemediationBead(stuckBead *models.Bead, stuckAgent *models.Agent, result *worker.TaskResult) {
+	if d.beads == nil {
+		log.Printf("[Remediation] Cannot create remediation bead: beads manager not available")
+		return
+	}
+
+	// Extract progress metrics if available
+	var progressMetrics string
+	var stagnationReason string
+	var actionTypeCounts string
+
+	// Try to extract metadata from result (which might be a LoopResult)
+	if loopResult, ok := interface{}(result).(*worker.LoopResult); ok && loopResult.Metadata != nil {
+		if metrics, exists := loopResult.Metadata["progress_metrics"]; exists {
+			if metricsJSON, err := json.MarshalIndent(metrics, "  ", "  "); err == nil {
+				progressMetrics = string(metricsJSON)
+			}
+		}
+		if reason, exists := loopResult.Metadata["stagnation_reason"]; exists {
+			stagnationReason = fmt.Sprintf("%v", reason)
+		}
+		if counts, exists := loopResult.Metadata["action_type_counts"]; exists {
+			if countsJSON, err := json.MarshalIndent(counts, "  ", "  "); err == nil {
+				actionTypeCounts = string(countsJSON)
+			}
+		}
+	}
+
+	// Build comprehensive description for remediation agent
+	description := fmt.Sprintf(`## Remediation Request: Agent Stuck on Bead %s
+
+**Stuck Pattern Detected:** %s
+**Reason:** %s
+
+### Stuck Agent Details
+- Agent ID: %s
+- Agent Name: %s
+- Agent Role: %s
+- Persona: %s
+
+### Stuck Bead Details
+- Bead ID: %s
+- Title: %s
+- Status: %s
+- Priority: %s
+- Iterations: %d
+- Terminal Reason: %s
+
+### Progress Analysis
+%s
+
+### Action Type Distribution
+%s
+
+### Last Agent Output
+%s
+
+### Task for Remediation Specialist
+
+You are a meta-level debugging specialist. Your task is to:
+
+1. **Analyze** the stuck agent's conversation history (bead %s)
+2. **Diagnose** the root cause:
+   - Is the agent blind to output? (missing data in action results)
+   - Is the persona instruction unclear or misleading?
+   - Is there a bug in an action handler?
+   - Is a required capability missing?
+   - Is the task itself ill-defined?
+
+3. **Fix** the blocker:
+   - Modify code if there's a bug
+   - Update persona if instructions are unclear
+   - Add missing capabilities if needed
+   - Improve feedback/error messages
+   - Clarify task description if needed
+
+4. **Verify** the fix prevents future occurrences
+
+Work singlemindedly until the blocker is resolved. You have full access to:
+- Read the stuck agent's conversation history
+- Modify code, personas, and configuration
+- Test fixes before deploying
+- Create follow-up remediation beads if needed
+
+**Priority:** This is blocking agent progress. Fix it as quickly as possible.
+`,
+		stuckBead.ID,
+		result.LoopTerminalReason,
+		stagnationReason,
+		stuckAgent.ID,
+		stuckAgent.Name,
+		stuckAgent.Role,
+		stuckAgent.PersonaName,
+		stuckBead.ID,
+		stuckBead.Title,
+		stuckBead.Status,
+		stuckBead.Priority,
+		result.LoopIterations,
+		result.LoopTerminalReason,
+		progressMetrics,
+		actionTypeCounts,
+		truncateString(result.Response, 500),
+		stuckBead.ID,
+	)
+
+	// Create remediation bead using the manager's CreateBead method
+	title := fmt.Sprintf("Remediation: Fix agent stuck on %s", stuckBead.ID)
+	remediationBead, err := d.beads.CreateBead(
+		title,
+		description,
+		models.BeadPriorityP0, // Highest priority
+		"task",                // Remediation is a task
+		stuckBead.ProjectID,
+	)
+	if err != nil {
+		log.Printf("[Remediation] Failed to create remediation bead for %s: %v", stuckBead.ID, err)
+		return
+	}
+
+	// Update context with remediation metadata
+	contextUpdates := map[string]interface{}{
+		"context": map[string]string{
+			"remediation_for":         stuckBead.ID,
+			"stuck_agent_id":          stuckAgent.ID,
+			"stuck_terminal_reason":   result.LoopTerminalReason,
+			"stuck_iterations":        fmt.Sprintf("%d", result.LoopIterations),
+			"created_by":              "dispatcher_auto_remediation",
+			"requires_persona":        "remediation-specialist",
+		},
+	}
+	if err := d.beads.UpdateBead(remediationBead.ID, contextUpdates); err != nil {
+		log.Printf("[Remediation] Warning: Failed to update remediation bead context: %v", err)
+	}
+
+	log.Printf("[Remediation] Created remediation bead %s for stuck bead %s (reason: %s)",
+		remediationBead.ID, stuckBead.ID, result.LoopTerminalReason)
+
+	// Publish event if event bus available
+	if d.eventBus != nil {
+		_ = d.eventBus.PublishBeadEvent(
+			eventbus.EventTypeBeadCreated,
+			remediationBead.ID,
+			stuckBead.ProjectID,
+			map[string]interface{}{
+				"type":            "remediation",
+				"remediation_for": stuckBead.ID,
+				"priority":        "P0",
+			},
+		)
+	}
+}
+
+func truncateString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "... (truncated)"
 }

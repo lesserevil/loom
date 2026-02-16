@@ -139,3 +139,70 @@ func (pt *ProgressTracker) Summary(iteration int) string {
 
 	return sb.String()
 }
+
+// IsProgressStagnant detects if the agent is looping without making meaningful progress.
+// Returns true if the agent appears stuck, along with a reason.
+func (pt *ProgressTracker) IsProgressStagnant(iteration int, actionTypeCount map[string]int) (bool, string) {
+	// Not enough iterations to judge yet
+	if iteration < 15 {
+		return false, ""
+	}
+
+	// Check 1: No files written after significant iterations
+	if iteration > 20 && len(pt.filesWritten) == 0 {
+		return true, "no files modified after 20+ iterations"
+	}
+
+	// Check 2: Build/test status not improving
+	if iteration > 25 && pt.buildStatus == "fail" {
+		// Count how many build attempts
+		buildAttempts := actionTypeCount["build"]
+		if buildAttempts > 5 {
+			return true, fmt.Sprintf("build failing after %d attempts", buildAttempts)
+		}
+	}
+
+	// Check 3: Excessive reading without writing (analysis paralysis)
+	if len(pt.filesRead) > 15 && len(pt.filesWritten) == 0 {
+		return true, fmt.Sprintf("read %d files but wrote none", len(pt.filesRead))
+	}
+
+	// Check 4: Repeated test failures without fixes
+	if pt.testStatus == "fail" && actionTypeCount["test"] > 5 && len(pt.filesWritten) < 2 {
+		return true, "tests failing repeatedly without attempting fixes"
+	}
+
+	// Check 5: Same action type dominating (likely searching/reading same thing)
+	for actionType, count := range actionTypeCount {
+		if count > 15 && (actionType == "search" || actionType == "read" || actionType == "scope") {
+			return true, fmt.Sprintf("repeated %s action %d times", actionType, count)
+		}
+	}
+
+	return false, ""
+}
+
+// GetProgressMetrics returns metrics about agent progress for remediation analysis
+func (pt *ProgressTracker) GetProgressMetrics() map[string]interface{} {
+	return map[string]interface{}{
+		"files_read_count":    len(pt.filesRead),
+		"files_written_count": len(pt.filesWritten),
+		"build_status":        pt.buildStatus,
+		"test_status":         pt.testStatus,
+		"committed":           pt.committed,
+		"pushed":              pt.pushed,
+		"error_count":         pt.errorCount,
+		"beads_created":       pt.beadsCreated,
+		"beads_closed":        pt.beadsClosed,
+		"files_read":          keys(pt.filesRead),
+		"files_written":       keys(pt.filesWritten),
+	}
+}
+
+func keys(m map[string]bool) []string {
+	result := make([]string, 0, len(m))
+	for k := range m {
+		result = append(result, k)
+	}
+	return result
+}
