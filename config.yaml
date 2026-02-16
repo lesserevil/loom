@@ -22,8 +22,8 @@ beads:
   compact_old_days: 90  # Compact closed beads older than 90 days
   backend: dolt          # "sqlite" or "dolt"
   federation:
-    enabled: true
-    auto_sync: true
+    enabled: false
+    auto_sync: false
     sync_interval: 10m
     sync_strategy: ours
     sync_mode: dolt-native

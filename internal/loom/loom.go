@@ -393,6 +393,7 @@ func (a *Loom) setupProviderMetrics() {
 
 // Initialize sets up loom
 func (a *Loom) Initialize(ctx context.Context) error {
+	log.Printf("[Loom] DEBUG: Initialize started")
 	// Prefer database-backed configuration when available.
 	var projects []*models.Project
 	if a.database != nil {
@@ -532,6 +533,7 @@ func (a *Loom) Initialize(ctx context.Context) error {
 	}
 
 	// Load beads from registered projects.
+	log.Printf("[Loom] DEBUG: Starting project loop, %d projects", len(projectValues))
 	for i := range projectValues {
 		p := &projectValues[i]
 		if p.BeadsPath == "" {
@@ -696,6 +698,7 @@ func (a *Loom) Initialize(ctx context.Context) error {
 			}
 		} else {
 			// Local project (Loom itself), load beads directly
+			log.Printf("[Loom] DEBUG: Loading local project %s", p.ID)
 			cwd, _ := os.Getwd()
 			p.WorkDir = cwd
 			if mgdProject, _ := a.projectManager.GetProject(p.ID); mgdProject != nil {
@@ -709,6 +712,7 @@ func (a *Loom) Initialize(ctx context.Context) error {
 				a.beadsManager.SetProjectPrefix(p.ID, p.BeadPrefix)
 			}
 			_ = a.beadsManager.LoadBeadsFromFilesystem(p.ID, p.BeadsPath)
+			log.Printf("[Loom] DEBUG: Loaded beads from filesystem for project %s", p.ID)
 
 			// Start per-project Dolt instance for local projects too
 			if a.doltCoordinator != nil {
@@ -730,6 +734,7 @@ func (a *Loom) Initialize(ctx context.Context) error {
 	}
 
 	// Load providers from database into the in-memory registry.
+	log.Printf("[Loom] DEBUG: Loading providers from database")
 	if a.database != nil {
 		providers, err := a.database.ListProviders()
 		if err != nil {
@@ -804,6 +809,7 @@ func (a *Loom) Initialize(ctx context.Context) error {
 		}
 
 		// Restore agents from database (best-effort).
+		log.Printf("[Loom] DEBUG: Restoring agents from database")
 		storedAgents, err := a.database.ListAgents()
 		if err != nil {
 			return fmt.Errorf("failed to load agents: %w", err)
@@ -866,6 +872,7 @@ func (a *Loom) Initialize(ctx context.Context) error {
 	// Register dispatch activities and start the Temporal worker if configured.
 
 	// Start Temporal worker if configured
+	log.Printf("[Loom] DEBUG: Starting Temporal worker")
 	if a.temporalManager != nil {
 		a.temporalManager.RegisterActivity(temporalactivities.NewDispatchActivities(a.dispatcher))
 		a.temporalManager.RegisterActivity(temporalactivities.NewProviderActivities(a.providerRegistry, a.database, a.eventBus, a.modelCatalog, a.keyManager))
@@ -965,6 +972,7 @@ func (a *Loom) Initialize(ctx context.Context) error {
 		}
 	}
 
+	log.Printf("[Loom] DEBUG: Initialize completed successfully")
 	return nil
 }
 
