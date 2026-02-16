@@ -229,23 +229,25 @@ func deriveRoleFromPersonaName(personaName string) string {
 
 	// Mapping from persona keywords to workflow roles
 	roleMap := map[string]string{
-		"qa":                  "QA",
-		"qa-engineer":         "QA",
-		"quality-assurance":   "QA",
-		"engineering-manager": "Engineering Manager",
-		"eng-manager":         "Engineering Manager",
-		"product-manager":     "Product Manager",
-		"pm":                  "Product Manager",
-		"web-designer":        "Web Designer",
-		"designer":            "Web Designer",
-		"backend-engineer":    "Backend Engineer",
-		"backend":             "Backend Engineer",
-		"frontend-engineer":   "Frontend Engineer",
-		"frontend":            "Frontend Engineer",
-		"code-reviewer":       "Code Reviewer",
-		"reviewer":            "Code Reviewer",
-		"ceo":                 "CEO",
-		"cto":                 "CEO", // CTO also maps to CEO for executive role
+		"qa":                     "QA",
+		"qa-engineer":            "QA",
+		"quality-assurance":      "QA",
+		"engineering-manager":    "Engineering Manager",
+		"eng-manager":            "Engineering Manager",
+		"product-manager":        "Product Manager",
+		"pm":                     "Product Manager",
+		"web-designer":           "Web Designer",
+		"designer":               "Web Designer",
+		"backend-engineer":       "Backend Engineer",
+		"backend":                "Backend Engineer",
+		"frontend-engineer":      "Frontend Engineer",
+		"frontend":               "Frontend Engineer",
+		"code-reviewer":          "Code Reviewer",
+		"reviewer":               "Code Reviewer",
+		"ceo":                    "CEO",
+		"cto":                    "CEO", // CTO also maps to CEO for executive role
+		"remediation-specialist": "Remediation Specialist",
+		"remediation":            "Remediation Specialist",
 	}
 
 	// Check for matches (most specific first)

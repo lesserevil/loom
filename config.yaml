@@ -41,6 +41,7 @@ agents:
     - code-reviewer
     - qa
     - devops-engineer
+    - remediation-specialist
 
 dispatch:
   max_hops: 20
