@@ -257,14 +257,15 @@ func New(cfg *config.Config) (*Loom, error) {
 	}
 
 	// Initialize Dolt coordinator for multi-reader/multi-writer bead management
+	// DISABLED: Let bd CLI manage Dolt in embedded mode to avoid lock conflicts
 	var doltCoord *beads.DoltCoordinator
-	if cfg.Beads.Backend == "dolt" {
-		masterProject := "loom-self"
-		if len(cfg.Projects) > 0 {
-			masterProject = cfg.Projects[0].ID
-		}
-		doltCoord = beads.NewDoltCoordinator(masterProject, cfg.Beads.BDPath, 3307)
-	}
+	// if cfg.Beads.Backend == "dolt" {
+	// 	masterProject := "loom-self"
+	// 	if len(cfg.Projects) > 0 {
+	// 		masterProject = cfg.Projects[0].ID
+	// 	}
+	// 	doltCoord = beads.NewDoltCoordinator(masterProject, cfg.Beads.BDPath, 3307)
+	// }
 
 	// Initialize OpenClaw messaging gateway client and bridge (nil when disabled).
 	ocClient := openclaw.NewClient(&cfg.OpenClaw)
