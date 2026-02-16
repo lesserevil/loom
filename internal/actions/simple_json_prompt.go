@@ -38,6 +38,10 @@ UNCOMMITTED WORK IS LOST. Always git_commit before done.
 {"action": "read", "path": "file.go"}                   — Read a file
 {"action": "search", "query": "pattern"}                 — Search for text in project
 
+### Meta-Analysis (Remediation)
+{"action": "read_bead_conversation", "bead_id": "loom-001"}        — Read another bead's conversation history
+{"action": "read_bead_context", "bead_id": "loom-001"}             — Read another bead's metadata and context
+
 ### Change
 {"action": "edit", "path": "file.go", "old": "exact text to find", "new": "replacement text"}
 {"action": "write", "path": "file.go", "content": "full file content"}
