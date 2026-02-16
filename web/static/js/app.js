@@ -5130,3 +5130,7 @@ document.addEventListener('click', function(event) {
         dropdown.style.display = 'none';
     }
 });
+
+// TEST BUG: Intentional error for self-healing workflow demonstration
+// This should be detected, auto-filed, investigated, and fixed by Loom agents
+testSelfHealingWorkflow();
