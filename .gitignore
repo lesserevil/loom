@@ -10,6 +10,8 @@
 bin/
 obj/
 /loom
+/loomctl
+cmd/loomctl/loomctl
 /agenticorp
 
 # Test binary, built with `go test -c`
