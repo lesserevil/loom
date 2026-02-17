@@ -28,6 +28,7 @@ const (
 	ActionGitDiff       = "git_diff"
 	ActionGitCommit       = "git_commit"
 	ActionGitPush         = "git_push"
+	ActionGitCheckpoint   = "git_checkpoint" // Checkpoint: commit WIP without closing bead
 	ActionCreatePR        = "create_pr"
 	ActionStartDev        = "start_development"
 	ActionWhatsNext       = "whats_next"
@@ -416,6 +417,8 @@ func validateAction(action Action) error {
 	case ActionGitCommit:
 		// commit_message is optional (auto-generated from bead context)
 		// All other fields optional
+	case ActionGitCheckpoint:
+		// checkpoint commits WIP without closing bead - no required fields
 	case ActionGitPush:
 		// branch is optional (uses current branch)
 		// set_upstream optional

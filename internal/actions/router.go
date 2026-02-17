@@ -384,6 +384,35 @@ func (r *Router) executeAction(ctx context.Context, action Action, actx ActionCo
 			Message:    "commit created",
 			Metadata:   result,
 		}
+	case ActionGitCheckpoint:
+		if r.Git == nil {
+			return Result{ActionType: action.Type, Status: "error", Message: "git operator not configured"}
+		}
+
+		// Create WIP checkpoint commit
+		message := action.CommitMessage
+		if message == "" {
+			// Auto-generate checkpoint message with [WIP] prefix
+			message = fmt.Sprintf("[WIP] Checkpoint commit\n\nBead: %s\nAgent: %s\n\nThis is a work-in-progress checkpoint commit to preserve incremental changes.\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>",
+				actx.BeadID, actx.AgentID)
+		} else {
+			// Ensure WIP prefix is present
+			if !strings.HasPrefix(message, "[WIP]") {
+				message = "[WIP] " + message
+			}
+		}
+
+		result, err := r.Git.Commit(ctx, actx.BeadID, actx.AgentID, message, action.Files, len(action.Files) == 0)
+		if err != nil {
+			return Result{ActionType: action.Type, Status: "error", Message: err.Error()}
+		}
+
+		return Result{
+			ActionType: action.Type,
+			Status:     "executed",
+			Message:    "checkpoint commit created (WIP)",
+			Metadata:   result,
+		}
 	case ActionGitPush:
 		if r.Git == nil {
 			return Result{ActionType: action.Type, Status: "error", Message: "git operator not configured"}

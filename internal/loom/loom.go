@@ -319,7 +319,7 @@ func New(cfg *config.Config) (*Loom, error) {
 
 	// Enable multi-turn action loop
 	agentMgr.SetActionLoopEnabled(true)
-	agentMgr.SetMaxLoopIterations(50) // Increased from 25 to 50 for self-healing workflow testing
+	agentMgr.SetMaxLoopIterations(100) // Increased to 100 to allow full development cycle (explore + plan + edit + build + test + commit)
 	if db != nil {
 		agentMgr.SetDatabase(db)
 		lessonsProvider := dispatch.NewLessonsProvider(db)

@@ -937,13 +937,30 @@ func (d *Dispatcher) DispatchOnce(ctx context.Context, projectID string) (*Dispa
 			ctxUpdates["redispatch_requested"] = "false"
 		}
 
-		// If the agent hit max_iterations, disable redispatch to prevent infinite loops
-		// The agent couldn't finish the work within the iteration limit, so continuing
-		// to redispatch will just waste resources. Instead, escalate or block the bead.
+		// If the agent hit max_iterations, allow ONE retry with fresh context
+		// The agent may have run out of time during exploration/editing phase
+		// Allowing one retry gives it a chance to commit work before losing progress
 		if result.LoopTerminalReason == "max_iterations" {
-			ctxUpdates["redispatch_requested"] = "false"
-			ctxUpdates["max_iterations_reached_at"] = time.Now().UTC().Format(time.RFC3339)
-			log.Printf("[Dispatcher] Bead %s hit max_iterations, disabling redispatch to prevent infinite loop", candidate.ID)
+			// Check if we've already retried once
+			maxIterRetries := 0
+			if candidate.Context != nil {
+				if retriesStr, ok := candidate.Context["max_iterations_retries"]; ok {
+					fmt.Sscanf(retriesStr, "%d", &maxIterRetries)
+				}
+			}
+
+			if maxIterRetries == 0 {
+				// First time hitting max_iterations - allow one retry
+				ctxUpdates["redispatch_requested"] = "true"
+				ctxUpdates["max_iterations_retries"] = "1"
+				ctxUpdates["max_iterations_reached_at"] = time.Now().UTC().Format(time.RFC3339)
+				log.Printf("[Dispatcher] Bead %s hit max_iterations (first time), allowing one retry", candidate.ID)
+			} else {
+				// Already retried - disable further redispatches to prevent infinite loops
+				ctxUpdates["redispatch_requested"] = "false"
+				ctxUpdates["max_iterations_retry_exhausted"] = "true"
+				log.Printf("[Dispatcher] Bead %s hit max_iterations again after retry, disabling redispatch", candidate.ID)
+			}
 		}
 
 		// On failure, set cooldown to prevent re-dispatching the same bead

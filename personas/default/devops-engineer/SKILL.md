@@ -70,6 +70,23 @@ Then:
 {"action": "done", "reason": "Fixed auth timeout, committed and pushed"}
 ```
 
+**4. Incremental Checkpoints (for long-running work):**
+
+For work spanning many iterations (>10), use checkpoint commits to preserve progress:
+```json
+{"action": "git_checkpoint", "notes": "Saving WIP after completing first phase"}
+```
+This creates a `[WIP]` commit without closing the bead. Continue working, then:
+```json
+{"action": "git_commit", "message": "feat: Complete deployment pipeline\n\nBead: bead-abc-123"}
+```
+```json
+{"action": "git_push"}
+```
+```json
+{"action": "done", "reason": "Pipeline complete, committed and pushed"}
+```
+
 ### Commit Message Format
 
 Follow conventional commits format:
