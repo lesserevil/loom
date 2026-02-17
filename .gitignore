@@ -56,3 +56,6 @@ loom.log
 
 # Local bootstrap (contains API keys and local endpoints)
 bootstrap.local
+
+# Claude Code local settings
+.claude/
