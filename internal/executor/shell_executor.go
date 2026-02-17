@@ -172,7 +172,7 @@ func (e *ShellExecutor) ExecuteCommand(ctx context.Context, req ExecuteCommandRe
 	// Set default working directory
 	workingDir := req.WorkingDir
 	if workingDir == "" {
-		workingDir = "/app/src"
+		workingDir = "/app" // Changed from /app/src which doesn't exist
 	}
 
 	// Create command log entry
