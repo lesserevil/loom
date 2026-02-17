@@ -15,7 +15,7 @@ import (
 const (
 	version = "2.0.0"
 	exportSchemaVersion = "1.0"
-	maxImportSize = 50 << 20 // 50MB
+	maxImportSize = 200 << 20 // 200MB
 	rateLimit = 5 // exports per hour
 )
 
