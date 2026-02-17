@@ -338,6 +338,10 @@ func (s *Server) SetupRoutes() http.Handler {
 	// OpenClaw messaging gateway
 	mux.HandleFunc("/api/v1/openclaw/status", s.handleOpenClawStatus)
 
+	// Database export/import
+	mux.HandleFunc("/api/v1/export", s.handleExport)
+	mux.HandleFunc("/api/v1/import", s.handleImport)
+
 	// Apply middleware
 	handler := s.loggingMiddleware(mux)
 	handler = s.corsMiddleware(handler)
