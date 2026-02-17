@@ -89,6 +89,12 @@ func (ld *LoopDetector) RecordAction(bead *models.Bead, action ActionRecord) err
 
 // IsStuckInLoop checks if the bead is stuck in a non-productive loop
 func (ld *LoopDetector) IsStuckInLoop(bead *models.Bead) (bool, string) {
+	// CRITICAL: Check for repeated infrastructure errors FIRST
+	// These are hard failures that will never succeed
+	if stuck, reason := ld.checkRepeatedErrors(bead); stuck {
+		return true, reason
+	}
+
 	history, err := ld.getActionHistory(bead)
 	if err != nil || len(history) < ld.repeatThreshold*2 {
 		// Not enough history to detect a loop
@@ -109,6 +115,173 @@ func (ld *LoopDetector) IsStuckInLoop(bead *models.Bead) (bool, string) {
 	}
 
 	return false, ""
+}
+
+// checkRepeatedErrors detects repeated infrastructure errors
+// This catches authentication failures, provider errors, and other hard failures
+func (ld *LoopDetector) checkRepeatedErrors(bead *models.Bead) (bool, string) {
+	if bead.Context == nil {
+		return false, ""
+	}
+
+	// Get dispatch count
+	dispatchCount := 0
+	if countStr := bead.Context["dispatch_count"]; countStr != "" {
+		fmt.Sscanf(countStr, "%d", &dispatchCount)
+	}
+
+	// Need at least 5 attempts to detect error pattern
+	if dispatchCount < 5 {
+		return false, ""
+	}
+
+	// Get last error
+	lastError := bead.Context["last_run_error"]
+	if lastError == "" {
+		return false, ""
+	}
+
+	// Get error history from context
+	errorHistory := ld.getErrorHistory(bead)
+
+	// Add current error to history
+	errorHistory = append(errorHistory, ErrorRecord{
+		Timestamp: time.Now(),
+		Error:     lastError,
+		Dispatch:  dispatchCount,
+	})
+
+	// Keep last 20 errors
+	if len(errorHistory) > 20 {
+		errorHistory = errorHistory[len(errorHistory)-20:]
+	}
+
+	// Save error history
+	ld.saveErrorHistory(bead, errorHistory)
+
+	// Check for repeated error patterns
+	if len(errorHistory) < 5 {
+		return false, ""
+	}
+
+	// Check recent errors (last 10)
+	recentErrors := errorHistory
+	if len(recentErrors) > 10 {
+		recentErrors = recentErrors[len(recentErrors)-10:]
+	}
+
+	// Detect specific error patterns
+	authErrors := 0
+	providerErrors := 0
+	rateLimitErrors := 0
+	sameErrorCount := 0
+	lastErrorPattern := ""
+
+	for _, errRec := range recentErrors {
+		// Authentication errors (401, 403)
+		if contains(errRec.Error, "401") || contains(errRec.Error, "Authentication") ||
+		   contains(errRec.Error, "403") || contains(errRec.Error, "Forbidden") ||
+		   contains(errRec.Error, "No api key") {
+			authErrors++
+		}
+
+		// Rate limiting (429)
+		if contains(errRec.Error, "429") || contains(errRec.Error, "rate limit") ||
+		   contains(errRec.Error, "Rate limit") {
+			rateLimitErrors++
+		}
+
+		// Provider/infrastructure errors (500, 502, 503, 504)
+		if contains(errRec.Error, "500") || contains(errRec.Error, "502") ||
+		   contains(errRec.Error, "503") || contains(errRec.Error, "504") ||
+		   contains(errRec.Error, "Internal Server Error") ||
+		   contains(errRec.Error, "Bad Gateway") ||
+		   contains(errRec.Error, "Service Unavailable") {
+			providerErrors++
+		}
+
+		// Count identical errors
+		if errRec.Error == lastErrorPattern {
+			sameErrorCount++
+		} else {
+			lastErrorPattern = errRec.Error
+			sameErrorCount = 1
+		}
+	}
+
+	// Hard failure conditions
+	if authErrors >= 5 {
+		return true, fmt.Sprintf("Repeated authentication errors (%d attempts) - provider credentials invalid or missing", authErrors)
+	}
+
+	if providerErrors >= 5 {
+		return true, fmt.Sprintf("Repeated provider errors (%d attempts) - provider unavailable or unhealthy", providerErrors)
+	}
+
+	if rateLimitErrors >= 5 {
+		return true, fmt.Sprintf("Repeated rate limit errors (%d attempts) - exhausted provider quota", rateLimitErrors)
+	}
+
+	if sameErrorCount >= 5 {
+		return true, fmt.Sprintf("Identical error repeated %d times - error pattern: %.100s", sameErrorCount, lastErrorPattern)
+	}
+
+	return false, ""
+}
+
+// ErrorRecord tracks an error occurrence
+type ErrorRecord struct {
+	Timestamp time.Time `json:"timestamp"`
+	Error     string    `json:"error"`
+	Dispatch  int       `json:"dispatch"`
+}
+
+// getErrorHistory retrieves error history from bead context
+func (ld *LoopDetector) getErrorHistory(bead *models.Bead) []ErrorRecord {
+	if bead.Context == nil {
+		return []ErrorRecord{}
+	}
+
+	historyJSON := bead.Context["error_history"]
+	if historyJSON == "" {
+		return []ErrorRecord{}
+	}
+
+	var history []ErrorRecord
+	if err := json.Unmarshal([]byte(historyJSON), &history); err != nil {
+		return []ErrorRecord{}
+	}
+
+	return history
+}
+
+// saveErrorHistory saves error history to bead context
+func (ld *LoopDetector) saveErrorHistory(bead *models.Bead, history []ErrorRecord) {
+	if bead.Context == nil {
+		bead.Context = make(map[string]string)
+	}
+
+	historyJSON, err := json.Marshal(history)
+	if err == nil {
+		bead.Context["error_history"] = string(historyJSON)
+	}
+}
+
+// contains checks if a string contains a substring (case-insensitive check would be better)
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) &&
+		(s[:len(substr)] == substr || s[len(s)-len(substr):] == substr ||
+		 findSubstring(s, substr)))
+}
+
+// findSubstring does a simple substring search
+func findSubstring(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
 }
 
 // getActionHistory retrieves the action history from bead context
