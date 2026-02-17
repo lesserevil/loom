@@ -83,8 +83,9 @@ type Dispatcher struct {
 	commitInProgress  *commitState      // Current commit state
 	commitStateMutex  sync.RWMutex      // Protects commitInProgress
 
-	mu     sync.RWMutex
-	status SystemStatus
+	mu              sync.RWMutex
+	status          SystemStatus
+	providerCounter uint64 // round-robin counter for load distribution across providers
 }
 
 // commitRequest represents a request to acquire the commit lock
@@ -695,21 +696,24 @@ func (d *Dispatcher) DispatchOnce(ctx context.Context, projectID string) (*Dispa
 	// Estimate task complexity for smart provider routing
 	complexity := d.estimateBeadComplexity(candidate)
 
-	// Select provider based on complexity - match model size to task difficulty
-	if ag.ProviderID == "" || complexity != provider.ComplexityMedium {
-		// Use complexity-aware selection for all tasks (not just unassigned agents)
-		activeProviders := d.providers.ListActiveForComplexity(complexity)
-		if len(activeProviders) > 0 {
-			best := activeProviders[0]
-			prevProvider := ag.ProviderID
-			ag.ProviderID = best.Config.ID
-			log.Printf("[Dispatcher] Selected provider %s (params=%.0fB, score=%.0f) for %s complexity task %s (prev=%s)",
-				best.Config.ID, best.Config.ModelParamsB, best.Config.CapabilityScore,
+	// Select a provider for this task's complexity.
+	// Providers are a global pool — agents are not bound to a provider.
+	// Round-robin across healthy providers to distribute load evenly.
+	activeProviders = d.providers.ListActiveForComplexity(complexity)
+	if len(activeProviders) > 0 {
+		idx := d.providerCounter % uint64(len(activeProviders))
+		d.providerCounter++
+		selected := activeProviders[idx]
+		prevProvider := ag.ProviderID
+		ag.ProviderID = selected.Config.ID
+		if selected.Config.ID != prevProvider {
+			log.Printf("[Dispatcher] Selected provider %s (%d/%d) for %s complexity task %s (prev=%s)",
+				selected.Config.ID, idx+1, len(activeProviders),
 				complexity.String(), candidate.ID, prevProvider)
-		} else if ag.ProviderID == "" {
-			d.setStatus(StatusParked, "no active providers available")
-			return &DispatchResult{Dispatched: false, ProjectID: selectedProjectID, AgentID: ag.ID}, nil
 		}
+	} else {
+		d.setStatus(StatusParked, "no active providers available")
+		return &DispatchResult{Dispatched: false, ProjectID: selectedProjectID, AgentID: ag.ID}, nil
 	}
 
 	// Ensure bead is claimed/assigned.
