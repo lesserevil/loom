@@ -29,20 +29,22 @@ jobs:
         run: go mod download
 
       - name: Run tests
-        run: go test -v -race -short -coverprofile=coverage.out -covermode=atomic ./...
+        run: |
+          mkdir -p obj
+          go test -v -race -short -coverprofile=obj/coverage.out -covermode=atomic ./...
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         if: github.event_name == 'push'
         with:
-          file: ./coverage.out
+          file: ./obj/coverage.out
           fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Generate coverage report
         if: github.event_name == 'pull_request'
         run: |
-          go tool cover -html=coverage.out -o coverage.html
+          go tool cover -html=obj/coverage.out -o obj/coverage.html
           echo "Coverage report generated"
 
   lint:
@@ -81,13 +83,15 @@ jobs:
           cache: true
 
       - name: Build binary
-        run: go build -v -o loom ./cmd/loom
+        run: |
+          mkdir -p bin
+          go build -v -o bin/loom ./cmd/loom
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: loom-binary
-          path: loom
+          path: bin/loom
           retention-days: 7
 
   docker:
@@ -178,7 +182,7 @@ jobs:
           cache: true
 
       - name: Run integration tests
-        run: go test -v -tags=integration ./tests/integration/...
+        run: go test -v -tags=integration ./test/integration/...
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/temporal?sslmode=disable
 

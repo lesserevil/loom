@@ -339,10 +339,12 @@ See [TEMPORAL_DSL.md](docs/TEMPORAL_DSL.md) for complete reference.
 
 ## Repository Rules
 
-- All documentation goes in `docs/`.
+- **All binaries go in `bin/`** and are never committed to git.
+- **All documentation goes in `docs/`**.
+- **All intermediate objects go in `obj/`** and are never committed to git.
+- **All tests go in `test/`**.
+- **All build/test/release is done by `make`**.
 - All internal AI planning files (generated `.md` files) go in `plans/`.
-- All intermediate object files go in `obj/` and are never committed to git.
-- All binaries go in `bin/` and are never committed to git.
 
 ## Operating Procedures
 
@@ -739,8 +741,8 @@ MIN_COVERAGE=80 make test-coverage
 
 **Test Organization:**
 - Unit tests: `*_test.go` in same package
-- Integration tests: `tests/integration/`
-- API tests: `tests/postflight/`
+- Integration tests: `test/integration/`
+- API tests: `test/postflight/`
 - Test helpers: `internal/testing/`
 
 **Coverage Gaps to Prioritize:**

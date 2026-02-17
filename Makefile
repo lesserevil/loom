@@ -2,6 +2,8 @@
 
 # Build variables
 BINARY_NAME=loom
+BIN_DIR=bin
+OBJ_DIR=obj
 VERSION?=dev
 LDFLAGS=-ldflags "-X main.version=$(VERSION)"
 GO_REQUIRED := $(shell awk '/^go /{print $$2}' go.mod)
@@ -11,15 +13,17 @@ all: build
 
 # Build the Go binary (for local tooling, install, cross-compile)
 build:
-	go build $(LDFLAGS) -o $(BINARY_NAME) ./cmd/loom
+	@mkdir -p $(BIN_DIR)
+	go build $(LDFLAGS) -o $(BIN_DIR)/$(BINARY_NAME) ./cmd/loom
 
 # Build for multiple platforms
 build-all: lint-yaml
+	@mkdir -p $(BIN_DIR)
 	@echo "Building for multiple platforms..."
-	GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o $(BINARY_NAME)-linux-amd64 ./cmd/loom
-	GOOS=darwin GOARCH=amd64 go build $(LDFLAGS) -o $(BINARY_NAME)-darwin-amd64 ./cmd/loom
-	GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o $(BINARY_NAME)-darwin-arm64 ./cmd/loom
-	GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o $(BINARY_NAME)-windows-amd64.exe ./cmd/loom
+	GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o $(BIN_DIR)/$(BINARY_NAME)-linux-amd64 ./cmd/loom
+	GOOS=darwin GOARCH=amd64 go build $(LDFLAGS) -o $(BIN_DIR)/$(BINARY_NAME)-darwin-amd64 ./cmd/loom
+	GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o $(BIN_DIR)/$(BINARY_NAME)-darwin-arm64 ./cmd/loom
+	GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o $(BIN_DIR)/$(BINARY_NAME)-windows-amd64.exe ./cmd/loom
 
 # Start loom (build container + start full stack in background)
 start:
@@ -73,12 +77,13 @@ test-docker:
 # Run post-flight API tests
 test-api:
 	@echo "Running post-flight API tests..."
-	@./tests/postflight/api_test.sh $(BASE_URL)
+	@./test/postflight/api_test.sh $(BASE_URL)
 
 # Run tests with coverage (simple)
 coverage:
-	go test -v -coverprofile=coverage.out ./...
-	go tool cover -html=coverage.out -o coverage.html
+	@mkdir -p $(OBJ_DIR)
+	go test -v -coverprofile=$(OBJ_DIR)/coverage.out ./...
+	go tool cover -html=$(OBJ_DIR)/coverage.out -o $(OBJ_DIR)/coverage.html
 
 # Run tests with coverage analysis and threshold checking
 test-coverage:
@@ -218,8 +223,8 @@ deps-linux-pacman:
 
 # Clean build artifacts
 clean:
-	rm -f $(BINARY_NAME) $(BINARY_NAME)-*-* $(BINARY_NAME)-*.exe
-	rm -f coverage.out coverage.html
+	rm -rf $(BIN_DIR)
+	rm -rf $(OBJ_DIR)
 	rm -f *.db
 
 # Deep clean: stop containers, remove images, prune docker, clean all
@@ -231,7 +236,7 @@ distclean: clean
 
 # Install binary to $GOPATH/bin
 install: build
-	cp $(BINARY_NAME) $(GOPATH)/bin/
+	cp $(BIN_DIR)/$(BINARY_NAME) $(GOPATH)/bin/
 
 # Create config.yaml from example if missing
 config:

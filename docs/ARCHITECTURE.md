@@ -469,7 +469,7 @@ See [docs/ANALYTICS_GUIDE.md](ANALYTICS_GUIDE.md) for usage details.
 **Key Files**:
 - `internal/modelcatalog/catalog_test.go` - Model parsing and negotiation tests
 - `internal/orgchart/manager_test.go` - Org chart operations tests
-- `tests/postflight/api_test.sh` - Post-deployment API validation
+- `test/postflight/api_test.sh` - Post-deployment API validation
 
 **Test Categories**:
 
