@@ -40,6 +40,11 @@ type Provider struct {
 	SupportsStreaming bool     `json:"supports_streaming"` // Supports streaming responses
 	Tags              []string `json:"tags"`               // Custom tags for filtering
 
+	// Dynamic scoring metadata (computed from Registry, not persisted)
+	ModelParamsB    float64 `json:"model_params_b,omitempty"`    // Model parameters in billions (from model name)
+	CapabilityScore float64 `json:"capability_score,omitempty"`  // Dynamic composite score from Scorer
+	AvgLatencyMs    float64 `json:"avg_latency_ms,omitempty"`    // Rolling average request latency
+
 	// Runtime metrics for dynamic scoring
 	Metrics ProviderMetrics `json:"metrics"`
 

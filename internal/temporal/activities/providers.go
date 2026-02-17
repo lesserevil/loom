@@ -256,6 +256,16 @@ func (a *ProviderActivities) syncRegistry(record *internalmodels.Provider) {
 	// Update dynamic scoring with model parameters and heartbeat latency
 	a.registry.UpdateProviderScore(record.ID, modelParamsB, record.CostPerMToken)
 	a.registry.UpdateHeartbeatLatency(record.ID, record.LastHeartbeatLatencyMs)
+
+	// Write-through: persist scoring data to database
+	if a.database != nil && a.registry.GetScorer() != nil {
+		if score, ok := a.registry.GetScorer().GetScore(record.ID); ok {
+			record.ModelParamsB = score.ModelParamsB
+			record.CapabilityScore = score.CompositeScore
+			record.AvgLatencyMs = score.AvgRequestLatencyMs
+			_ = a.database.UpsertProvider(record)
+		}
+	}
 }
 
 func (a *ProviderActivities) publishProviderUpdate(record *internalmodels.Provider) {

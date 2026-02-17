@@ -61,6 +61,11 @@ func New(dbPath string) (*Database, error) {
 		return nil, fmt.Errorf("failed to migrate provider routing: %w", err)
 	}
 
+	if err := d.migrateProviderScoring(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to migrate provider scoring: %w", err)
+	}
+
 	if err := d.migrateMotivations(); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("failed to migrate motivations: %w", err)
@@ -664,8 +669,8 @@ func (d *Database) UpsertProvider(provider *internalmodels.Provider) error {
 	provider.UpdatedAt = time.Now()
 
 	query := `
-		INSERT INTO providers (id, name, type, endpoint, model, configured_model, selected_model, selection_reason, model_score, selected_gpu, description, requires_key, key_id, owner_id, is_shared, status, last_heartbeat_at, last_heartbeat_latency_ms, last_heartbeat_error, context_window, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO providers (id, name, type, endpoint, model, configured_model, selected_model, selection_reason, model_score, selected_gpu, description, requires_key, key_id, owner_id, is_shared, status, last_heartbeat_at, last_heartbeat_latency_ms, last_heartbeat_error, context_window, model_params_b, capability_score, avg_latency_ms, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			name = excluded.name,
 			type = excluded.type,
@@ -686,6 +691,9 @@ func (d *Database) UpsertProvider(provider *internalmodels.Provider) error {
 			last_heartbeat_latency_ms = excluded.last_heartbeat_latency_ms,
 			last_heartbeat_error = excluded.last_heartbeat_error,
 			context_window = excluded.context_window,
+			model_params_b = excluded.model_params_b,
+			capability_score = excluded.capability_score,
+			avg_latency_ms = excluded.avg_latency_ms,
 			updated_at = excluded.updated_at
 	`
 
@@ -710,6 +718,9 @@ func (d *Database) UpsertProvider(provider *internalmodels.Provider) error {
 		provider.LastHeartbeatLatencyMs,
 		provider.LastHeartbeatError,
 		provider.ContextWindow,
+		provider.ModelParamsB,
+		provider.CapabilityScore,
+		provider.AvgLatencyMs,
 		provider.CreatedAt,
 		provider.UpdatedAt,
 	)
@@ -747,12 +758,13 @@ func (d *Database) DeleteAllAgents() error {
 // GetProvider retrieves a provider by ID
 func (d *Database) GetProvider(id string) (*internalmodels.Provider, error) {
 	query := `
-		SELECT id, name, type, endpoint, model, configured_model, selected_model, selection_reason, model_score, selected_gpu, description, requires_key, key_id, status, last_heartbeat_at, last_heartbeat_latency_ms, last_heartbeat_error, context_window, created_at, updated_at
+		SELECT id, name, type, endpoint, model, configured_model, selected_model, selection_reason, model_score, selected_gpu, description, requires_key, key_id, status, last_heartbeat_at, last_heartbeat_latency_ms, last_heartbeat_error, context_window, model_params_b, capability_score, avg_latency_ms, created_at, updated_at
 		FROM providers
 		WHERE id = ?
 	`
 
 	provider := &internalmodels.Provider{}
+	var modelParamsB, capabilityScore, avgLatencyMs sql.NullFloat64
 	err := d.db.QueryRow(query, id).Scan(
 		&provider.ID,
 		&provider.Name,
@@ -772,9 +784,21 @@ func (d *Database) GetProvider(id string) (*internalmodels.Provider, error) {
 		&provider.LastHeartbeatLatencyMs,
 		&provider.LastHeartbeatError,
 		&provider.ContextWindow,
+		&modelParamsB,
+		&capabilityScore,
+		&avgLatencyMs,
 		&provider.CreatedAt,
 		&provider.UpdatedAt,
 	)
+	if modelParamsB.Valid {
+		provider.ModelParamsB = modelParamsB.Float64
+	}
+	if capabilityScore.Valid {
+		provider.CapabilityScore = capabilityScore.Float64
+	}
+	if avgLatencyMs.Valid {
+		provider.AvgLatencyMs = avgLatencyMs.Float64
+	}
 
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("provider not found: %s", id)
@@ -789,7 +813,7 @@ func (d *Database) GetProvider(id string) (*internalmodels.Provider, error) {
 // ListProviders retrieves all providers
 func (d *Database) ListProviders() ([]*internalmodels.Provider, error) {
 	query := `
-		SELECT id, name, type, endpoint, model, configured_model, selected_model, selection_reason, model_score, selected_gpu, description, requires_key, key_id, owner_id, is_shared, status, last_heartbeat_at, last_heartbeat_latency_ms, last_heartbeat_error, created_at, updated_at
+		SELECT id, name, type, endpoint, model, configured_model, selected_model, selection_reason, model_score, selected_gpu, description, requires_key, key_id, owner_id, is_shared, status, last_heartbeat_at, last_heartbeat_latency_ms, last_heartbeat_error, model_params_b, capability_score, avg_latency_ms, created_at, updated_at
 		FROM providers
 		ORDER BY created_at DESC
 	`
@@ -805,6 +829,7 @@ func (d *Database) ListProviders() ([]*internalmodels.Provider, error) {
 		provider := &internalmodels.Provider{}
 		var ownerID sql.NullString
 		var isShared sql.NullBool
+		var modelParamsB, capabilityScore, avgLatencyMs sql.NullFloat64
 		err := rows.Scan(
 			&provider.ID,
 			&provider.Name,
@@ -825,6 +850,9 @@ func (d *Database) ListProviders() ([]*internalmodels.Provider, error) {
 			&provider.LastHeartbeatAt,
 			&provider.LastHeartbeatLatencyMs,
 			&provider.LastHeartbeatError,
+			&modelParamsB,
+			&capabilityScore,
+			&avgLatencyMs,
 			&provider.CreatedAt,
 			&provider.UpdatedAt,
 		)
@@ -835,6 +863,15 @@ func (d *Database) ListProviders() ([]*internalmodels.Provider, error) {
 			provider.IsShared = isShared.Bool
 		} else {
 			provider.IsShared = true // Default to shared for backwards compat
+		}
+		if modelParamsB.Valid {
+			provider.ModelParamsB = modelParamsB.Float64
+		}
+		if capabilityScore.Valid {
+			provider.CapabilityScore = capabilityScore.Float64
+		}
+		if avgLatencyMs.Valid {
+			provider.AvgLatencyMs = avgLatencyMs.Float64
 		}
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan provider: %w", err)
