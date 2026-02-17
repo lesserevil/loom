@@ -302,10 +302,20 @@ distclean: clean
 
 # Install binary to $GOPATH/bin
 install: build
-	@echo "Installing loom and loomctl to /usr/local/bin..."
-	@sudo cp $(BIN_DIR)/$(BINARY_NAME) /usr/local/bin/
-	@sudo cp $(BIN_DIR)/loomctl /usr/local/bin/
-	@echo "Installation complete. Run 'loom' or 'loomctl' from anywhere."
+	@echo "Installing loom and loomctl to ~/.local/bin..."
+	@mkdir -p ~/.local/bin
+	@cp $(BIN_DIR)/$(BINARY_NAME) ~/.local/bin/
+	@cp $(BIN_DIR)/loomctl ~/.local/bin/
+	@echo "✓ Installation complete!"
+	@echo ""
+	@if echo $$PATH | grep -q "$$HOME/.local/bin"; then \
+		echo "✓ ~/.local/bin is already in your PATH"; \
+		echo "  Run 'loom' or 'loomctl' from anywhere."; \
+	else \
+		echo "⚠ Add ~/.local/bin to your PATH:"; \
+		echo "  export PATH=\"\$$HOME/.local/bin:\$$PATH\""; \
+		echo "  (Add this to your ~/.bashrc or ~/.zshrc to make it permanent)"; \
+	fi
 
 # Create config.yaml from example if missing
 config:
