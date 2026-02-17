@@ -7,7 +7,7 @@ id: loom-4w2q
 type: task
 title: Improve concurrency safety in workflow
 description: Wrap goroutine groups with context cancellation and wait groups.
-status: open
+status: closed
 priority: 2
 projectid: loom-self
 assignedto: ""

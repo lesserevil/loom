@@ -155,7 +155,7 @@ description: |
      Container loom-test Error response from daemon: Conflict. The container name "/loom-test" is already in use by container "3e8da201f286a0ac4f2f792f8d925cea48811ca41464f0b86bbbe727a707433e". You have to remove (or rename) that container to be able to reuse that name. 
     Error response from daemon: Conflict. The container name "/loom-test" is already in use by container "3e8da201f286a0ac4f2f792f8d925cea48811ca41464f0b86bbbe727a707433e". You have to remove (or rename) that container to be able to reuse that name.
 
-status: open
+status: closed
 priority: 0
 project_id: loom
 assigned_to: null

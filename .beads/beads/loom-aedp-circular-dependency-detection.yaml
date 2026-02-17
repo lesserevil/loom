@@ -7,7 +7,7 @@ id: loom-aedp
 type: task
 title: Circular dependency detection
 description: Identify circular function calls and package import cycles
-status: open
+status: closed
 priority: 1
 projectid: loom-self
 assignedto: ""

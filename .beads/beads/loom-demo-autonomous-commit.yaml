@@ -25,7 +25,7 @@ description: |-
     - Commit shows in git log as autonomous agent work
 
     Expected result: Git log shows commit by agent, not human author
-status: open
+status: closed
 priority: 2
 projectid: loom-self
 assignedto: ""

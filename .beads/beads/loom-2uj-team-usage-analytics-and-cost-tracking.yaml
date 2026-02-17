@@ -23,7 +23,7 @@ description: |
     - Dashboard shows team data
     - Budgets can be set
     - Cost allocation per member
-status: open
+status: closed
 priority: 3
 projectid: loom-self
 assignedto: ""

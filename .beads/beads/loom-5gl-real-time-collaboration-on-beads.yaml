@@ -23,7 +23,7 @@ description: |
     - Conflicts resolved correctly
     - User presence shown
     - Works with 10+ users
-status: open
+status: closed
 priority: 3
 projectid: loom-self
 assignedto: ""

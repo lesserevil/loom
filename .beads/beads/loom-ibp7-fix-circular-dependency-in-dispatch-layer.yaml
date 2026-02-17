@@ -7,7 +7,7 @@ id: loom-ibp7
 type: task
 title: Fix circular dependency in dispatch layer
 description: Refactor internal/dispatch to eliminate circular imports.
-status: open
+status: closed
 priority: 2
 projectid: loom-self
 assignedto: ""

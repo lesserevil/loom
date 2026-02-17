@@ -37,7 +37,7 @@ description: |-
     - [ ] Responses flow back to Loom and unblock dependent work
     - [ ] Integration is opt-in per project (config flag)
     - [ ] Works without openclaw (graceful degradation)
-status: open
+status: closed
 priority: 2
 projectid: loom-self
 assignedto: ""

@@ -29,7 +29,7 @@ description: |
     - The user guide has been reviewed by the required personas.
     - The guide is updated to reflect any changes in workflows or features.
     - Release approval includes the review evidence.
-status: open
+status: closed
 priority: 1
 projectid: loom-self
 assignedto: agent-1768861966-project-manager

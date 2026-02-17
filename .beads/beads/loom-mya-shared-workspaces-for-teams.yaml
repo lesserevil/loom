@@ -23,7 +23,7 @@ description: |
     - Permissions enforced
     - Workspace switching works
     - 10+ team members supported
-status: open
+status: closed
 priority: 3
 projectid: loom-self
 assignedto: ""

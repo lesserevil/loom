@@ -156,7 +156,7 @@ description: |
      Container temporal-postgresql Error response from daemon: Conflict. The container name "/temporal-postgresql" is already in use by container "6c40acf521de09abdd89b84df71949d8561136fb3f363c9616bb1c07636dcb22". You have to remove (or rename) that container to be able to reuse that name. 
     Error response from daemon: Conflict. The container name "/temporal-postgresql" is already in use by container "6c40acf521de09abdd89b84df71949d8561136fb3f363c9616bb1c07636dcb22". You have to remove (or rename) that container to be able to reuse that name.
 
-status: open
+status: closed
 priority: 0
 project_id: loom
 assigned_to: null
