@@ -29,8 +29,8 @@ build-all: lint-yaml
 	GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o $(BIN_DIR)/$(BINARY_NAME)-darwin-arm64 ./cmd/loom
 	GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o $(BIN_DIR)/$(BINARY_NAME)-windows-amd64.exe ./cmd/loom
 
-# Start loom (build container + start full stack in background)
-start:
+# Start loom (build binaries + container + start full stack in background)
+start: build
 	docker compose up -d --build
 	@$(MAKE) -s bootstrap
 
@@ -38,8 +38,8 @@ start:
 stop:
 	docker compose down --remove-orphans
 
-# Rebuild and restart loom
-restart:
+# Rebuild and restart loom (build binaries first)
+restart: build
 	docker compose down
 	docker compose up -d --build
 	@$(MAKE) -s bootstrap
