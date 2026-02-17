@@ -177,7 +177,7 @@ projects:
     name: Loom Self-Improvement
     git_repo: .  # Local development mode - use current directory
     branch: main
-    beads_path: .beads
+    beads_path: data/.beads  # Store in persisted volume
     git_auth_method: ssh  # Deploy key for push access
     git_strategy: direct
     is_perpetual: true
@@ -190,7 +190,7 @@ projects:
   #   name: Example Project
   #   git_repo: /path/to/repo
   #   branch: main
-  #   beads_path: .beads
+  #   beads_path: data/.beads  # Store in persisted volume
   #   context:
   #     build_command: "make build"
   #     test_command: "make test"
