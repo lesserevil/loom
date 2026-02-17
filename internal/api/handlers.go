@@ -327,15 +327,16 @@ func (s *Server) handleProject(w http.ResponseWriter, r *http.Request) {
 
 	case http.MethodPut:
 		var req struct {
-			Name        string            `json:"name"`
-			GitRepo     string            `json:"git_repo"`
-			Branch      string            `json:"branch"`
-			BeadsPath   string            `json:"beads_path"`
-			Context     map[string]string `json:"context"`
-			Status      string            `json:"status"`
-			GitStrategy *string           `json:"git_strategy"`
-			IsPerpetual *bool             `json:"is_perpetual"`
-			IsSticky    *bool             `json:"is_sticky"`
+			Name          string            `json:"name"`
+			GitRepo       string            `json:"git_repo"`
+			Branch        string            `json:"branch"`
+			BeadsPath     string            `json:"beads_path"`
+			Context       map[string]string `json:"context"`
+			Status        string            `json:"status"`
+			GitStrategy   *string           `json:"git_strategy"`
+			GitAuthMethod string            `json:"git_auth_method"`
+			IsPerpetual   *bool             `json:"is_perpetual"`
+			IsSticky      *bool             `json:"is_sticky"`
 		}
 		if err := s.parseJSON(r, &req); err != nil {
 			s.respondError(w, http.StatusBadRequest, "Invalid request body")
@@ -368,6 +369,9 @@ func (s *Server) handleProject(w http.ResponseWriter, r *http.Request) {
 		}
 		if req.GitStrategy != nil {
 			updates["git_strategy"] = *req.GitStrategy
+		}
+		if req.GitAuthMethod != "" {
+			updates["git_auth_method"] = req.GitAuthMethod
 		}
 
 		if err := s.app.GetProjectManager().UpdateProject(id, updates); err != nil {

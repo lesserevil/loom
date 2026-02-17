@@ -129,6 +129,9 @@ func (m *Manager) UpdateProject(id string, updates map[string]interface{}) error
 	if gitStrategy, ok := updates["git_strategy"].(string); ok {
 		project.GitStrategy = models.GitStrategy(gitStrategy)
 	}
+	if gitAuthMethod, ok := updates["git_auth_method"].(string); ok {
+		project.GitAuthMethod = models.GitAuthMethod(gitAuthMethod)
+	}
 
 	project.UpdatedAt = time.Now()
 

@@ -1320,9 +1320,14 @@ func (d *Dispatcher) ensureBeadHasWorkflow(ctx context.Context, bead *models.Bea
 		return nil, err
 	}
 
-	if execution != nil {
-		// Bead already has a workflow
+	if execution != nil && execution.Status != workflow.ExecutionStatusCompleted {
+		// Bead already has an active workflow
 		return execution, nil
+	}
+	if execution != nil && execution.Status == workflow.ExecutionStatusCompleted {
+		// Old workflow completed — delete it so a fresh one can start
+		log.Printf("[Workflow] Resetting completed workflow %s for bead %s", execution.ID, bead.ID)
+		_ = d.workflowEngine.ResetWorkflowForBead(bead.ID)
 	}
 
 	// Determine workflow type - check for self-improvement first

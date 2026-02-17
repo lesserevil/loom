@@ -22,6 +22,7 @@ type Database interface {
 	GetWorkflowExecutionByBeadID(beadID string) (*WorkflowExecution, error)
 	InsertWorkflowHistory(history *WorkflowExecutionHistory) error
 	ListWorkflowHistory(executionID string) ([]*WorkflowExecutionHistory, error)
+	DeleteWorkflowExecutionByBeadID(beadID string) error
 }
 
 // BeadManager interface for bead operations
@@ -115,9 +116,17 @@ func (e *Engine) StartWorkflow(beadID, workflowID, projectID string) (*WorkflowE
 	log.Printf("[Workflow] Started workflow %s for bead %s (exec: %s)", wf.Name, beadID, exec.ID)
 
 	// Record workflow started metric
-	telemetry.WorkflowsStarted.Add(context.Background(), 1)
+	if telemetry.WorkflowsStarted != nil {
+		telemetry.WorkflowsStarted.Add(context.Background(), 1)
+	}
 
 	return exec, nil
+}
+
+// ResetWorkflowForBead deletes any existing workflow execution for a bead,
+// allowing a fresh workflow to be started on redispatch.
+func (e *Engine) ResetWorkflowForBead(beadID string) error {
+	return e.db.DeleteWorkflowExecutionByBeadID(beadID)
 }
 
 // GetNextNode determines the next node to execute based on the current node and condition

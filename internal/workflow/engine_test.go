@@ -341,6 +341,15 @@ func (m *mockDatabase) ListWorkflowHistory(executionID string) ([]*WorkflowExecu
 	return m.history[executionID], nil
 }
 
+func (m *mockDatabase) DeleteWorkflowExecutionByBeadID(beadID string) error {
+	for id, exec := range m.executions {
+		if exec.BeadID == beadID {
+			delete(m.executions, id)
+		}
+	}
+	return nil
+}
+
 type mockBeadManager struct {
 	beads map[string]map[string]interface{}
 }

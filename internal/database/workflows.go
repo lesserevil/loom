@@ -480,6 +480,15 @@ func (d *Database) GetWorkflowExecutionByBeadID(beadID string) (*workflow.Workfl
 	return exec, nil
 }
 
+// DeleteWorkflowExecutionByBeadID removes workflow executions for a bead,
+// allowing a fresh workflow to be started (e.g., on redispatch).
+func (d *Database) DeleteWorkflowExecutionByBeadID(beadID string) error {
+	// Delete history first (foreign key)
+	_, _ = d.db.Exec("DELETE FROM workflow_execution_history WHERE execution_id IN (SELECT id FROM workflow_executions WHERE bead_id = ?)", beadID)
+	_, err := d.db.Exec("DELETE FROM workflow_executions WHERE bead_id = ?", beadID)
+	return err
+}
+
 // InsertWorkflowHistory adds a history entry for a workflow execution
 func (d *Database) InsertWorkflowHistory(history *workflow.WorkflowExecutionHistory) error {
 	if history == nil {
