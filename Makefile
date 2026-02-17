@@ -1,4 +1,4 @@
-.PHONY: all build build-all start stop restart bootstrap test test-docker test-api coverage test-coverage fmt vet lint lint-yaml lint-docs deps deps-go deps-macos deps-linux deps-wsl deps-linux-apt deps-linux-dnf deps-linux-pacman clean distclean install config dev-setup help release release-major release-minor release-patch
+.PHONY: all build build-all start stop restart prune bootstrap test test-docker test-api coverage test-coverage fmt vet lint lint-yaml lint-docs deps deps-go deps-macos deps-linux deps-wsl deps-linux-apt deps-linux-dnf deps-linux-pacman clean distclean install config dev-setup help release release-major release-minor release-patch
 
 # Build variables
 BINARY_NAME=loom
@@ -30,9 +30,9 @@ start:
 	docker compose up -d --build
 	@$(MAKE) -s bootstrap
 
-# Stop loom
+# Stop loom (completely shut down all containers)
 stop:
-	docker compose down
+	docker compose down --remove-orphans
 
 # Rebuild and restart loom
 restart:
@@ -59,6 +59,16 @@ bootstrap:
 	else \
 		echo "No bootstrap.local found (copy bootstrap.local.example to create one)"; \
 	fi
+
+# Prune stale Docker images (preserves volumes/databases)
+prune:
+	@echo "Removing stopped containers..."
+	docker container prune -f
+	@echo "Removing dangling images..."
+	docker image prune -f
+	@echo "Removing unused build cache..."
+	docker builder prune -f
+	@echo "Prune complete. Volumes (databases) preserved."
 
 # View loom container logs (follow)
 logs:
@@ -267,8 +277,9 @@ help:
 	@echo ""
 	@echo "Service:"
 	@echo "  make start        - Build and start loom (Docker, background) + bootstrap"
-	@echo "  make stop         - Stop loom"
+	@echo "  make stop         - Stop loom (completely shut down all containers)"
 	@echo "  make restart      - Rebuild and restart loom + bootstrap"
+	@echo "  make prune        - Remove stale Docker images (preserves volumes/databases)"
 	@echo "  make bootstrap    - Run bootstrap.local if present (registers providers)"
 	@echo "  make logs         - Follow loom container logs"
 	@echo ""
