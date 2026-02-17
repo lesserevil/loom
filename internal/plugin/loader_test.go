@@ -759,12 +759,12 @@ func TestLoadAll_SkipsNonAutoStart(t *testing.T) {
 
 func TestPluginManifest_Fields(t *testing.T) {
 	m := &PluginManifest{
-		Type:     "http",
-		Endpoint: "http://localhost:8080",
-		Command:  "/usr/bin/plugin",
-		Args:     []string{"--port", "8080"},
-		Env:      map[string]string{"KEY": "val"},
-		AutoStart: true,
+		Type:                "http",
+		Endpoint:            "http://localhost:8080",
+		Command:             "/usr/bin/plugin",
+		Args:                []string{"--port", "8080"},
+		Env:                 map[string]string{"KEY": "val"},
+		AutoStart:           true,
 		HealthCheckInterval: 30,
 		Metadata: &plugin.Metadata{
 			Name:         "Full Plugin",

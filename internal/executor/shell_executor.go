@@ -34,10 +34,10 @@ var allowedCommands = map[string]bool{
 	"bd":  true,
 
 	// Testing
-	"pytest":   true,
-	"jest":     true,
-	"mocha":    true,
-	"go test":  true, // Special case handled in parsing
+	"pytest":  true,
+	"jest":    true,
+	"mocha":   true,
+	"go test": true, // Special case handled in parsing
 
 	// Common utilities (read-only operations)
 	"ls":   true,
@@ -57,14 +57,14 @@ var allowedCommands = map[string]bool{
 	"docker": true,
 
 	// Language tools
-	"node":   true,
-	"python": true,
+	"node":    true,
+	"python":  true,
 	"python3": true,
-	"ruby":   true,
-	"java":   true,
-	"javac":  true,
-	"rustc":  true,
-	"cargo":  true,
+	"ruby":    true,
+	"java":    true,
+	"javac":   true,
+	"rustc":   true,
+	"cargo":   true,
 }
 
 // ShellExecutor provides shell command execution with persistent logging

@@ -13,8 +13,8 @@ import (
 
 	"github.com/jordanhubbard/loom/internal/auth"
 	"github.com/jordanhubbard/loom/internal/database"
-	"github.com/jordanhubbard/loom/internal/loom"
 	"github.com/jordanhubbard/loom/internal/keymanager"
+	"github.com/jordanhubbard/loom/internal/loom"
 	"github.com/jordanhubbard/loom/pkg/config"
 	"github.com/jordanhubbard/loom/pkg/models"
 )

@@ -8,9 +8,9 @@ type Persona struct {
 	EntityMetadata `json:",inline" yaml:",inline"`
 
 	// Required fields (from Agent Skills spec)
-	Name          string `json:"name" yaml:"name"`                   // Skill name (1-64 chars, lowercase, hyphens)
-	Description   string `json:"description" yaml:"description"`     // What the skill does and when to use it
-	Instructions  string `json:"instructions" yaml:"instructions"`   // Full markdown body from SKILL.md
+	Name         string `json:"name" yaml:"name"`                 // Skill name (1-64 chars, lowercase, hyphens)
+	Description  string `json:"description" yaml:"description"`   // What the skill does and when to use it
+	Instructions string `json:"instructions" yaml:"instructions"` // Full markdown body from SKILL.md
 
 	// Optional fields (from Agent Skills spec)
 	License       string                 `json:"license,omitempty" yaml:"license,omitempty"`             // License name or reference
@@ -170,10 +170,10 @@ func (p *Project) GetID() string                      { return p.ID }
 type Credential struct {
 	ID                  string     `json:"id"`
 	ProjectID           string     `json:"project_id"`
-	Type                string     `json:"type"`                    // "ssh_ed25519"
-	PrivateKeyEncrypted string     `json:"private_key_encrypted"`   // AES-GCM encrypted, base64
-	PublicKey           string     `json:"public_key"`              // Plaintext public key
-	KeyID               string     `json:"key_id,omitempty"`        // Reference to keymanager key
+	Type                string     `json:"type"`                  // "ssh_ed25519"
+	PrivateKeyEncrypted string     `json:"private_key_encrypted"` // AES-GCM encrypted, base64
+	PublicKey           string     `json:"public_key"`            // Plaintext public key
+	KeyID               string     `json:"key_id,omitempty"`      // Reference to keymanager key
 	Description         string     `json:"description,omitempty"`
 	CreatedAt           time.Time  `json:"created_at"`
 	UpdatedAt           time.Time  `json:"updated_at"`

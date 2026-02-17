@@ -192,11 +192,11 @@ func (h *SSEHandler) HandleUpdateData(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		BeadID          string                 `json:"bead_id"`
-		AgentID         string                 `json:"agent_id"`
-		Key             string                 `json:"key"`
-		Value           interface{}            `json:"value"`
-		ExpectedVersion int64                  `json:"expected_version,omitempty"`
+		BeadID          string      `json:"bead_id"`
+		AgentID         string      `json:"agent_id"`
+		Key             string      `json:"key"`
+		Value           interface{} `json:"value"`
+		ExpectedVersion int64       `json:"expected_version,omitempty"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

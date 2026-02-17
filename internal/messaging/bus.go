@@ -39,7 +39,7 @@ type AgentMessage struct {
 	MessageID        string                 `json:"message_id"`
 	Type             MessageType            `json:"type"`
 	FromAgentID      string                 `json:"from_agent_id"`
-	ToAgentID        string                 `json:"to_agent_id,omitempty"` // Empty for broadcast
+	ToAgentID        string                 `json:"to_agent_id,omitempty"`  // Empty for broadcast
 	ToAgentIDs       []string               `json:"to_agent_ids,omitempty"` // For consensus
 	Subject          string                 `json:"subject,omitempty"`
 	Body             string                 `json:"body,omitempty"`

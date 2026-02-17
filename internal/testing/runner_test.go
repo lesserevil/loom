@@ -183,9 +183,9 @@ func TestTestRunner_BuildCommand_Go(t *testing.T) {
 	runner := NewTestRunner("/tmp/test")
 
 	tests := []struct {
-		name        string
-		pattern     string
-		expected    []string
+		name     string
+		pattern  string
+		expected []string
 	}{
 		{
 			name:     "No pattern",
@@ -223,9 +223,9 @@ func TestTestRunner_BuildCommand_Jest(t *testing.T) {
 	runner := NewTestRunner("/tmp/test")
 
 	tests := []struct {
-		name        string
-		pattern     string
-		expected    []string
+		name     string
+		pattern  string
+		expected []string
 	}{
 		{
 			name:     "No pattern",
@@ -320,10 +320,10 @@ func TestTestRunner_Run_BasicExecution(t *testing.T) {
 	runner := NewTestRunner(tmpDir)
 
 	req := TestRequest{
-		ProjectPath:  tmpDir,
-		TestCommand:  "echo test output",
-		Framework:    "generic",
-		Timeout:      5 * time.Second,
+		ProjectPath: tmpDir,
+		TestCommand: "echo test output",
+		Framework:   "generic",
+		Timeout:     5 * time.Second,
 	}
 
 	ctx := context.Background()
@@ -355,10 +355,10 @@ func TestTestRunner_Run_Timeout(t *testing.T) {
 	runner := NewTestRunner(tmpDir)
 
 	req := TestRequest{
-		ProjectPath:  tmpDir,
-		TestCommand:  "sleep 5",
-		Framework:    "generic",
-		Timeout:      500 * time.Millisecond,
+		ProjectPath: tmpDir,
+		TestCommand: "sleep 5",
+		Framework:   "generic",
+		Timeout:     500 * time.Millisecond,
 	}
 
 	ctx := context.Background()
@@ -389,10 +389,10 @@ func TestTestRunner_Run_WithStreamer(t *testing.T) {
 	runner.SetOutputStreamer(streamer)
 
 	req := TestRequest{
-		ProjectPath:  tmpDir,
-		TestCommand:  "echo line1; echo line2",
-		Framework:    "generic",
-		Timeout:      5 * time.Second,
+		ProjectPath: tmpDir,
+		TestCommand: "echo line1; echo line2",
+		Framework:   "generic",
+		Timeout:     5 * time.Second,
 	}
 
 	ctx := context.Background()
@@ -415,9 +415,9 @@ func TestTestRunner_Run_DefaultTimeout(t *testing.T) {
 	runner := NewTestRunner(tmpDir)
 
 	req := TestRequest{
-		ProjectPath:  tmpDir,
-		TestCommand:  "echo test",
-		Framework:    "generic",
+		ProjectPath: tmpDir,
+		TestCommand: "echo test",
+		Framework:   "generic",
 		// Timeout not specified - should use default
 	}
 
@@ -443,10 +443,10 @@ func TestTestRunner_Run_MaxTimeout(t *testing.T) {
 
 	// Request timeout beyond maximum
 	req := TestRequest{
-		ProjectPath:  tmpDir,
-		TestCommand:  "echo test",
-		Framework:    "generic",
-		Timeout:      MaxTestTimeout + time.Hour,
+		ProjectPath: tmpDir,
+		TestCommand: "echo test",
+		Framework:   "generic",
+		Timeout:     MaxTestTimeout + time.Hour,
 	}
 
 	ctx := context.Background()

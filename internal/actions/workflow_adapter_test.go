@@ -193,7 +193,7 @@ func TestWorkflowMCPAdapter_ConductReview(t *testing.T) {
 
 func TestWorkflowMCPAdapter_ResumeWorkflow(t *testing.T) {
 	tests := []struct {
-		name               string
+		name                string
 		includeSystemPrompt bool
 	}{
 		{"with system prompt", true},

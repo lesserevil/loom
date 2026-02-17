@@ -229,16 +229,16 @@ func TestCheckTerminalCondition(t *testing.T) {
 		want    string
 	}{
 		{
-			name: "close_bead success",
-			env:  &actions.ActionEnvelope{Actions: []actions.Action{{Type: actions.ActionCloseBead}}},
+			name:    "close_bead success",
+			env:     &actions.ActionEnvelope{Actions: []actions.Action{{Type: actions.ActionCloseBead}}},
 			results: []actions.Result{{ActionType: actions.ActionCloseBead, Status: "executed"}},
-			want: "completed",
+			want:    "completed",
 		},
 		{
-			name: "close_bead failed",
-			env:  &actions.ActionEnvelope{Actions: []actions.Action{{Type: actions.ActionCloseBead}}},
+			name:    "close_bead failed",
+			env:     &actions.ActionEnvelope{Actions: []actions.Action{{Type: actions.ActionCloseBead}}},
 			results: []actions.Result{{ActionType: actions.ActionCloseBead, Status: "error"}},
-			want: "",
+			want:    "",
 		},
 		{
 			name:    "done action",
@@ -790,7 +790,7 @@ func TestWorker_ExecuteTaskWithLoop_ContextCanceled(t *testing.T) {
 func TestWorker_ExecuteTaskWithLoop_ConversationalSlip(t *testing.T) {
 	mock := &sequenceMockProvider{
 		responses: []string{
-			"What would you like me to do next?",                              // conversational slip
+			"What would you like me to do next?",              // conversational slip
 			`{"actions": [{"type": "done", "reason": "ok"}]}`, // proper legacy format
 		},
 	}

@@ -140,10 +140,10 @@ func TestScorerRankProviders(t *testing.T) {
 	s := NewScorer()
 
 	// Create providers with different characteristics
-	s.UpdateProviderMetrics("large_slow", 480, 3000, 5000, 0)    // Large model, slow
-	s.UpdateProviderMetrics("medium_fast", 30, 100, 500, 0)      // Medium model, fast
-	s.UpdateProviderMetrics("small_instant", 7, 10, 100, 0)      // Small model, instant
-	s.UpdateProviderMetrics("large_fast", 480, 100, 500, 0)      // Large model, fast
+	s.UpdateProviderMetrics("large_slow", 480, 3000, 5000, 0) // Large model, slow
+	s.UpdateProviderMetrics("medium_fast", 30, 100, 500, 0)   // Medium model, fast
+	s.UpdateProviderMetrics("small_instant", 7, 10, 100, 0)   // Small model, instant
+	s.UpdateProviderMetrics("large_fast", 480, 100, 500, 0)   // Large model, fast
 
 	ranked := s.RankProviders([]string{"large_slow", "medium_fast", "small_instant", "large_fast"})
 
@@ -173,7 +173,7 @@ func TestScorerCustomWeights(t *testing.T) {
 
 	// Set weights to prioritize cost over model size
 	s.SetWeights(ScoringWeights{
-		ModelSize:      1.0,   // Lowest priority
+		ModelSize:      1.0, // Lowest priority
 		RoundTrip:      10.0,
 		RequestLatency: 100.0,
 		Cost:           1000.0, // Highest priority

@@ -22,15 +22,15 @@ type BuildError struct {
 
 // BuildResult contains the complete build result
 type BuildResult struct {
-	Framework string       `json:"framework"`  // "go", "npm", "make", etc.
-	Success   bool         `json:"success"`    // True if build succeeded
-	ExitCode  int          `json:"exit_code"`  // Process exit code
-	Errors    []BuildError `json:"errors"`     // List of build errors
-	Warnings  []BuildError `json:"warnings"`   // List of build warnings
-	RawOutput string       `json:"raw_output"` // Full build output
-	Duration  time.Duration `json:"duration"`  // Build time
-	TimedOut  bool         `json:"timed_out"`  // Whether execution timed out
-	Error     string       `json:"error"`      // Error message if execution failed
+	Framework string        `json:"framework"`  // "go", "npm", "make", etc.
+	Success   bool          `json:"success"`    // True if build succeeded
+	ExitCode  int           `json:"exit_code"`  // Process exit code
+	Errors    []BuildError  `json:"errors"`     // List of build errors
+	Warnings  []BuildError  `json:"warnings"`   // List of build warnings
+	RawOutput string        `json:"raw_output"` // Full build output
+	Duration  time.Duration `json:"duration"`   // Build time
+	TimedOut  bool          `json:"timed_out"`  // Whether execution timed out
+	Error     string        `json:"error"`      // Error message if execution failed
 }
 
 // BuildRequest defines parameters for build execution

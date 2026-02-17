@@ -302,17 +302,17 @@ func New(cfg *config.Config) (*Loom, error) {
 	}
 
 	actionRouter := &actions.Router{
-		Beads:     arb,
-		Closer:    arb,
-		Escalator: arb,
-		Commands:  arb,
-		Files:     files.NewManager(gitopsMgr),
-		Git:       actions.NewProjectGitRouter(gitopsMgr),
-		Logger:    arb,
-		Workflow:  arb,
-		BeadType:  "task",
+		Beads:      arb,
+		Closer:     arb,
+		Escalator:  arb,
+		Commands:   arb,
+		Files:      files.NewManager(gitopsMgr),
+		Git:        actions.NewProjectGitRouter(gitopsMgr),
+		Logger:     arb,
+		Workflow:   arb,
+		BeadType:   "task",
 		BeadReader: arb,
-		DefaultP0: true,
+		DefaultP0:  true,
 	}
 	arb.actionRouter = actionRouter
 	agentMgr.SetActionRouter(actionRouter)
@@ -567,70 +567,70 @@ func (a *Loom) Initialize(ctx context.Context) error {
 				}
 			}
 
-		// Check if already cloned
-		workDir := a.gitopsManager.GetProjectWorkDir(p.ID)
-		p.WorkDir = workDir
-		// Persist WorkDir so maintenance loop and dispatcher can find project files
-		if mgdProject, _ := a.projectManager.GetProject(p.ID); mgdProject != nil {
-			mgdProject.WorkDir = workDir
-		}
-
-		needsClone := false
-		gitDir := filepath.Join(workDir, ".git")
-		if _, err := os.Stat(gitDir); os.IsNotExist(err) {
-			needsClone = true
-		} else {
-			// .git exists, but check if it's a valid clone (has commits)
-			// An empty git-init repo with no commits means clone never succeeded
-			checkCmd := exec.CommandContext(ctx, "git", "rev-parse", "HEAD")
-			checkCmd.Dir = workDir
-			if out, err := checkCmd.CombinedOutput(); err != nil {
-				outStr := strings.TrimSpace(string(out))
-				if strings.Contains(outStr, "does not have any commits") || strings.Contains(outStr, "unknown revision") {
-					fmt.Printf("Project %s has empty repo (prior clone failed), re-cloning...\n", p.ID)
-					// Remove the broken repo so CloneProject can start fresh
-					os.RemoveAll(workDir)
-					needsClone = true
-				}
+			// Check if already cloned
+			workDir := a.gitopsManager.GetProjectWorkDir(p.ID)
+			p.WorkDir = workDir
+			// Persist WorkDir so maintenance loop and dispatcher can find project files
+			if mgdProject, _ := a.projectManager.GetProject(p.ID); mgdProject != nil {
+				mgdProject.WorkDir = workDir
 			}
-		}
 
-		if needsClone {
-			// Clone the repository
-			fmt.Printf("Cloning project %s from %s...\n", p.ID, p.GitRepo)
-			if err := a.gitopsManager.CloneProject(ctx, p); err != nil {
-				errStr := err.Error()
-				fmt.Fprintf(os.Stderr, "Warning: Failed to clone project %s: %v\n", p.ID, err)
-
-				// If SSH auth failed, show the deploy key that needs to be registered
-				if p.GitAuthMethod == models.GitAuthSSH && strings.Contains(errStr, "Permission denied") {
-					if pubKey, keyErr := a.gitopsManager.EnsureProjectSSHKey(p.ID); keyErr == nil {
-						fmt.Fprintf(os.Stderr, "\n"+
-							"╔══════════════════════════════════════════════════════════════════╗\n"+
-							"║  DEPLOY KEY NOT REGISTERED                                      ║\n"+
-							"║                                                                  ║\n"+
-							"║  Add this deploy key to your git remote:                         ║\n"+
-							"║  %s\n"+
-							"║                                                                  ║\n"+
-							"║  For GitHub: Settings → Deploy Keys → Add deploy key             ║\n"+
-							"║  Enable 'Allow write access' if agents need to push.             ║\n"+
-							"╚══════════════════════════════════════════════════════════════════╝\n\n",
-							pubKey)
+			needsClone := false
+			gitDir := filepath.Join(workDir, ".git")
+			if _, err := os.Stat(gitDir); os.IsNotExist(err) {
+				needsClone = true
+			} else {
+				// .git exists, but check if it's a valid clone (has commits)
+				// An empty git-init repo with no commits means clone never succeeded
+				checkCmd := exec.CommandContext(ctx, "git", "rev-parse", "HEAD")
+				checkCmd.Dir = workDir
+				if out, err := checkCmd.CombinedOutput(); err != nil {
+					outStr := strings.TrimSpace(string(out))
+					if strings.Contains(outStr, "does not have any commits") || strings.Contains(outStr, "unknown revision") {
+						fmt.Printf("Project %s has empty repo (prior clone failed), re-cloning...\n", p.ID)
+						// Remove the broken repo so CloneProject can start fresh
+						os.RemoveAll(workDir)
+						needsClone = true
 					}
 				}
-				continue
 			}
-			fmt.Printf("Successfully cloned project %s\n", p.ID)
-		} else {
-			// Pull latest changes
-			fmt.Printf("Pulling latest changes for project %s...\n", p.ID)
-			if err := a.gitopsManager.PullProject(ctx, p); err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: Failed to pull project %s: %v\n", p.ID, err)
-				// Continue anyway with existing checkout
+
+			if needsClone {
+				// Clone the repository
+				fmt.Printf("Cloning project %s from %s...\n", p.ID, p.GitRepo)
+				if err := a.gitopsManager.CloneProject(ctx, p); err != nil {
+					errStr := err.Error()
+					fmt.Fprintf(os.Stderr, "Warning: Failed to clone project %s: %v\n", p.ID, err)
+
+					// If SSH auth failed, show the deploy key that needs to be registered
+					if p.GitAuthMethod == models.GitAuthSSH && strings.Contains(errStr, "Permission denied") {
+						if pubKey, keyErr := a.gitopsManager.EnsureProjectSSHKey(p.ID); keyErr == nil {
+							fmt.Fprintf(os.Stderr, "\n"+
+								"╔══════════════════════════════════════════════════════════════════╗\n"+
+								"║  DEPLOY KEY NOT REGISTERED                                      ║\n"+
+								"║                                                                  ║\n"+
+								"║  Add this deploy key to your git remote:                         ║\n"+
+								"║  %s\n"+
+								"║                                                                  ║\n"+
+								"║  For GitHub: Settings → Deploy Keys → Add deploy key             ║\n"+
+								"║  Enable 'Allow write access' if agents need to push.             ║\n"+
+								"╚══════════════════════════════════════════════════════════════════╝\n\n",
+								pubKey)
+						}
+					}
+					continue
+				}
+				fmt.Printf("Successfully cloned project %s\n", p.ID)
 			} else {
-				fmt.Printf("Successfully pulled project %s\n", p.ID)
+				// Pull latest changes
+				fmt.Printf("Pulling latest changes for project %s...\n", p.ID)
+				if err := a.gitopsManager.PullProject(ctx, p); err != nil {
+					fmt.Fprintf(os.Stderr, "Warning: Failed to pull project %s: %v\n", p.ID, err)
+					// Continue anyway with existing checkout
+				} else {
+					fmt.Printf("Successfully pulled project %s\n", p.ID)
+				}
 			}
-		}
 
 			// Initialize beads database if needed.
 			// For dolt backend, ensure bd is initialized with the correct prefix
@@ -1026,7 +1026,7 @@ func (a *Loom) kickstartOpenBeads(ctx context.Context) {
 			// Start Temporal workflow for the bead if Temporal is enabled
 			// Skip workflow assignment for system diagnostic beads to avoid blocking dispatch
 			isSystemBead := strings.Contains(strings.ToLower(b.Title), "system diagnostic") ||
-			                strings.Contains(strings.ToLower(b.Title), "diagnostic check")
+				strings.Contains(strings.ToLower(b.Title), "diagnostic check")
 			if a.temporalManager != nil && !isSystemBead {
 				if err := a.temporalManager.StartBeadWorkflow(ctx, b.ID, p.ID, b.Title, b.Description, int(b.Priority), b.Type); err != nil {
 					// Log error but continue with other beads
@@ -2334,13 +2334,13 @@ func isChatCapableModel(modelName string) bool {
 		"opus",
 		"sonnet",
 		"haiku",
-		"llama-3",    // Llama 3 has chat templates
-		"qwen",       // Qwen models generally have chat templates
-		"mistral",    // Mistral instruct models
-		"deepseek",   // DeepSeek chat models
-		"gemma",      // Gemma instruct
-		"phi-",       // Phi models with chat
-		"nemotron",   // NVIDIA Nemotron
+		"llama-3",  // Llama 3 has chat templates
+		"qwen",     // Qwen models generally have chat templates
+		"mistral",  // Mistral instruct models
+		"deepseek", // DeepSeek chat models
+		"gemma",    // Gemma instruct
+		"phi-",     // Phi models with chat
+		"nemotron", // NVIDIA Nemotron
 	}
 	for _, pattern := range chatPatterns {
 		if strings.Contains(lower, pattern) {
@@ -2657,7 +2657,7 @@ func (a *Loom) CreateBead(title, description string, priority models.BeadPriorit
 	// Start Temporal workflow for bead if Temporal is enabled
 	// Skip workflow assignment for system diagnostic beads to avoid blocking dispatch
 	isSystemBead := strings.Contains(strings.ToLower(title), "system diagnostic") ||
-	                strings.Contains(strings.ToLower(title), "diagnostic check")
+		strings.Contains(strings.ToLower(title), "diagnostic check")
 	if a.temporalManager != nil && !isSystemBead {
 		ctx := context.Background()
 		if err := a.temporalManager.StartBeadWorkflow(ctx, bead.ID, projectID, title, description, int(priority), beadType); err != nil {

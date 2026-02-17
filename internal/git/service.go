@@ -186,10 +186,10 @@ func (s *GitService) Commit(ctx context.Context, req CommitRequest) (*CommitResu
 
 // PushRequest defines parameters for pushing to remote
 type PushRequest struct {
-	BeadID     string // Bead ID for audit logging
-	Branch     string // Branch to push (default: current)
+	BeadID      string // Bead ID for audit logging
+	Branch      string // Branch to push (default: current)
 	SetUpstream bool   // Set upstream tracking (use -u flag)
-	Force      bool   // Force push (use with extreme caution)
+	Force       bool   // Force push (use with extreme caution)
 }
 
 // PushResult contains push operation results
@@ -658,12 +658,12 @@ func (l *AuditLogger) LogOperation(operation, beadID, ref string, success bool, 
 // LogOperationWithDuration logs a git operation with duration
 func (l *AuditLogger) LogOperationWithDuration(operation, beadID, ref string, success bool, err error, duration time.Duration) {
 	entry := map[string]interface{}{
-		"timestamp":  time.Now().UTC().Format(time.RFC3339),
-		"operation":  operation,
-		"bead_id":    beadID,
-		"project_id": l.projectID,
-		"ref":        ref,
-		"success":    success,
+		"timestamp":   time.Now().UTC().Format(time.RFC3339),
+		"operation":   operation,
+		"bead_id":     beadID,
+		"project_id":  l.projectID,
+		"ref":         ref,
+		"success":     success,
 		"duration_ms": duration.Milliseconds(),
 	}
 
@@ -685,13 +685,13 @@ func (l *AuditLogger) LogOperationWithDuration(operation, beadID, ref string, su
 
 // CreatePRRequest defines parameters for creating a pull request
 type CreatePRRequest struct {
-	BeadID      string   // Bead ID for tracking
-	Title       string   // PR title (auto-generated if empty)
-	Body        string   // PR description (auto-generated if empty)
-	Base        string   // Base branch (default: main)
-	Branch      string   // Source branch (default: current)
-	Reviewers   []string // GitHub usernames to request reviews from
-	Draft       bool     // Create as draft PR
+	BeadID    string   // Bead ID for tracking
+	Title     string   // PR title (auto-generated if empty)
+	Body      string   // PR description (auto-generated if empty)
+	Base      string   // Base branch (default: main)
+	Branch    string   // Source branch (default: current)
+	Reviewers []string // GitHub usernames to request reviews from
+	Draft     bool     // Create as draft PR
 }
 
 // CreatePRResult contains PR creation results
@@ -939,9 +939,9 @@ type DeleteBranchRequest struct {
 
 // DeleteBranchResult contains branch deletion results
 type DeleteBranchResult struct {
-	Branch       string `json:"branch"`
-	DeletedLocal bool   `json:"deleted_local"`
-	DeletedRemote bool  `json:"deleted_remote"`
+	Branch        string `json:"branch"`
+	DeletedLocal  bool   `json:"deleted_local"`
+	DeletedRemote bool   `json:"deleted_remote"`
 }
 
 // DeleteBranch deletes a local (and optionally remote) branch
@@ -1121,9 +1121,9 @@ func (s *GitService) Fetch(ctx context.Context) error {
 
 // BranchInfo represents a branch with metadata
 type BranchInfo struct {
-	Name      string `json:"name"`
-	IsCurrent bool   `json:"is_current"`
-	IsRemote  bool   `json:"is_remote"`
+	Name       string `json:"name"`
+	IsCurrent  bool   `json:"is_current"`
+	IsRemote   bool   `json:"is_remote"`
 	LastCommit string `json:"last_commit"`
 }
 

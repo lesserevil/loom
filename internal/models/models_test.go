@@ -349,23 +349,23 @@ func TestUpdateServiceCostRequestOmitEmpty(t *testing.T) {
 func TestProvider(t *testing.T) {
 	now := time.Now()
 	provider := Provider{
-		ID:              "prov-1",
-		Name:            "OpenAI",
-		Type:            "openai",
-		Endpoint:        "https://api.openai.com",
-		Model:           "gpt-4",
-		ConfiguredModel: "gpt-4-turbo",
-		Status:          "active",
-		RequiresKey:     true,
-		KeyID:           "key-1",
-		IsShared:        false,
-		CostPerMToken:   30.0,
-		ContextWindow:   128000,
+		ID:               "prov-1",
+		Name:             "OpenAI",
+		Type:             "openai",
+		Endpoint:         "https://api.openai.com",
+		Model:            "gpt-4",
+		ConfiguredModel:  "gpt-4-turbo",
+		Status:           "active",
+		RequiresKey:      true,
+		KeyID:            "key-1",
+		IsShared:         false,
+		CostPerMToken:    30.0,
+		ContextWindow:    128000,
 		SupportsFunction: true,
-		SupportsVision:  true,
-		Tags:            []string{"production", "fast"},
-		CreatedAt:       now,
-		UpdatedAt:       now,
+		SupportsVision:   true,
+		Tags:             []string{"production", "fast"},
+		CreatedAt:        now,
+		UpdatedAt:        now,
 	}
 
 	if provider.Name != "OpenAI" {
@@ -518,14 +518,14 @@ func TestProviderRecordFailure(t *testing.T) {
 // TestProviderComputedMetrics tests the computed metrics and scores
 func TestProviderComputedMetrics(t *testing.T) {
 	tests := []struct {
-		name           string
-		status         string
-		successCount   int64
-		failureCount   int64
-		avgLatencyMs   float64
-		avgThroughput  float64
-		wantMinAvail   float64 // Minimum availability score
-		wantMaxAvail   float64 // Maximum availability score
+		name          string
+		status        string
+		successCount  int64
+		failureCount  int64
+		avgLatencyMs  float64
+		avgThroughput float64
+		wantMinAvail  float64 // Minimum availability score
+		wantMaxAvail  float64 // Maximum availability score
 	}{
 		{
 			name:         "Active with 100% success",
@@ -752,9 +752,9 @@ func TestProviderMetricsZeroValues(t *testing.T) {
 // TestProviderStatusScoring tests different status values
 func TestProviderStatusScoring(t *testing.T) {
 	tests := []struct {
-		name              string
-		status            string
-		wantHealthyScore  bool
+		name               string
+		status             string
+		wantHealthyScore   bool
 		wantUnhealthyScore bool
 	}{
 		{"Active", "active", true, false},

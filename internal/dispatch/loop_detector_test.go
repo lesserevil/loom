@@ -373,9 +373,9 @@ func TestGenerateProgressKey(t *testing.T) {
 	ld := NewLoopDetector()
 
 	testCases := []struct {
-		name      string
-		action1   ActionRecord
-		action2   ActionRecord
+		name        string
+		action1     ActionRecord
+		action2     ActionRecord
 		shouldMatch bool
 	}{
 		{

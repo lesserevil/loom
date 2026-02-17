@@ -232,8 +232,8 @@ func TestGetPasswordWithEmptyString(t *testing.T) {
 func contains(s, substr string) bool {
 	return filepath.ToSlash(s) != "" && filepath.ToSlash(s) != "/" &&
 		(filepath.ToSlash(s) == substr ||
-		 filepath.Base(s) == substr ||
-		 filepath.Dir(s) != s && contains(filepath.Dir(s), substr))
+			filepath.Base(s) == substr ||
+			filepath.Dir(s) != s && contains(filepath.Dir(s), substr))
 }
 
 // TestConfig_StructInitialization tests Config struct initialization

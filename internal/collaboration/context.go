@@ -10,43 +10,43 @@ import (
 
 // SharedBeadContext represents shared context for agents collaborating on a bead
 type SharedBeadContext struct {
-	BeadID           string                 `json:"bead_id"`
-	ProjectID        string                 `json:"project_id"`
-	CollaboratingAgents []string            `json:"collaborating_agents"`
-	Data             map[string]interface{} `json:"data"`
-	ActivityLog      []ActivityEntry        `json:"activity_log"`
-	Version          int64                  `json:"version"` // For conflict resolution
-	LastUpdated      time.Time              `json:"last_updated"`
-	LastUpdatedBy    string                 `json:"last_updated_by"`
-	mu               sync.RWMutex
+	BeadID              string                 `json:"bead_id"`
+	ProjectID           string                 `json:"project_id"`
+	CollaboratingAgents []string               `json:"collaborating_agents"`
+	Data                map[string]interface{} `json:"data"`
+	ActivityLog         []ActivityEntry        `json:"activity_log"`
+	Version             int64                  `json:"version"` // For conflict resolution
+	LastUpdated         time.Time              `json:"last_updated"`
+	LastUpdatedBy       string                 `json:"last_updated_by"`
+	mu                  sync.RWMutex
 }
 
 // ActivityEntry represents an agent activity in the bead context
 type ActivityEntry struct {
-	Timestamp   time.Time              `json:"timestamp"`
-	AgentID     string                 `json:"agent_id"`
-	ActivityType string                `json:"activity_type"` // joined, updated, left, message, file_modified
-	Description string                 `json:"description"`
-	Data        map[string]interface{} `json:"data,omitempty"`
+	Timestamp    time.Time              `json:"timestamp"`
+	AgentID      string                 `json:"agent_id"`
+	ActivityType string                 `json:"activity_type"` // joined, updated, left, message, file_modified
+	Description  string                 `json:"description"`
+	Data         map[string]interface{} `json:"data,omitempty"`
 }
 
 // ContextStore manages shared bead contexts
 type ContextStore struct {
-	contexts  map[string]*SharedBeadContext // beadID -> context
-	mu        sync.RWMutex
-	updates   chan ContextUpdate // Channel for real-time updates
-	listeners map[string][]chan ContextUpdate // beadID -> listeners
+	contexts   map[string]*SharedBeadContext // beadID -> context
+	mu         sync.RWMutex
+	updates    chan ContextUpdate              // Channel for real-time updates
+	listeners  map[string][]chan ContextUpdate // beadID -> listeners
 	listenerMu sync.RWMutex
 }
 
 // ContextUpdate represents a context update event
 type ContextUpdate struct {
-	BeadID    string
-	UpdateType string                 // joined, left, data_changed, activity
-	AgentID   string
-	Data      map[string]interface{}
-	Timestamp time.Time
-	Version   int64
+	BeadID     string
+	UpdateType string // joined, left, data_changed, activity
+	AgentID    string
+	Data       map[string]interface{}
+	Timestamp  time.Time
+	Version    int64
 }
 
 // ConflictError indicates a version conflict during update

@@ -207,7 +207,7 @@ func TestCommitLockContext_Cancel(t *testing.T) {
 			t.Fatal("Expected error due to context cancellation, got nil")
 		}
 		if err.Error() != "context cancelled while waiting for commit" &&
-		   err.Error() != "context cancelled while waiting for commit queue" {
+			err.Error() != "context cancelled while waiting for commit queue" {
 			t.Errorf("Expected context cancellation error, got: %v", err)
 		}
 	case <-time.After(2 * time.Second):

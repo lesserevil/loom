@@ -79,7 +79,7 @@ func NewComplexityEstimator() *ComplexityEstimator {
 			`(?i)\brename\b`,
 			`(?i)\bupdate.*comment`,
 			`(?i)\badd.*comment`,
-			`(?i)\btypo\b`,         // Simple: typo fixes
+			`(?i)\btypo\b`, // Simple: typo fixes
 			`(?i)\bspelling`,
 			`(?i)\bcleanup\b`,
 			`(?i)\bremove.*unused`,
@@ -118,9 +118,9 @@ func NewComplexityEstimator() *ComplexityEstimator {
 		extendedPatterns: compilePatterns([]string{
 			`(?i)\bextended.*think`,
 			`(?i)\bdeep.*analysis`,
-			`(?i)\bcomprehensive`,    // Comprehensive anything = extended
+			`(?i)\bcomprehensive`, // Comprehensive anything = extended
 			`(?i)\bfull.*audit`,
-			`(?i)\baudit`,            // Audit = extended
+			`(?i)\baudit`, // Audit = extended
 			`(?i)\broot.*cause`,
 			`(?i)\bmulti.?step`,
 			`(?i)\bchain.*of.*thought`,
@@ -131,7 +131,7 @@ func NewComplexityEstimator() *ComplexityEstimator {
 			`(?i)\bcritical.*decision`,
 			`(?i)\bhigh.*stakes`,
 			`(?i)\birreversible`,
-			`(?i)\bformal.*verif`,    // Formal verification
+			`(?i)\bformal.*verif`, // Formal verification
 		}),
 	}
 }

@@ -3189,8 +3189,6 @@ func TestListActivities_EventTypeFilter(t *testing.T) {
 	}
 }
 
-
-
 // ============================================================
 // 19. Additional edge case and filter tests
 // ============================================================
@@ -3450,4 +3448,3 @@ func TestListUsers_MultipleUsers(t *testing.T) {
 		t.Errorf("Expected %d users, got %d", initialCount+2, len(users))
 	}
 }
-

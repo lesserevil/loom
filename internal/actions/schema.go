@@ -9,34 +9,34 @@ import (
 )
 
 const (
-	ActionAskFollowup   = "ask_followup"
-	ActionReadCode      = "read_code"
-	ActionEditCode      = "edit_code"
-	ActionWriteFile     = "write_file"
-	ActionRunCommand    = "run_command"
-	ActionRunTests      = "run_tests"
-	ActionRunLinter     = "run_linter"
-	ActionBuildProject  = "build_project"
-	ActionCreateBead    = "create_bead"
-	ActionCloseBead     = "close_bead"
-	ActionEscalateCEO   = "escalate_ceo"
-	ActionReadFile      = "read_file"
-	ActionReadTree      = "read_tree"
-	ActionSearchText    = "search_text"
-	ActionApplyPatch    = "apply_patch"
-	ActionGitStatus     = "git_status"
-	ActionGitDiff       = "git_diff"
-	ActionGitCommit       = "git_commit"
-	ActionGitPush         = "git_push"
-	ActionGitCheckpoint   = "git_checkpoint" // Checkpoint: commit WIP without closing bead
-	ActionCreatePR        = "create_pr"
-	ActionStartDev        = "start_development"
-	ActionWhatsNext       = "whats_next"
-	ActionProceedToPhase  = "proceed_to_phase"
-	ActionConductReview   = "conduct_review"
-	ActionResumeWorkflow  = "resume_workflow"
-	ActionApproveBead     = "approve_bead"
-	ActionRejectBead      = "reject_bead"
+	ActionAskFollowup    = "ask_followup"
+	ActionReadCode       = "read_code"
+	ActionEditCode       = "edit_code"
+	ActionWriteFile      = "write_file"
+	ActionRunCommand     = "run_command"
+	ActionRunTests       = "run_tests"
+	ActionRunLinter      = "run_linter"
+	ActionBuildProject   = "build_project"
+	ActionCreateBead     = "create_bead"
+	ActionCloseBead      = "close_bead"
+	ActionEscalateCEO    = "escalate_ceo"
+	ActionReadFile       = "read_file"
+	ActionReadTree       = "read_tree"
+	ActionSearchText     = "search_text"
+	ActionApplyPatch     = "apply_patch"
+	ActionGitStatus      = "git_status"
+	ActionGitDiff        = "git_diff"
+	ActionGitCommit      = "git_commit"
+	ActionGitPush        = "git_push"
+	ActionGitCheckpoint  = "git_checkpoint" // Checkpoint: commit WIP without closing bead
+	ActionCreatePR       = "create_pr"
+	ActionStartDev       = "start_development"
+	ActionWhatsNext      = "whats_next"
+	ActionProceedToPhase = "proceed_to_phase"
+	ActionConductReview  = "conduct_review"
+	ActionResumeWorkflow = "resume_workflow"
+	ActionApproveBead    = "approve_bead"
+	ActionRejectBead     = "reject_bead"
 
 	// Code navigation actions
 	ActionFindReferences      = "find_references"
@@ -61,11 +61,11 @@ const (
 	ActionGenerateDocs = "generate_docs"
 
 	// PR review actions
-	ActionFetchPR         = "fetch_pr"
-	ActionReviewCode      = "review_code"
-	ActionAddPRComment    = "add_pr_comment"
-	ActionSubmitReview    = "submit_review"
-	ActionRequestReview   = "request_review"
+	ActionFetchPR       = "fetch_pr"
+	ActionReviewCode    = "review_code"
+	ActionAddPRComment  = "add_pr_comment"
+	ActionSubmitReview  = "submit_review"
+	ActionRequestReview = "request_review"
 
 	// Extended git operations
 	ActionGitMerge        = "git_merge"
@@ -103,8 +103,8 @@ type Action struct {
 	Path     string `json:"path,omitempty"`
 	Content  string `json:"content,omitempty"`
 	Patch    string `json:"patch,omitempty"`
-	OldText  string `json:"old_text,omitempty"`  // For text-based EDIT: exact text to replace
-	NewText  string `json:"new_text,omitempty"`  // For text-based EDIT: replacement text
+	OldText  string `json:"old_text,omitempty"` // For text-based EDIT: exact text to replace
+	NewText  string `json:"new_text,omitempty"` // For text-based EDIT: replacement text
 	Query    string `json:"query,omitempty"`
 	MaxDepth int    `json:"max_depth,omitempty"`
 	Limit    int    `json:"limit,omitempty"`
@@ -149,65 +149,65 @@ type Action struct {
 	ReviewState    string `json:"review_state,omitempty"`    // Review state (not-required, pending, performed)
 
 	// Code navigation fields
-	Symbol   string `json:"symbol,omitempty"`    // Symbol name for find_references/go_to_definition
-	Line     int    `json:"line,omitempty"`      // Line number for position-based queries
-	Column   int    `json:"column,omitempty"`    // Column number for position-based queries
-	Language string `json:"language,omitempty"`  // Language hint (go, typescript, python, etc.)
+	Symbol   string `json:"symbol,omitempty"`   // Symbol name for find_references/go_to_definition
+	Line     int    `json:"line,omitempty"`     // Line number for position-based queries
+	Column   int    `json:"column,omitempty"`   // Column number for position-based queries
+	Language string `json:"language,omitempty"` // Language hint (go, typescript, python, etc.)
 
 	// Refactoring fields
-	NewName       string `json:"new_name,omitempty"`       // New name for rename_symbol/rename_file
-	MethodName    string `json:"method_name,omitempty"`    // Method name for extract_method
-	StartLine     int    `json:"start_line,omitempty"`     // Start line for extract_method
-	EndLine       int    `json:"end_line,omitempty"`       // End line for extract_method
-	VariableName  string `json:"variable_name,omitempty"`  // Variable name for inline_variable
+	NewName      string `json:"new_name,omitempty"`      // New name for rename_symbol/rename_file
+	MethodName   string `json:"method_name,omitempty"`   // Method name for extract_method
+	StartLine    int    `json:"start_line,omitempty"`    // Start line for extract_method
+	EndLine      int    `json:"end_line,omitempty"`      // End line for extract_method
+	VariableName string `json:"variable_name,omitempty"` // Variable name for inline_variable
 
 	// File management fields
 	SourcePath string `json:"source_path,omitempty"` // Source file path for move/rename
 	TargetPath string `json:"target_path,omitempty"` // Target file path for move/rename
 
 	// Debugging fields
-	LogMessage  string `json:"log_message,omitempty"`  // Log message for add_log
-	LogLevel    string `json:"log_level,omitempty"`    // Log level (info, warn, error, debug)
-	Condition   string `json:"condition,omitempty"`    // Breakpoint condition
+	LogMessage string `json:"log_message,omitempty"` // Log message for add_log
+	LogLevel   string `json:"log_level,omitempty"`   // Log level (info, warn, error, debug)
+	Condition  string `json:"condition,omitempty"`   // Breakpoint condition
 
 	// Documentation fields
 	DocFormat string `json:"doc_format,omitempty"` // Documentation format (godoc, jsdoc, markdown)
 
 	// PR review fields
-	PRNumber       int      `json:"pr_number,omitempty"`        // PR number for fetch_pr and review actions
-	IncludeFiles   bool     `json:"include_files,omitempty"`    // Include changed files in fetch_pr
-	IncludeDiff    bool     `json:"include_diff,omitempty"`     // Include diff in fetch_pr
-	ReviewCriteria []string `json:"review_criteria,omitempty"`  // Criteria for review_code (quality, security, testing)
-	CommentBody    string   `json:"comment_body,omitempty"`     // Comment text for add_pr_comment
-	CommentPath    string   `json:"comment_path,omitempty"`     // File path for inline comment
-	CommentLine    int      `json:"comment_line,omitempty"`     // Line number for inline comment
+	PRNumber       int      `json:"pr_number,omitempty"`       // PR number for fetch_pr and review actions
+	IncludeFiles   bool     `json:"include_files,omitempty"`   // Include changed files in fetch_pr
+	IncludeDiff    bool     `json:"include_diff,omitempty"`    // Include diff in fetch_pr
+	ReviewCriteria []string `json:"review_criteria,omitempty"` // Criteria for review_code (quality, security, testing)
+	CommentBody    string   `json:"comment_body,omitempty"`    // Comment text for add_pr_comment
+	CommentPath    string   `json:"comment_path,omitempty"`    // File path for inline comment
+	CommentLine    int      `json:"comment_line,omitempty"`    // Line number for inline comment
 
 	// Remediation/meta-analysis fields
-	BeadID          string `json:"bead_id,omitempty"`           // Bead ID to read conversation/context from
-	IncludeMetadata bool   `json:"include_metadata,omitempty"`  // Include metadata in response
-	MaxMessages     int    `json:"max_messages,omitempty"`      // Maximum number of messages to return
-	CommentSide    string   `json:"comment_side,omitempty"`     // Side for inline comment (LEFT, RIGHT)
-	ReviewEvent    string   `json:"review_event,omitempty"`     // Review event (APPROVE, REQUEST_CHANGES, COMMENT)
-	Reviewer       string   `json:"reviewer,omitempty"`         // Reviewer for request_review
+	BeadID          string `json:"bead_id,omitempty"`          // Bead ID to read conversation/context from
+	IncludeMetadata bool   `json:"include_metadata,omitempty"` // Include metadata in response
+	MaxMessages     int    `json:"max_messages,omitempty"`     // Maximum number of messages to return
+	CommentSide     string `json:"comment_side,omitempty"`     // Side for inline comment (LEFT, RIGHT)
+	ReviewEvent     string `json:"review_event,omitempty"`     // Review event (APPROVE, REQUEST_CHANGES, COMMENT)
+	Reviewer        string `json:"reviewer,omitempty"`         // Reviewer for request_review
 
 	// Agent communication fields
-	ToAgentID      string                 `json:"to_agent_id,omitempty"`      // Target agent ID for send_agent_message
-	ToAgentRole    string                 `json:"to_agent_role,omitempty"`    // Target agent role (alternative to ID)
-	MessageType    string                 `json:"message_type,omitempty"`     // Message type (question, delegation, notification)
-	MessageSubject string                 `json:"message_subject,omitempty"`  // Message subject
-	MessageBody    string                 `json:"message_body,omitempty"`     // Message body
-	MessagePayload map[string]interface{} `json:"message_payload,omitempty"`  // Optional message payload/context
+	ToAgentID      string                 `json:"to_agent_id,omitempty"`     // Target agent ID for send_agent_message
+	ToAgentRole    string                 `json:"to_agent_role,omitempty"`   // Target agent role (alternative to ID)
+	MessageType    string                 `json:"message_type,omitempty"`    // Message type (question, delegation, notification)
+	MessageSubject string                 `json:"message_subject,omitempty"` // Message subject
+	MessageBody    string                 `json:"message_body,omitempty"`    // Message body
+	MessagePayload map[string]interface{} `json:"message_payload,omitempty"` // Optional message payload/context
 
 	// Task delegation fields
-	DelegateToRole  string                 `json:"delegate_to_role,omitempty"`  // Role to delegate task to
-	TaskTitle       string                 `json:"task_title,omitempty"`        // Title for delegated task
-	TaskDescription string                 `json:"task_description,omitempty"`  // Description for delegated task
-	TaskPriority    int                    `json:"task_priority,omitempty"`     // Priority for delegated task (0-4)
-	ParentBeadID    string                 `json:"parent_bead_id,omitempty"`    // Parent bead that created this delegation
+	DelegateToRole  string `json:"delegate_to_role,omitempty"` // Role to delegate task to
+	TaskTitle       string `json:"task_title,omitempty"`       // Title for delegated task
+	TaskDescription string `json:"task_description,omitempty"` // Description for delegated task
+	TaskPriority    int    `json:"task_priority,omitempty"`    // Priority for delegated task (0-4)
+	ParentBeadID    string `json:"parent_bead_id,omitempty"`   // Parent bead that created this delegation
 
 	Bead *BeadPayload `json:"bead,omitempty"`
 
-	Reason     string `json:"reason,omitempty"`     // Reason for bead operations or phase transitions
+	Reason     string `json:"reason,omitempty"` // Reason for bead operations or phase transitions
 	ReturnedTo string `json:"returned_to,omitempty"`
 }
 

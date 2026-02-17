@@ -77,11 +77,11 @@ type Dispatcher struct {
 	loopDetector        *LoopDetector
 
 	// Commit serialization (Gap #2)
-	commitLock        sync.Mutex        // Global commit lock
+	commitLock        sync.Mutex         // Global commit lock
 	commitQueue       chan commitRequest // Queue for waiting commits
-	commitLockTimeout time.Duration     // Max time to hold lock (5 min)
-	commitInProgress  *commitState      // Current commit state
-	commitStateMutex  sync.RWMutex      // Protects commitInProgress
+	commitLockTimeout time.Duration      // Max time to hold lock (5 min)
+	commitInProgress  *commitState       // Current commit state
+	commitStateMutex  sync.RWMutex       // Protects commitInProgress
 
 	mu              sync.RWMutex
 	status          SystemStatus
@@ -509,12 +509,12 @@ func (d *Dispatcher) DispatchOnce(ctx context.Context, projectID string) (*Dispa
 				}
 
 				ctxUpdates := map[string]string{
-					"redispatch_requested": "false",
-					"ralph_blocked_at":     time.Now().UTC().Format(time.RFC3339),
-					"ralph_blocked_reason": reason,
+					"redispatch_requested":  "false",
+					"ralph_blocked_at":      time.Now().UTC().Format(time.RFC3339),
+					"ralph_blocked_reason":  reason,
 					"loop_detection_reason": loopReason,
-					"progress_summary":     progressSummary,
-					"revert_status":        revertStatus,
+					"progress_summary":      progressSummary,
+					"revert_status":         revertStatus,
 				}
 				if sessionID := b.Context["conversation_session_id"]; sessionID != "" {
 					ctxUpdates["conversation_session_id"] = sessionID
@@ -836,47 +836,168 @@ func (d *Dispatcher) DispatchOnce(ctx context.Context, projectID string) (*Dispa
 		}
 
 		result, execErr := d.agents.ExecuteTask(taskCtx, ag.ID, task)
-	if execErr != nil {
-		d.setStatus(StatusParked, "execution failed")
-		observability.Error("dispatch.execute", map[string]interface{}{
-			"agent_id":    ag.ID,
-			"bead_id":     candidate.ID,
-			"project_id":  selectedProjectID,
-			"provider_id": ag.ProviderID,
-		}, execErr)
+		if execErr != nil {
+			d.setStatus(StatusParked, "execution failed")
+			observability.Error("dispatch.execute", map[string]interface{}{
+				"agent_id":    ag.ID,
+				"bead_id":     candidate.ID,
+				"project_id":  selectedProjectID,
+				"provider_id": ag.ProviderID,
+			}, execErr)
 
-		historyJSON, loopDetected, loopReason := buildDispatchHistory(candidate, ag.ID)
+			historyJSON, loopDetected, loopReason := buildDispatchHistory(candidate, ag.ID)
 
-		// Check if the error is due to max_iterations - if so, don't redispatch
-		shouldRedispatch := "true"
-		if candidate.Context != nil && candidate.Context["terminal_reason"] == "max_iterations" {
-			shouldRedispatch = "false"
-			log.Printf("[Dispatcher] Bead %s previously hit max_iterations, not redispatching after error", candidate.ID)
+			// Check if the error is due to max_iterations - if so, don't redispatch
+			shouldRedispatch := "true"
+			if candidate.Context != nil && candidate.Context["terminal_reason"] == "max_iterations" {
+				shouldRedispatch = "false"
+				log.Printf("[Dispatcher] Bead %s previously hit max_iterations, not redispatching after error", candidate.ID)
+			}
+
+			ctxUpdates := map[string]string{
+				"last_run_at":          time.Now().UTC().Format(time.RFC3339),
+				"last_run_error":       execErr.Error(),
+				"agent_id":             ag.ID,
+				"provider_id":          ag.ProviderID,
+				"redispatch_requested": shouldRedispatch,
+				"dispatch_history":     historyJSON,
+				"loop_detected":        fmt.Sprintf("%t", loopDetected),
+			}
+			if loopDetected {
+				ctxUpdates["loop_detected_reason"] = loopReason
+				ctxUpdates["loop_detected_at"] = time.Now().UTC().Format(time.RFC3339)
+			}
+			updates := map[string]interface{}{"context": ctxUpdates}
+			if loopDetected {
+				triageAgent := d.findDefaultTriageAgent(candidate.ProjectID)
+				updates["priority"] = models.BeadPriorityP0
+				updates["status"] = models.BeadStatusOpen
+				updates["assigned_to"] = triageAgent
+				log.Printf("[Dispatcher] Loop detected for bead %s, reassigning to triage agent %s", candidate.ID, triageAgent)
+			}
+			if err := d.beads.UpdateBead(candidate.ID, updates); err != nil {
+				log.Printf("[Dispatcher] CRITICAL: Failed to update bead %s with context/loop detection: %v", candidate.ID, err)
+			}
+			if d.eventBus != nil {
+				status := string(models.BeadStatusInProgress)
+				if loopDetected {
+					status = string(models.BeadStatusOpen)
+				}
+				if err := d.eventBus.PublishBeadEvent(eventbus.EventTypeBeadStatusChange, candidate.ID, selectedProjectID, map[string]interface{}{"status": status}); err != nil {
+					log.Printf("[Dispatcher] Warning: Failed to publish bead status change event for %s: %v", candidate.ID, err)
+				}
+			}
+
+			// Handle workflow failure — map to correct condition for node type
+			if d.workflowEngine != nil {
+				execution, err := d.workflowEngine.GetDatabase().GetWorkflowExecutionByBeadID(candidate.ID)
+				if err == nil && execution != nil {
+					// For approval/verify nodes, use "rejected" instead of "failure"
+					// since their edges use approved/rejected conditions.
+					failCondition := workflow.EdgeConditionFailure
+					if currentNode, nodeErr := d.workflowEngine.GetCurrentNode(execution.ID); nodeErr == nil && currentNode != nil {
+						if currentNode.NodeType == workflow.NodeTypeApproval || currentNode.NodeType == workflow.NodeTypeVerify {
+							failCondition = workflow.EdgeConditionRejected
+							log.Printf("[Workflow] %s node %s failed — advancing with 'rejected'", currentNode.NodeType, currentNode.NodeKey)
+						}
+					}
+					resultData := map[string]string{
+						"failure_reason": execErr.Error(),
+					}
+					if err := d.workflowEngine.AdvanceWorkflow(execution.ID, failCondition, ag.ID, resultData); err != nil {
+						log.Printf("[Workflow] Failed to report failure to workflow for bead %s: %v", candidate.ID, err)
+					} else {
+						log.Printf("[Workflow] Reported failure to workflow for bead %s (condition: %s)", candidate.ID, failCondition)
+					}
+				}
+			}
+
+			return
 		}
 
 		ctxUpdates := map[string]string{
 			"last_run_at":          time.Now().UTC().Format(time.RFC3339),
-			"last_run_error":       execErr.Error(),
 			"agent_id":             ag.ID,
 			"provider_id":          ag.ProviderID,
-			"redispatch_requested": shouldRedispatch,
-			"dispatch_history":     historyJSON,
-			"loop_detected":        fmt.Sprintf("%t", loopDetected),
+			"provider_model":       d.providersModel(ag.ProviderID),
+			"agent_output":         result.Response,
+			"agent_tokens":         fmt.Sprintf("%d", result.TokensUsed),
+			"agent_task_id":        result.TaskID,
+			"agent_worker_id":      result.WorkerID,
+			"redispatch_requested": "true",
 		}
+
+		// Store action loop metadata if the task used the action loop
+		if result.LoopIterations > 0 {
+			ctxUpdates["loop_iterations"] = fmt.Sprintf("%d", result.LoopIterations)
+			ctxUpdates["terminal_reason"] = result.LoopTerminalReason
+
+			// If the loop completed successfully, the agent finished the work
+			if result.LoopTerminalReason == "completed" {
+				ctxUpdates["redispatch_requested"] = "false"
+			}
+
+			// If the agent hit max_iterations, allow ONE retry with fresh context
+			// The agent may have run out of time during exploration/editing phase
+			// Allowing one retry gives it a chance to commit work before losing progress
+			if result.LoopTerminalReason == "max_iterations" {
+				// Check if we've already retried once
+				maxIterRetries := 0
+				if candidate.Context != nil {
+					if retriesStr, ok := candidate.Context["max_iterations_retries"]; ok {
+						fmt.Sscanf(retriesStr, "%d", &maxIterRetries)
+					}
+				}
+
+				if maxIterRetries == 0 {
+					// First time hitting max_iterations - allow one retry
+					ctxUpdates["redispatch_requested"] = "true"
+					ctxUpdates["max_iterations_retries"] = "1"
+					ctxUpdates["max_iterations_reached_at"] = time.Now().UTC().Format(time.RFC3339)
+					log.Printf("[Dispatcher] Bead %s hit max_iterations (first time), allowing one retry", candidate.ID)
+				} else {
+					// Already retried - disable further redispatches to prevent infinite loops
+					ctxUpdates["redispatch_requested"] = "false"
+					ctxUpdates["max_iterations_retry_exhausted"] = "true"
+					log.Printf("[Dispatcher] Bead %s hit max_iterations again after retry, disabling redispatch", candidate.ID)
+				}
+			}
+
+			// On failure, set cooldown to prevent re-dispatching the same bead
+			// 50 times in a single ralph beat
+			switch result.LoopTerminalReason {
+			case "parse_failures", "validation_failures", "error":
+				ctxUpdates["last_failed_at"] = time.Now().UTC().Format(time.RFC3339)
+			case "progress_stagnant", "inner_loop":
+				// Agent is stuck - trigger remediation
+				ctxUpdates["last_failed_at"] = time.Now().UTC().Format(time.RFC3339)
+				ctxUpdates["remediation_needed"] = "true"
+				ctxUpdates["remediation_requested_at"] = time.Now().UTC().Format(time.RFC3339)
+				log.Printf("[Dispatcher] Agent stuck on bead %s (reason: %s), remediation needed", candidate.ID, result.LoopTerminalReason)
+
+				// Create remediation bead to analyze and fix the blocker
+				go d.createRemediationBead(candidate, ag, result)
+			}
+		}
+
+		historyJSON, loopDetected, loopReason := buildDispatchHistory(candidate, ag.ID)
+		ctxUpdates["dispatch_history"] = historyJSON
+		ctxUpdates["loop_detected"] = fmt.Sprintf("%t", loopDetected)
 		if loopDetected {
 			ctxUpdates["loop_detected_reason"] = loopReason
 			ctxUpdates["loop_detected_at"] = time.Now().UTC().Format(time.RFC3339)
 		}
+
 		updates := map[string]interface{}{"context": ctxUpdates}
 		if loopDetected {
 			triageAgent := d.findDefaultTriageAgent(candidate.ProjectID)
 			updates["priority"] = models.BeadPriorityP0
 			updates["status"] = models.BeadStatusOpen
 			updates["assigned_to"] = triageAgent
-			log.Printf("[Dispatcher] Loop detected for bead %s, reassigning to triage agent %s", candidate.ID, triageAgent)
+			log.Printf("[Dispatcher] Task failure loop for bead %s, reassigning to triage agent %s", candidate.ID, triageAgent)
 		}
 		if err := d.beads.UpdateBead(candidate.ID, updates); err != nil {
-			log.Printf("[Dispatcher] CRITICAL: Failed to update bead %s with context/loop detection: %v", candidate.ID, err)
+			log.Printf("[Dispatcher] CRITICAL: Failed to update bead %s after task failure: %v", candidate.ID, err)
 		}
 		if d.eventBus != nil {
 			status := string(models.BeadStatusInProgress)
@@ -888,209 +1009,89 @@ func (d *Dispatcher) DispatchOnce(ctx context.Context, projectID string) (*Dispa
 			}
 		}
 
-		// Handle workflow failure — map to correct condition for node type
-		if d.workflowEngine != nil {
+		// Advance workflow after successful task execution
+		if d.workflowEngine != nil && !loopDetected {
 			execution, err := d.workflowEngine.GetDatabase().GetWorkflowExecutionByBeadID(candidate.ID)
 			if err == nil && execution != nil {
-				// For approval/verify nodes, use "rejected" instead of "failure"
-				// since their edges use approved/rejected conditions.
-				failCondition := workflow.EdgeConditionFailure
+				// Determine the correct edge condition based on the current node type.
+				// Approval and verify nodes define edges with "approved"/"rejected",
+				// not "success", so we must translate the dispatcher's generic
+				// "task completed" signal into the condition the workflow expects.
+				advanceCondition := workflow.EdgeConditionSuccess
 				if currentNode, nodeErr := d.workflowEngine.GetCurrentNode(execution.ID); nodeErr == nil && currentNode != nil {
-					if currentNode.NodeType == workflow.NodeTypeApproval || currentNode.NodeType == workflow.NodeTypeVerify {
-						failCondition = workflow.EdgeConditionRejected
-						log.Printf("[Workflow] %s node %s failed — advancing with 'rejected'", currentNode.NodeType, currentNode.NodeKey)
+					switch currentNode.NodeType {
+					case workflow.NodeTypeApproval:
+						// Agent completed approval review — treat as approved.
+						// A rejection would come through FailNode / escalation path.
+						advanceCondition = workflow.EdgeConditionApproved
+						log.Printf("[Workflow] Approval node %s completed by agent %s — advancing with 'approved'", currentNode.NodeKey, ag.ID)
+					case workflow.NodeTypeVerify:
+						// Agent completed verification — treat as approved.
+						advanceCondition = workflow.EdgeConditionApproved
+						log.Printf("[Workflow] Verify node %s completed by agent %s — advancing with 'approved'", currentNode.NodeKey, ag.ID)
 					}
 				}
+
 				resultData := map[string]string{
-					"failure_reason": execErr.Error(),
+					"agent_id":    ag.ID,
+					"output":      result.Response,
+					"tokens_used": fmt.Sprintf("%d", result.TokensUsed),
 				}
-				if err := d.workflowEngine.AdvanceWorkflow(execution.ID, failCondition, ag.ID, resultData); err != nil {
-					log.Printf("[Workflow] Failed to report failure to workflow for bead %s: %v", candidate.ID, err)
+				if err := d.workflowEngine.AdvanceWorkflow(execution.ID, advanceCondition, ag.ID, resultData); err != nil {
+					log.Printf("[Workflow] Failed to advance workflow for bead %s: %v", candidate.ID, err)
 				} else {
-					log.Printf("[Workflow] Reported failure to workflow for bead %s (condition: %s)", candidate.ID, failCondition)
-				}
-			}
-		}
+					// Get updated execution to check status
+					updatedExec, _ := d.workflowEngine.GetDatabase().GetWorkflowExecution(execution.ID)
+					if updatedExec != nil {
+						log.Printf("[Workflow] Advanced workflow for bead %s: status=%s, node=%s, cycle=%d",
+							candidate.ID, updatedExec.Status, updatedExec.CurrentNodeKey, updatedExec.CycleCount)
 
-		return
-	}
+						// Check if workflow was escalated and needs CEO bead
+						if updatedExec.Status == workflow.ExecutionStatusEscalated && candidate.Context["escalation_bead_created"] != "true" {
+							log.Printf("[Workflow] Creating CEO escalation bead for workflow %s (bead %s)", updatedExec.ID, candidate.ID)
 
-	ctxUpdates := map[string]string{
-		"last_run_at":          time.Now().UTC().Format(time.RFC3339),
-		"agent_id":             ag.ID,
-		"provider_id":          ag.ProviderID,
-		"provider_model":       d.providersModel(ag.ProviderID),
-		"agent_output":         result.Response,
-		"agent_tokens":         fmt.Sprintf("%d", result.TokensUsed),
-		"agent_task_id":        result.TaskID,
-		"agent_worker_id":      result.WorkerID,
-		"redispatch_requested": "true",
-	}
-
-	// Store action loop metadata if the task used the action loop
-	if result.LoopIterations > 0 {
-		ctxUpdates["loop_iterations"] = fmt.Sprintf("%d", result.LoopIterations)
-		ctxUpdates["terminal_reason"] = result.LoopTerminalReason
-
-		// If the loop completed successfully, the agent finished the work
-		if result.LoopTerminalReason == "completed" {
-			ctxUpdates["redispatch_requested"] = "false"
-		}
-
-		// If the agent hit max_iterations, allow ONE retry with fresh context
-		// The agent may have run out of time during exploration/editing phase
-		// Allowing one retry gives it a chance to commit work before losing progress
-		if result.LoopTerminalReason == "max_iterations" {
-			// Check if we've already retried once
-			maxIterRetries := 0
-			if candidate.Context != nil {
-				if retriesStr, ok := candidate.Context["max_iterations_retries"]; ok {
-					fmt.Sscanf(retriesStr, "%d", &maxIterRetries)
-				}
-			}
-
-			if maxIterRetries == 0 {
-				// First time hitting max_iterations - allow one retry
-				ctxUpdates["redispatch_requested"] = "true"
-				ctxUpdates["max_iterations_retries"] = "1"
-				ctxUpdates["max_iterations_reached_at"] = time.Now().UTC().Format(time.RFC3339)
-				log.Printf("[Dispatcher] Bead %s hit max_iterations (first time), allowing one retry", candidate.ID)
-			} else {
-				// Already retried - disable further redispatches to prevent infinite loops
-				ctxUpdates["redispatch_requested"] = "false"
-				ctxUpdates["max_iterations_retry_exhausted"] = "true"
-				log.Printf("[Dispatcher] Bead %s hit max_iterations again after retry, disabling redispatch", candidate.ID)
-			}
-		}
-
-		// On failure, set cooldown to prevent re-dispatching the same bead
-		// 50 times in a single ralph beat
-		switch result.LoopTerminalReason {
-		case "parse_failures", "validation_failures", "error":
-			ctxUpdates["last_failed_at"] = time.Now().UTC().Format(time.RFC3339)
-		case "progress_stagnant", "inner_loop":
-			// Agent is stuck - trigger remediation
-			ctxUpdates["last_failed_at"] = time.Now().UTC().Format(time.RFC3339)
-			ctxUpdates["remediation_needed"] = "true"
-			ctxUpdates["remediation_requested_at"] = time.Now().UTC().Format(time.RFC3339)
-			log.Printf("[Dispatcher] Agent stuck on bead %s (reason: %s), remediation needed", candidate.ID, result.LoopTerminalReason)
-
-			// Create remediation bead to analyze and fix the blocker
-			go d.createRemediationBead(candidate, ag, result)
-		}
-	}
-
-	historyJSON, loopDetected, loopReason := buildDispatchHistory(candidate, ag.ID)
-	ctxUpdates["dispatch_history"] = historyJSON
-	ctxUpdates["loop_detected"] = fmt.Sprintf("%t", loopDetected)
-	if loopDetected {
-		ctxUpdates["loop_detected_reason"] = loopReason
-		ctxUpdates["loop_detected_at"] = time.Now().UTC().Format(time.RFC3339)
-	}
-
-	updates := map[string]interface{}{"context": ctxUpdates}
-	if loopDetected {
-		triageAgent := d.findDefaultTriageAgent(candidate.ProjectID)
-		updates["priority"] = models.BeadPriorityP0
-		updates["status"] = models.BeadStatusOpen
-		updates["assigned_to"] = triageAgent
-		log.Printf("[Dispatcher] Task failure loop for bead %s, reassigning to triage agent %s", candidate.ID, triageAgent)
-	}
-	if err := d.beads.UpdateBead(candidate.ID, updates); err != nil {
-		log.Printf("[Dispatcher] CRITICAL: Failed to update bead %s after task failure: %v", candidate.ID, err)
-	}
-	if d.eventBus != nil {
-		status := string(models.BeadStatusInProgress)
-		if loopDetected {
-			status = string(models.BeadStatusOpen)
-		}
-		if err := d.eventBus.PublishBeadEvent(eventbus.EventTypeBeadStatusChange, candidate.ID, selectedProjectID, map[string]interface{}{"status": status}); err != nil {
-			log.Printf("[Dispatcher] Warning: Failed to publish bead status change event for %s: %v", candidate.ID, err)
-		}
-	}
-
-	// Advance workflow after successful task execution
-	if d.workflowEngine != nil && !loopDetected {
-		execution, err := d.workflowEngine.GetDatabase().GetWorkflowExecutionByBeadID(candidate.ID)
-		if err == nil && execution != nil {
-			// Determine the correct edge condition based on the current node type.
-			// Approval and verify nodes define edges with "approved"/"rejected",
-			// not "success", so we must translate the dispatcher's generic
-			// "task completed" signal into the condition the workflow expects.
-			advanceCondition := workflow.EdgeConditionSuccess
-			if currentNode, nodeErr := d.workflowEngine.GetCurrentNode(execution.ID); nodeErr == nil && currentNode != nil {
-				switch currentNode.NodeType {
-				case workflow.NodeTypeApproval:
-					// Agent completed approval review — treat as approved.
-					// A rejection would come through FailNode / escalation path.
-					advanceCondition = workflow.EdgeConditionApproved
-					log.Printf("[Workflow] Approval node %s completed by agent %s — advancing with 'approved'", currentNode.NodeKey, ag.ID)
-				case workflow.NodeTypeVerify:
-					// Agent completed verification — treat as approved.
-					advanceCondition = workflow.EdgeConditionApproved
-					log.Printf("[Workflow] Verify node %s completed by agent %s — advancing with 'approved'", currentNode.NodeKey, ag.ID)
-				}
-			}
-
-			resultData := map[string]string{
-				"agent_id":    ag.ID,
-				"output":      result.Response,
-				"tokens_used": fmt.Sprintf("%d", result.TokensUsed),
-			}
-			if err := d.workflowEngine.AdvanceWorkflow(execution.ID, advanceCondition, ag.ID, resultData); err != nil {
-				log.Printf("[Workflow] Failed to advance workflow for bead %s: %v", candidate.ID, err)
-			} else {
-				// Get updated execution to check status
-				updatedExec, _ := d.workflowEngine.GetDatabase().GetWorkflowExecution(execution.ID)
-				if updatedExec != nil {
-					log.Printf("[Workflow] Advanced workflow for bead %s: status=%s, node=%s, cycle=%d",
-						candidate.ID, updatedExec.Status, updatedExec.CurrentNodeKey, updatedExec.CycleCount)
-
-					// Check if workflow was escalated and needs CEO bead
-					if updatedExec.Status == workflow.ExecutionStatusEscalated && candidate.Context["escalation_bead_created"] != "true" {
-						log.Printf("[Workflow] Creating CEO escalation bead for workflow %s (bead %s)", updatedExec.ID, candidate.ID)
-
-						// Get escalation info from workflow engine
-						title, description, err := d.workflowEngine.GetEscalationInfo(updatedExec)
-						if err != nil {
-							log.Printf("[Workflow] Failed to get escalation info for workflow %s: %v", updatedExec.ID, err)
-						} else {
-							// Create CEO escalation bead
-							createdBead, err := d.beads.CreateBead(
-								title,
-								description,
-								models.BeadPriorityP0,
-								"decision",
-								candidate.ProjectID,
-							)
+							// Get escalation info from workflow engine
+							title, description, err := d.workflowEngine.GetEscalationInfo(updatedExec)
 							if err != nil {
-								log.Printf("[Workflow] Failed to create CEO escalation bead: %v", err)
+								log.Printf("[Workflow] Failed to get escalation info for workflow %s: %v", updatedExec.ID, err)
 							} else {
-								log.Printf("[Workflow] Created CEO escalation bead %s for workflow %s", createdBead.ID, updatedExec.ID)
+								// Create CEO escalation bead
+								createdBead, err := d.beads.CreateBead(
+									title,
+									description,
+									models.BeadPriorityP0,
+									"decision",
+									candidate.ProjectID,
+								)
+								if err != nil {
+									log.Printf("[Workflow] Failed to create CEO escalation bead: %v", err)
+								} else {
+									log.Printf("[Workflow] Created CEO escalation bead %s for workflow %s", createdBead.ID, updatedExec.ID)
 
-								// Update the escalation bead with tags and context
-								escalationBeadUpdates := map[string]interface{}{
-									"tags": []string{"workflow-escalation", "ceo-review", "urgent"},
-									"context": map[string]string{
-										"original_bead_id":      candidate.ID,
-										"workflow_execution_id": updatedExec.ID,
-										"escalation_reason":     candidate.Context["escalation_reason"],
-										"escalated_at":          time.Now().UTC().Format(time.RFC3339),
-									},
-								}
-								if err := d.beads.UpdateBead(createdBead.ID, escalationBeadUpdates); err != nil {
-									log.Printf("[Workflow] Failed to update escalation bead with tags and context: %v", err)
-								}
+									// Update the escalation bead with tags and context
+									escalationBeadUpdates := map[string]interface{}{
+										"tags": []string{"workflow-escalation", "ceo-review", "urgent"},
+										"context": map[string]string{
+											"original_bead_id":      candidate.ID,
+											"workflow_execution_id": updatedExec.ID,
+											"escalation_reason":     candidate.Context["escalation_reason"],
+											"escalated_at":          time.Now().UTC().Format(time.RFC3339),
+										},
+									}
+									if err := d.beads.UpdateBead(createdBead.ID, escalationBeadUpdates); err != nil {
+										log.Printf("[Workflow] Failed to update escalation bead with tags and context: %v", err)
+									}
 
-								// Mark original bead as having escalation bead created
-								originalUpdates := map[string]interface{}{
-									"context": map[string]string{
-										"escalation_bead_created": "true",
-										"escalation_bead_id":      createdBead.ID,
-									},
-								}
-								if err := d.beads.UpdateBead(candidate.ID, originalUpdates); err != nil {
-									log.Printf("[Workflow] Failed to update original bead with escalation info: %v", err)
+									// Mark original bead as having escalation bead created
+									originalUpdates := map[string]interface{}{
+										"context": map[string]string{
+											"escalation_bead_created": "true",
+											"escalation_bead_id":      createdBead.ID,
+										},
+									}
+									if err := d.beads.UpdateBead(candidate.ID, originalUpdates); err != nil {
+										log.Printf("[Workflow] Failed to update original bead with escalation info: %v", err)
+									}
 								}
 							}
 						}
@@ -1098,16 +1099,15 @@ func (d *Dispatcher) DispatchOnce(ctx context.Context, projectID string) (*Dispa
 				}
 			}
 		}
-	}
 
-	d.setStatus(StatusParked, "idle")
-	observability.Info("dispatch.execute", map[string]interface{}{
-		"agent_id":    ag.ID,
-		"bead_id":     candidate.ID,
-		"project_id":  selectedProjectID,
-		"provider_id": ag.ProviderID,
-		"status":      "success",
-	})
+		d.setStatus(StatusParked, "idle")
+		observability.Info("dispatch.execute", map[string]interface{}{
+			"agent_id":    ag.ID,
+			"bead_id":     candidate.ID,
+			"project_id":  selectedProjectID,
+			"provider_id": ag.ProviderID,
+			"status":      "success",
+		})
 	}() // end async goroutine
 
 	// Record dispatch metrics
@@ -1364,7 +1364,7 @@ func (d *Dispatcher) ensureBeadHasWorkflow(ctx context.Context, bead *models.Bea
 	for _, tag := range bead.Tags {
 		tagLower := strings.ToLower(tag)
 		if tagLower == "self-improvement" || tagLower == "code-review" ||
-		   tagLower == "maintainability" || tagLower == "refactoring" {
+			tagLower == "maintainability" || tagLower == "refactoring" {
 			isSelfImprovement = true
 			break
 		}
@@ -1372,8 +1372,8 @@ func (d *Dispatcher) ensureBeadHasWorkflow(ctx context.Context, bead *models.Bea
 
 	// Also check title for self-improvement keywords
 	if strings.Contains(title, "[code review]") || strings.Contains(title, "[refactor]") ||
-	   strings.Contains(title, "[optimization]") || strings.Contains(title, "[self-improvement]") ||
-	   strings.Contains(title, "[maintenance]") {
+		strings.Contains(title, "[optimization]") || strings.Contains(title, "[self-improvement]") ||
+		strings.Contains(title, "[maintenance]") {
 		isSelfImprovement = true
 	}
 
@@ -1692,12 +1692,12 @@ Work singlemindedly until the blocker is resolved. You have full access to:
 	// Update context with remediation metadata
 	contextUpdates := map[string]interface{}{
 		"context": map[string]string{
-			"remediation_for":         stuckBead.ID,
-			"stuck_agent_id":          stuckAgent.ID,
-			"stuck_terminal_reason":   result.LoopTerminalReason,
-			"stuck_iterations":        fmt.Sprintf("%d", result.LoopIterations),
-			"created_by":              "dispatcher_auto_remediation",
-			"requires_persona":        "remediation-specialist",
+			"remediation_for":       stuckBead.ID,
+			"stuck_agent_id":        stuckAgent.ID,
+			"stuck_terminal_reason": result.LoopTerminalReason,
+			"stuck_iterations":      fmt.Sprintf("%d", result.LoopIterations),
+			"created_by":            "dispatcher_auto_remediation",
+			"requires_persona":      "remediation-specialist",
 		},
 	}
 	if err := d.beads.UpdateBead(remediationBead.ID, contextUpdates); err != nil {

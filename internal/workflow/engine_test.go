@@ -260,10 +260,10 @@ func TestShouldRedispatch_AllExecutionStatuses(t *testing.T) {
 // Mock implementations for testing
 
 type mockDatabase struct {
-	workflows       map[string]*Workflow
-	executions      map[string]*WorkflowExecution
-	history         map[string][]*WorkflowExecutionHistory
-	beadExecutions  map[string]*WorkflowExecution
+	workflows      map[string]*Workflow
+	executions     map[string]*WorkflowExecution
+	history        map[string][]*WorkflowExecutionHistory
+	beadExecutions map[string]*WorkflowExecution
 }
 
 func newMockDatabase() *mockDatabase {

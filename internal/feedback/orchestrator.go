@@ -23,14 +23,14 @@ type FeedbackResult struct {
 
 // BuildCheck contains build verification results
 type BuildCheck struct {
-	Success    bool                `json:"success"`
-	Duration   time.Duration       `json:"duration"`
-	Framework  string              `json:"framework"`
-	ErrorCount int                 `json:"error_count"`
-	Errors     []build.BuildError  `json:"errors,omitempty"`
-	Warnings   []build.BuildError  `json:"warnings,omitempty"`
-	Skipped    bool                `json:"skipped"`     // If build was skipped
-	SkipReason string              `json:"skip_reason"` // Why build was skipped
+	Success    bool               `json:"success"`
+	Duration   time.Duration      `json:"duration"`
+	Framework  string             `json:"framework"`
+	ErrorCount int                `json:"error_count"`
+	Errors     []build.BuildError `json:"errors,omitempty"`
+	Warnings   []build.BuildError `json:"warnings,omitempty"`
+	Skipped    bool               `json:"skipped"`     // If build was skipped
+	SkipReason string             `json:"skip_reason"` // Why build was skipped
 }
 
 // LintCheck contains linter results
@@ -46,13 +46,13 @@ type LintCheck struct {
 
 // TestCheck contains test execution results
 type TestCheck struct {
-	Success     bool                 `json:"success"`
-	Duration    time.Duration        `json:"duration"`
-	Framework   string               `json:"framework"`
-	Summary     testing.TestSummary  `json:"summary"`
-	FailedTests []testing.TestCase   `json:"failed_tests,omitempty"`
-	Skipped     bool                 `json:"skipped"`
-	SkipReason  string               `json:"skip_reason"`
+	Success     bool                `json:"success"`
+	Duration    time.Duration       `json:"duration"`
+	Framework   string              `json:"framework"`
+	Summary     testing.TestSummary `json:"summary"`
+	FailedTests []testing.TestCase  `json:"failed_tests,omitempty"`
+	Skipped     bool                `json:"skipped"`
+	SkipReason  string              `json:"skip_reason"`
 }
 
 // OrchestratorConfig configures feedback orchestration
@@ -100,10 +100,10 @@ func DefaultConfig(projectPath string) OrchestratorConfig {
 
 // Orchestrator coordinates feedback loops
 type Orchestrator struct {
-	buildRunner  *build.BuildRunner
-	lintRunner   *linter.LinterRunner
-	testRunner   *testing.TestRunner
-	projectPath  string
+	buildRunner *build.BuildRunner
+	lintRunner  *linter.LinterRunner
+	testRunner  *testing.TestRunner
+	projectPath string
 }
 
 // NewOrchestrator creates a new feedback orchestrator

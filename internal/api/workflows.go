@@ -282,11 +282,11 @@ func (s *Server) handleWorkflowStart(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	if err := json.NewEncoder(w).Encode(map[string]interface{}{
-		"message":    "Workflow started successfully",
-		"execution":  execution,
-		"bead_id":    req.BeadID,
+		"message":     "Workflow started successfully",
+		"execution":   execution,
+		"bead_id":     req.BeadID,
 		"workflow_id": req.WorkflowID,
-		"project_id": req.ProjectID,
+		"project_id":  req.ProjectID,
 	}); err != nil {
 		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 	}

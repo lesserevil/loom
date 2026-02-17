@@ -23,19 +23,19 @@ import (
 
 // WorkerManager manages agents with worker pool integration
 type WorkerManager struct {
-	agents             map[string]*models.Agent
-	workerPool         *worker.Pool
-	providerRegistry   *provider.Registry
-	eventBus           *eventbus.EventBus
-	agentPersister     interface{ UpsertAgent(*models.Agent) error }
-	actionRouter       *actions.Router
-	analyticsLogger    *analytics.Logger
-	actionLoopEnabled  bool
-	maxLoopIterations  int
-	lessonsProvider    worker.LessonsProvider
-	db                 *database.Database
-	mu                 sync.RWMutex
-	maxAgents          int
+	agents            map[string]*models.Agent
+	workerPool        *worker.Pool
+	providerRegistry  *provider.Registry
+	eventBus          *eventbus.EventBus
+	agentPersister    interface{ UpsertAgent(*models.Agent) error }
+	actionRouter      *actions.Router
+	analyticsLogger   *analytics.Logger
+	actionLoopEnabled bool
+	maxLoopIterations int
+	lessonsProvider   worker.LessonsProvider
+	db                *database.Database
+	mu                sync.RWMutex
+	maxAgents         int
 }
 
 // NewWorkerManager creates a new agent manager with worker pool
@@ -622,13 +622,13 @@ func (m *WorkerManager) ExecuteTask(ctx context.Context, agentID string, task *w
 				statusCode = 500
 			}
 			_ = al.LogRequest(ctx, &analytics.RequestLog{
-				UserID:      "agent:" + agent.Name,
-				Method:      "POST",
-				Path:        "/internal/worker/execute-loop",
-				ProviderID:  agent.ProviderID,
-				TotalTokens: int64(result.TokensUsed),
-				LatencyMs:   elapsed.Milliseconds(),
-				StatusCode:  statusCode,
+				UserID:       "agent:" + agent.Name,
+				Method:       "POST",
+				Path:         "/internal/worker/execute-loop",
+				ProviderID:   agent.ProviderID,
+				TotalTokens:  int64(result.TokensUsed),
+				LatencyMs:    elapsed.Milliseconds(),
+				StatusCode:   statusCode,
 				ErrorMessage: result.Error,
 				Metadata: map[string]string{
 					"agent_id":        agent.ID,
@@ -675,12 +675,12 @@ func (m *WorkerManager) ExecuteTask(ctx context.Context, agentID string, task *w
 		}, err)
 		if al := m.analyticsLogger; al != nil {
 			_ = al.LogRequest(ctx, &analytics.RequestLog{
-				UserID:     "agent:" + agent.Name,
-				Method:     "POST",
-				Path:       "/internal/worker/execute",
-				ProviderID: agent.ProviderID,
-				LatencyMs:  elapsed.Milliseconds(),
-				StatusCode: 500,
+				UserID:       "agent:" + agent.Name,
+				Method:       "POST",
+				Path:         "/internal/worker/execute",
+				ProviderID:   agent.ProviderID,
+				LatencyMs:    elapsed.Milliseconds(),
+				StatusCode:   500,
 				ErrorMessage: err.Error(),
 				Metadata: map[string]string{
 					"agent_id": agent.ID,
@@ -757,15 +757,15 @@ func (m *WorkerManager) ExecuteTask(ctx context.Context, agentID string, task *w
 			modelName = info.ProviderID // Best available; provider config has the model
 		}
 		_ = al.LogRequest(ctx, &analytics.RequestLog{
-			UserID:           "agent:" + agent.Name,
-			Method:           "POST",
-			Path:             "/internal/worker/execute",
-			ProviderID:       agent.ProviderID,
-			ModelName:        modelName,
-			TotalTokens:      int64(result.TokensUsed),
-			LatencyMs:        elapsed.Milliseconds(),
-			StatusCode:       statusCode,
-			ErrorMessage:     result.Error,
+			UserID:       "agent:" + agent.Name,
+			Method:       "POST",
+			Path:         "/internal/worker/execute",
+			ProviderID:   agent.ProviderID,
+			ModelName:    modelName,
+			TotalTokens:  int64(result.TokensUsed),
+			LatencyMs:    elapsed.Milliseconds(),
+			StatusCode:   statusCode,
+			ErrorMessage: result.Error,
 			Metadata: map[string]string{
 				"agent_id": agent.ID,
 				"bead_id":  beadID,

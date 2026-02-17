@@ -9,10 +9,10 @@ import (
 // ScoringWeights defines the priority weights for provider selection.
 // Higher weight = more important. Weights are used for tie-breaking in priority order.
 type ScoringWeights struct {
-	ModelSize    float64 `json:"model_size"`    // Weight 1: Larger models are better (highest priority)
-	RoundTrip    float64 `json:"round_trip"`    // Weight 2: Heartbeat/connectivity latency
+	ModelSize      float64 `json:"model_size"`      // Weight 1: Larger models are better (highest priority)
+	RoundTrip      float64 `json:"round_trip"`      // Weight 2: Heartbeat/connectivity latency
 	RequestLatency float64 `json:"request_latency"` // Weight 3: Per-request response time
-	Cost         float64 `json:"cost"`          // Weight 4: $/token cost (lowest priority, placeholder)
+	Cost           float64 `json:"cost"`            // Weight 4: $/token cost (lowest priority, placeholder)
 }
 
 // DefaultWeights returns the default scoring weights.
@@ -41,10 +41,10 @@ type ProviderScore struct {
 	CompositeScore float64 `json:"composite_score"`
 
 	// Raw metrics used for scoring
-	ModelParamsB       float64 `json:"model_params_b"`        // Total or active parameters in billions
-	HeartbeatLatencyMs int64   `json:"heartbeat_latency_ms"`  // Last heartbeat round-trip time
+	ModelParamsB        float64 `json:"model_params_b"`         // Total or active parameters in billions
+	HeartbeatLatencyMs  int64   `json:"heartbeat_latency_ms"`   // Last heartbeat round-trip time
 	AvgRequestLatencyMs float64 `json:"avg_request_latency_ms"` // Rolling average request latency
-	CostPerMToken      float64 `json:"cost_per_mtoken"`       // Cost per million tokens
+	CostPerMToken       float64 `json:"cost_per_mtoken"`        // Cost per million tokens
 
 	LastUpdated time.Time `json:"last_updated"`
 }
@@ -56,21 +56,21 @@ type Scorer struct {
 	scores  map[string]*ProviderScore // providerID -> score
 
 	// Normalization bounds (learned from observed data)
-	maxModelParams       float64
-	maxHeartbeatLatency  float64
-	maxRequestLatency    float64
-	maxCost              float64
+	maxModelParams      float64
+	maxHeartbeatLatency float64
+	maxRequestLatency   float64
+	maxCost             float64
 }
 
 // NewScorer creates a new provider scorer with default weights.
 func NewScorer() *Scorer {
 	return &Scorer{
-		weights:              DefaultWeights(),
-		scores:               make(map[string]*ProviderScore),
-		maxModelParams:       500.0,  // 500B params as baseline max
-		maxHeartbeatLatency:  5000.0, // 5 seconds as baseline max
-		maxRequestLatency:    30000.0, // 30 seconds as baseline max
-		maxCost:              10.0,    // $10/M tokens as baseline max
+		weights:             DefaultWeights(),
+		scores:              make(map[string]*ProviderScore),
+		maxModelParams:      500.0,   // 500B params as baseline max
+		maxHeartbeatLatency: 5000.0,  // 5 seconds as baseline max
+		maxRequestLatency:   30000.0, // 30 seconds as baseline max
+		maxCost:             10.0,    // $10/M tokens as baseline max
 	}
 }
 
@@ -265,11 +265,11 @@ func (s *Scorer) RankProvidersForComplexity(providerIDs []string, complexity Com
 	requiredTier := RequiredModelTier(complexity)
 
 	type ranked struct {
-		id          string
-		score       float64
-		paramsB     float64
-		modelTier   ModelTier
-		tierMatch   int // 0 = exact match, 1 = overqualified, 2 = underqualified
+		id        string
+		score     float64
+		paramsB   float64
+		modelTier ModelTier
+		tierMatch int // 0 = exact match, 1 = overqualified, 2 = underqualified
 	}
 
 	providers := make([]ranked, 0, len(providerIDs))

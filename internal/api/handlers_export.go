@@ -13,43 +13,43 @@ import (
 )
 
 const (
-	version = "2.0.0"
+	version             = "2.0.0"
 	exportSchemaVersion = "1.0"
-	maxImportSize = 200 << 20 // 200MB
-	rateLimit = 5 // exports per hour
+	maxImportSize       = 200 << 20 // 200MB
+	rateLimit           = 5         // exports per hour
 )
 
 // ExportMetadata contains information about the exported data
 type ExportMetadata struct {
-	Version          string            `json:"version"`
-	SchemaVersion    string            `json:"schema_version"`
-	ExportedAt       time.Time         `json:"exported_at"`
-	ServerVersion    string            `json:"server_version"`
-	DatabaseType     string            `json:"database_type"`
-	EncryptionKeyID  string            `json:"encryption_key_id"`
-	RecordCounts     map[string]int    `json:"record_counts"`
+	Version         string         `json:"version"`
+	SchemaVersion   string         `json:"schema_version"`
+	ExportedAt      time.Time      `json:"exported_at"`
+	ServerVersion   string         `json:"server_version"`
+	DatabaseType    string         `json:"database_type"`
+	EncryptionKeyID string         `json:"encryption_key_id"`
+	RecordCounts    map[string]int `json:"record_counts"`
 }
 
 // DatabaseExport represents the complete database export structure
 type DatabaseExport struct {
-	Metadata   ExportMetadata   `json:"export_metadata"`
-	Core       CoreData         `json:"core"`
-	Workflow   WorkflowData     `json:"workflow"`
-	Activity   ActivityData     `json:"activity"`
-	Tracking   TrackingData     `json:"tracking"`
-	Logging    LoggingData      `json:"logging"`
-	Analytics  AnalyticsData    `json:"analytics"`
-	Config     ConfigData       `json:"config"`
+	Metadata  ExportMetadata `json:"export_metadata"`
+	Core      CoreData       `json:"core"`
+	Workflow  WorkflowData   `json:"workflow"`
+	Activity  ActivityData   `json:"activity"`
+	Tracking  TrackingData   `json:"tracking"`
+	Logging   LoggingData    `json:"logging"`
+	Analytics AnalyticsData  `json:"analytics"`
+	Config    ConfigData     `json:"config"`
 }
 
 // CoreData holds core system data
 type CoreData struct {
-	Providers          []map[string]interface{} `json:"providers"`
-	Projects           []map[string]interface{} `json:"projects"`
-	OrgCharts          []map[string]interface{} `json:"org_charts"`
-	OrgChartPositions  []map[string]interface{} `json:"org_chart_positions"`
-	Agents             []map[string]interface{} `json:"agents"`
-	Credentials        []map[string]interface{} `json:"credentials"`
+	Providers         []map[string]interface{} `json:"providers"`
+	Projects          []map[string]interface{} `json:"projects"`
+	OrgCharts         []map[string]interface{} `json:"org_charts"`
+	OrgChartPositions []map[string]interface{} `json:"org_chart_positions"`
+	Agents            []map[string]interface{} `json:"agents"`
+	Credentials       []map[string]interface{} `json:"credentials"`
 }
 
 // WorkflowData holds workflow-related data
@@ -74,10 +74,10 @@ type ActivityData struct {
 
 // TrackingData holds motivation and milestone tracking data
 type TrackingData struct {
-	Motivations       []map[string]interface{} `json:"motivations"`
+	Motivations        []map[string]interface{} `json:"motivations"`
 	MotivationTriggers []map[string]interface{} `json:"motivation_triggers"`
-	Milestones        []map[string]interface{} `json:"milestones"`
-	Lessons           []map[string]interface{} `json:"lessons"`
+	Milestones         []map[string]interface{} `json:"milestones"`
+	Lessons            []map[string]interface{} `json:"lessons"`
 }
 
 // LoggingData holds logging data
@@ -100,11 +100,11 @@ type ConfigData struct {
 
 // ImportSummary holds the result of an import operation
 type ImportSummary struct {
-	Status      string                       `json:"status"`
-	ImportedAt  time.Time                    `json:"imported_at"`
-	Validation  ValidationResult             `json:"validation"`
-	Summary     map[string]TableImportResult `json:"summary"`
-	Errors      []string                     `json:"errors,omitempty"`
+	Status     string                       `json:"status"`
+	ImportedAt time.Time                    `json:"imported_at"`
+	Validation ValidationResult             `json:"validation"`
+	Summary    map[string]TableImportResult `json:"summary"`
+	Errors     []string                     `json:"errors,omitempty"`
 }
 
 // ValidationResult holds validation results
@@ -334,9 +334,9 @@ func (s *Server) handleImport(w http.ResponseWriter, r *http.Request) {
 
 	// Validate strategy
 	validStrategies := map[string]bool{
-		"merge":             true,
-		"replace":           true,
-		"fail-on-conflict":  true,
+		"merge":            true,
+		"replace":          true,
+		"fail-on-conflict": true,
 	}
 	if !validStrategies[strategy] {
 		http.Error(w, fmt.Sprintf("Invalid strategy: %s. Valid options: merge, replace, fail-on-conflict", strategy), http.StatusBadRequest)

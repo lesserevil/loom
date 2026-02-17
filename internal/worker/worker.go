@@ -206,7 +206,7 @@ func (w *Worker) ExecuteTask(ctx context.Context, task *Task) (*TaskResult, erro
 		for _, msg := range usedMessages {
 			// Only add new messages (not already in history)
 			if len(conversationCtx.Messages) == 0 ||
-			   !w.messageExists(conversationCtx.Messages, msg.Content) {
+				!w.messageExists(conversationCtx.Messages, msg.Content) {
 				conversationCtx.AddMessage(msg.Role, msg.Content, len(msg.Content)/4)
 			}
 		}
@@ -731,7 +731,7 @@ func (w *Worker) ExecuteTaskWithLoop(ctx context.Context, task *Task, config *Lo
 	var allActions []actions.Result
 	consecutiveParseFailures := 0
 	consecutiveValidationFailures := 0
-	actionHashes := make(map[string]int)     // for inner loop detection
+	actionHashes := make(map[string]int)    // for inner loop detection
 	actionTypeCount := make(map[string]int) // for progress stagnation detection
 	treePaths := make(map[string]int)       // track repeated scope/tree calls per path
 

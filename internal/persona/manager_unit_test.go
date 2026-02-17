@@ -283,9 +283,9 @@ func TestClonePersona_Errors(t *testing.T) {
 	m := NewManager(tmpDir)
 
 	tests := []struct {
-		name     string
-		source   string
-		dest     string
+		name   string
+		source string
+		dest   string
 	}{
 		{"empty-source", "", "dest"},
 		{"empty-dest", "source", ""},

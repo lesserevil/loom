@@ -212,7 +212,7 @@ func TestBootstrapResult_Fields(t *testing.T) {
 		ProjectID:            "proj-123",
 		Status:               "ready",
 		InitialBead:          "bead-456",
-		PublicKey:             "ssh-ed25519 AAAA...",
+		PublicKey:            "ssh-ed25519 AAAA...",
 		GitSetupInstructions: "Add this deploy key",
 		Error:                "",
 	}

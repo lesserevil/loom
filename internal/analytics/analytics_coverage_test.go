@@ -458,12 +458,12 @@ func TestBuildBatchingRecommendations_NilLogs(t *testing.T) {
 
 func TestFilterBatchableLogs(t *testing.T) {
 	logs := []*RequestLog{
-		{ID: "1", StatusCode: 200, TotalTokens: 100},                // batchable
-		{ID: "2", StatusCode: 400, TotalTokens: 100},                // error status
-		{ID: "3", StatusCode: 200, TotalTokens: 0},                  // zero tokens
-		{ID: "4", StatusCode: 200, TotalTokens: -10},                // negative tokens
-		nil,                                                          // nil entry
-		{ID: "5", StatusCode: 200, TotalTokens: 50},                 // batchable
+		{ID: "1", StatusCode: 200, TotalTokens: 100}, // batchable
+		{ID: "2", StatusCode: 400, TotalTokens: 100}, // error status
+		{ID: "3", StatusCode: 200, TotalTokens: 0},   // zero tokens
+		{ID: "4", StatusCode: 200, TotalTokens: -10}, // negative tokens
+		nil, // nil entry
+		{ID: "5", StatusCode: 200, TotalTokens: 50}, // batchable
 	}
 
 	filtered := filterBatchableLogs(logs)

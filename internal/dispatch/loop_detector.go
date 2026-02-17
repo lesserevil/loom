@@ -15,10 +15,10 @@ import (
 type ActionRecord struct {
 	Timestamp   time.Time              `json:"timestamp"`
 	AgentID     string                 `json:"agent_id"`
-	ActionType  string                 `json:"action_type"`   // e.g., "read_file", "run_tests", "edit_file"
-	ActionData  map[string]interface{} `json:"action_data"`   // Specific details
-	ResultHash  string                 `json:"result_hash"`   // Hash of action result
-	ProgressKey string                 `json:"progress_key"`  // Key identifying the action pattern
+	ActionType  string                 `json:"action_type"`  // e.g., "read_file", "run_tests", "edit_file"
+	ActionData  map[string]interface{} `json:"action_data"`  // Specific details
+	ResultHash  string                 `json:"result_hash"`  // Hash of action result
+	ProgressKey string                 `json:"progress_key"` // Key identifying the action pattern
 }
 
 // ProgressMetrics tracks progress indicators for a bead

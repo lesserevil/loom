@@ -24,15 +24,20 @@ var (
 	Meter metric.Meter
 
 	// Custom metrics
-	BeadsTotal          metric.Int64UpDownCounter
-	BeadsCompleted      metric.Int64Counter
-	BeadsActive         metric.Int64UpDownCounter
-	AgentIterations     metric.Int64Counter
-	WorkflowsStarted    metric.Int64Counter
-	WorkflowsCompleted  metric.Int64Counter
-	DispatchLatency     metric.Float64Histogram
-	AgentExecutionTime  metric.Float64Histogram
+	BeadsTotal         metric.Int64UpDownCounter
+	BeadsCompleted     metric.Int64Counter
+	BeadsActive        metric.Int64UpDownCounter
+	AgentIterations    metric.Int64Counter
+	WorkflowsStarted   metric.Int64Counter
+	WorkflowsCompleted metric.Int64Counter
+	DispatchLatency    metric.Float64Histogram
+	AgentExecutionTime metric.Float64Histogram
 )
+
+func init() {
+	// Initialize with a noop tracer to avoid nil pointer dereferences in tests
+	Tracer = otel.Tracer("loom-noop")
+}
 
 // InitTelemetry initializes OpenTelemetry tracing and metrics
 func InitTelemetry(ctx context.Context, serviceName, otelEndpoint string) (func(context.Context) error, error) {

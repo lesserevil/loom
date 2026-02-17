@@ -42,10 +42,10 @@ type OutboundMessage struct {
 
 // InboundMessage is the payload POSTed by OpenClaw to loom's webhook endpoint.
 type InboundMessage struct {
-	SessionKey string `json:"session_key"`           // correlation key (e.g. "loom:decision:<id>")
-	Sender     string `json:"sender,omitempty"`       // who replied
-	Channel    string `json:"channel,omitempty"`      // originating channel
-	Text       string `json:"text"`                   // reply body
-	Timestamp  string `json:"timestamp,omitempty"`    // ISO-8601
-	MessageID  string `json:"message_id,omitempty"`   // OpenClaw message ID
+	SessionKey string `json:"session_key"`          // correlation key (e.g. "loom:decision:<id>")
+	Sender     string `json:"sender,omitempty"`     // who replied
+	Channel    string `json:"channel,omitempty"`    // originating channel
+	Text       string `json:"text"`                 // reply body
+	Timestamp  string `json:"timestamp,omitempty"`  // ISO-8601
+	MessageID  string `json:"message_id,omitempty"` // OpenClaw message ID
 }

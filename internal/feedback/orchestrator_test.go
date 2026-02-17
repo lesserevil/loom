@@ -892,8 +892,8 @@ func TestLintCheck_StructFields(t *testing.T) {
 
 func TestTestCheck_StructFields(t *testing.T) {
 	tc := &TestCheck{
-		Success:  false,
-		Duration: 1 * time.Second,
+		Success:   false,
+		Duration:  1 * time.Second,
 		Framework: "go",
 		Summary: testpkg.TestSummary{
 			Total:   10,
@@ -1062,8 +1062,8 @@ func TestBuildSummary_Exactly3Errors(t *testing.T) {
 			ErrorCount: 3,
 			Errors:     errors,
 		},
-		Lint:  &LintCheck{Skipped: true, SkipReason: "build failed"},
-		Test:  &TestCheck{Skipped: true, SkipReason: "build failed"},
+		Lint: &LintCheck{Skipped: true, SkipReason: "build failed"},
+		Test: &TestCheck{Skipped: true, SkipReason: "build failed"},
 	}
 
 	summary := orch.buildSummary(result)

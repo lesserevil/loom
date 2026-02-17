@@ -25,9 +25,9 @@ func (m *MockConversationProvider) CreateChatCompletion(ctx context.Context, req
 		Created: time.Now().Unix(),
 		Model:   req.Model,
 		Choices: []struct {
-			Index   int                    `json:"index"`
-			Message provider.ChatMessage   `json:"message"`
-			Finish  string                 `json:"finish_reason"`
+			Index   int                  `json:"index"`
+			Message provider.ChatMessage `json:"message"`
+			Finish  string               `json:"finish_reason"`
 		}{
 			{
 				Index: 0,

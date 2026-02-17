@@ -188,7 +188,7 @@ func TestAddActivity(t *testing.T) {
 	// Add activity
 	err := store.AddActivity(ctx, "bead-1", "agent-1", "file_modified",
 		"Modified auth.go", map[string]interface{}{
-			"file": "src/auth.go",
+			"file":          "src/auth.go",
 			"lines_changed": 25,
 		})
 	require.NoError(t, err)

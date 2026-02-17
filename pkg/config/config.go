@@ -84,10 +84,10 @@ type BeadsConfig struct {
 // BeadsFederationConfig configures peer-to-peer federation via Dolt remotes
 type BeadsFederationConfig struct {
 	Enabled      bool             `yaml:"enabled"`
-	AutoSync     bool             `yaml:"auto_sync"`      // Sync with peers on startup
-	SyncInterval time.Duration    `yaml:"sync_interval"`  // Periodic sync interval (0 = disabled)
-	SyncStrategy string           `yaml:"sync_strategy"`  // "ours", "theirs", or "" (manual)
-	SyncMode     string           `yaml:"sync_mode"`      // "dolt-native" or "belt-and-suspenders"
+	AutoSync     bool             `yaml:"auto_sync"`     // Sync with peers on startup
+	SyncInterval time.Duration    `yaml:"sync_interval"` // Periodic sync interval (0 = disabled)
+	SyncStrategy string           `yaml:"sync_strategy"` // "ours", "theirs", or "" (manual)
+	SyncMode     string           `yaml:"sync_mode"`     // "dolt-native" or "belt-and-suspenders"
 	Peers        []FederationPeer `yaml:"peers"`
 }
 
@@ -132,11 +132,11 @@ type ModelsConfig struct {
 // PreferredModel represents a model preference for negotiation with providers.
 // When a provider returns multiple models, Loom selects the best match from this list.
 type PreferredModel struct {
-	Name      string `yaml:"name" json:"name"`                               // Full model name (e.g., "Qwen/Qwen2.5-Coder-32B-Instruct")
-	Rank      int    `yaml:"rank" json:"rank"`                               // Priority rank (1 = most preferred)
-	Tier      string `yaml:"tier" json:"tier,omitempty"`                     // Complexity tier: "extended", "complex", "medium", "simple"
-	MinVRAMGB int    `yaml:"min_vram_gb" json:"min_vram_gb,omitempty"`       // Minimum VRAM required (0 = cloud/unknown)
-	Notes     string `yaml:"notes" json:"notes,omitempty"`                   // Human-readable notes about the model
+	Name      string `yaml:"name" json:"name"`                         // Full model name (e.g., "Qwen/Qwen2.5-Coder-32B-Instruct")
+	Rank      int    `yaml:"rank" json:"rank"`                         // Priority rank (1 = most preferred)
+	Tier      string `yaml:"tier" json:"tier,omitempty"`               // Complexity tier: "extended", "complex", "medium", "simple"
+	MinVRAMGB int    `yaml:"min_vram_gb" json:"min_vram_gb,omitempty"` // Minimum VRAM required (0 = cloud/unknown)
+	Notes     string `yaml:"notes" json:"notes,omitempty"`             // Human-readable notes about the model
 }
 
 // SecurityConfig configures authentication and authorization

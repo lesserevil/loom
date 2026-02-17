@@ -13,11 +13,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/jordanhubbard/loom/internal/loom"
 	"github.com/jordanhubbard/loom/internal/api"
 	"github.com/jordanhubbard/loom/internal/auth"
 	"github.com/jordanhubbard/loom/internal/hotreload"
 	"github.com/jordanhubbard/loom/internal/keymanager"
+	"github.com/jordanhubbard/loom/internal/loom"
 	"github.com/jordanhubbard/loom/internal/telemetry"
 	"github.com/jordanhubbard/loom/pkg/config"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"

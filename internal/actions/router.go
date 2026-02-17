@@ -108,23 +108,23 @@ type Result struct {
 }
 
 type Router struct {
-	Beads        BeadCreator
-	Closer       BeadCloser
-	Escalator    BeadEscalator
-	Commands     CommandExecutor
-	Tests        TestRunner
-	Linter       LinterRunner
-	Builder      BuildRunner
-	Files        FileManager
-	Git          GitOperator
-	Logger       ActionLogger
-	Workflow     WorkflowOperator
-	LSP          LSPOperator
-	MessageBus   MessageSender
-	BeadReader   BeadReader
-	BeadType     string
-	BeadTags     []string
-	DefaultP0    bool
+	Beads      BeadCreator
+	Closer     BeadCloser
+	Escalator  BeadEscalator
+	Commands   CommandExecutor
+	Tests      TestRunner
+	Linter     LinterRunner
+	Builder    BuildRunner
+	Files      FileManager
+	Git        GitOperator
+	Logger     ActionLogger
+	Workflow   WorkflowOperator
+	LSP        LSPOperator
+	MessageBus MessageSender
+	BeadReader BeadReader
+	BeadType   string
+	BeadTags   []string
+	DefaultP0  bool
 }
 
 func (r *Router) Execute(ctx context.Context, env *ActionEnvelope, actx ActionContext) ([]Result, error) {
@@ -767,10 +767,10 @@ func (r *Router) executeAction(ctx context.Context, action Action, actx ActionCo
 			Status:     "mcp_required",
 			Message:    "proceed_to_phase requires MCP tool call: mcp__responsible-vibe-mcp__proceed_to_phase",
 			Metadata: map[string]interface{}{
-				"target_phase":  action.TargetPhase,
-				"review_state":  action.ReviewState,
-				"reason":        action.Reason,
-				"mcp_tool":      "mcp__responsible-vibe-mcp__proceed_to_phase",
+				"target_phase": action.TargetPhase,
+				"review_state": action.ReviewState,
+				"reason":       action.Reason,
+				"mcp_tool":     "mcp__responsible-vibe-mcp__proceed_to_phase",
 			},
 		}
 	case ActionConductReview:
@@ -941,10 +941,10 @@ func (r *Router) executeAction(ctx context.Context, action Action, actx ActionCo
 			Status:     "executed",
 			Message:    fmt.Sprintf("Added log at %s:%d", action.Path, action.Line),
 			Metadata: map[string]interface{}{
-				"file":        action.Path,
-				"line":        action.Line,
-				"message":     action.LogMessage,
-				"level":       action.LogLevel,
+				"file":    action.Path,
+				"line":    action.Line,
+				"message": action.LogMessage,
+				"level":   action.LogLevel,
 			},
 		}
 	case ActionAddBreakpoint:
@@ -1118,10 +1118,10 @@ func (r *Router) handleReviewCode(ctx context.Context, action Action, actx Actio
 	// TODO: Implement actual code analysis against criteria
 	// For now, return placeholder review result
 	reviewResult := map[string]interface{}{
-		"pr_number":  action.PRNumber,
-		"criteria":   criteria,
-		"status":     "review_completed",
-		"score":      85, // Placeholder score
+		"pr_number": action.PRNumber,
+		"criteria":  criteria,
+		"status":    "review_completed",
+		"score":     85, // Placeholder score
 		"issues": []map[string]interface{}{
 			{
 				"severity": "medium",

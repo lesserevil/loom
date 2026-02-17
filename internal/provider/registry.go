@@ -28,11 +28,11 @@ type ProviderConfig struct {
 	ContextWindow          int       `json:"context_window,omitempty"`
 
 	// Model metadata for scoring
-	ModelParamsB    float64 `json:"model_params_b,omitempty"`     // Total model parameters in billions
-	CostPerMToken   float64 `json:"cost_per_mtoken,omitempty"`    // Cost per million tokens ($)
-	AvgLatencyMs    float64 `json:"avg_latency_ms,omitempty"`     // Rolling average request latency
-	TotalRequests   int64   `json:"total_requests,omitempty"`     // Total requests served
-	SuccessRequests int64   `json:"success_requests,omitempty"`   // Successful requests
+	ModelParamsB    float64 `json:"model_params_b,omitempty"`   // Total model parameters in billions
+	CostPerMToken   float64 `json:"cost_per_mtoken,omitempty"`  // Cost per million tokens ($)
+	AvgLatencyMs    float64 `json:"avg_latency_ms,omitempty"`   // Rolling average request latency
+	TotalRequests   int64   `json:"total_requests,omitempty"`   // Total requests served
+	SuccessRequests int64   `json:"success_requests,omitempty"` // Successful requests
 }
 
 // MetricsCallback is called after each provider request to record metrics

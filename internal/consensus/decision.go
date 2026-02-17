@@ -39,7 +39,7 @@ type ConsensusDecision struct {
 	CreatedAt       time.Time              `json:"created_at"`
 	Deadline        time.Time              `json:"deadline"`
 	Status          DecisionStatus         `json:"status"`
-	RequiredAgents  []string               `json:"required_agents"` // Agents who must vote
+	RequiredAgents  []string               `json:"required_agents"`  // Agents who must vote
 	QuorumThreshold float64                `json:"quorum_threshold"` // 0.0-1.0, default 0.67 (2/3)
 	Votes           map[string]Vote        `json:"votes"`            // agentID -> Vote
 	Result          *DecisionResult        `json:"result,omitempty"`
@@ -48,24 +48,24 @@ type ConsensusDecision struct {
 
 // Vote represents a single agent's vote
 type Vote struct {
-	AgentID   string     `json:"agent_id"`
-	Choice    VoteChoice `json:"choice"`
-	Rationale string     `json:"rationale,omitempty"`
-	Confidence float64   `json:"confidence"` // 0.0-1.0
-	Timestamp time.Time  `json:"timestamp"`
+	AgentID    string     `json:"agent_id"`
+	Choice     VoteChoice `json:"choice"`
+	Rationale  string     `json:"rationale,omitempty"`
+	Confidence float64    `json:"confidence"` // 0.0-1.0
+	Timestamp  time.Time  `json:"timestamp"`
 }
 
 // DecisionResult contains the final outcome
 type DecisionResult struct {
-	FinalStatus     DecisionStatus `json:"final_status"`
-	ApproveCount    int            `json:"approve_count"`
-	RejectCount     int            `json:"reject_count"`
-	AbstainCount    int            `json:"abstain_count"`
-	TotalVotes      int            `json:"total_votes"`
-	QuorumMet       bool           `json:"quorum_met"`
-	ApprovalRate    float64        `json:"approval_rate"` // approve / (approve + reject)
-	ParticipationRate float64      `json:"participation_rate"` // voted / required
-	ResolvedAt      time.Time      `json:"resolved_at"`
+	FinalStatus       DecisionStatus `json:"final_status"`
+	ApproveCount      int            `json:"approve_count"`
+	RejectCount       int            `json:"reject_count"`
+	AbstainCount      int            `json:"abstain_count"`
+	TotalVotes        int            `json:"total_votes"`
+	QuorumMet         bool           `json:"quorum_met"`
+	ApprovalRate      float64        `json:"approval_rate"`      // approve / (approve + reject)
+	ParticipationRate float64        `json:"participation_rate"` // voted / required
+	ResolvedAt        time.Time      `json:"resolved_at"`
 }
 
 // decisionCounter ensures unique decision IDs even when created within the same nanosecond.

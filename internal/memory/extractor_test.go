@@ -12,10 +12,10 @@ import (
 // --- Mock LessonStore ---
 
 type mockLessonStore struct {
-	lessons          []*models.Lesson
-	embeddings       [][]float32
-	createErr        error
-	storeEmbedErr    error
+	lessons       []*models.Lesson
+	embeddings    [][]float32
+	createErr     error
+	storeEmbedErr error
 }
 
 func (m *mockLessonStore) StoreLessonWithEmbedding(lesson *models.Lesson, embedding []float32) error {
@@ -530,12 +530,12 @@ func TestTokenize(t *testing.T) {
 		input string
 		want  int // expected number of tokens (at least)
 	}{
-		{"build failure in Go compiler", 3},       // "build", "failure", "compiler" (stop words filtered)
+		{"build failure in Go compiler", 3}, // "build", "failure", "compiler" (stop words filtered)
 		{"", 0},
-		{"a b c", 0},                              // all single chars filtered out
-		{"hello_world test123", 2},                 // underscores and digits allowed
-		{"THE IS AT ON IN", 0},                     // all stop words
-		{"running testing building", 3},            // 3 words, none are stop words
+		{"a b c", 0},                    // all single chars filtered out
+		{"hello_world test123", 2},      // underscores and digits allowed
+		{"THE IS AT ON IN", 0},          // all stop words
+		{"running testing building", 3}, // 3 words, none are stop words
 	}
 
 	for _, tt := range tests {

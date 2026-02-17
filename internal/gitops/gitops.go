@@ -18,10 +18,10 @@ import (
 
 // Manager handles git operations for managed projects
 type Manager struct {
-	baseWorkDir   string                    // Base directory for all project clones (e.g., /app/src)
-	projectKeyDir string                    // Base directory for per-project SSH keys
-	db            *database.Database        // Database for credential persistence (optional)
-	keyManager    *keymanager.KeyManager    // Key manager for encryption (optional)
+	baseWorkDir      string                 // Base directory for all project clones (e.g., /app/src)
+	projectKeyDir    string                 // Base directory for per-project SSH keys
+	db               *database.Database     // Database for credential persistence (optional)
+	keyManager       *keymanager.KeyManager // Key manager for encryption (optional)
 	workDirOverrides map[string]string      // Per-project workdir overrides (e.g., loom-self → ".")
 }
 
@@ -281,7 +281,7 @@ func validateProjectID(projectID string) error {
 	// This prevents path traversal and command injection
 	for _, ch := range projectID {
 		if !((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
-			 (ch >= '0' && ch <= '9') || ch == '-' || ch == '_') {
+			(ch >= '0' && ch <= '9') || ch == '-' || ch == '_') {
 			return fmt.Errorf("project ID contains invalid character: %c (only alphanumeric, hyphens, and underscores allowed)", ch)
 		}
 	}

@@ -121,46 +121,46 @@ func TestDispatcher_HopLimitEscalation(t *testing.T) {
 	}
 
 	testCases := []struct {
-		name            string
-		maxHops         int
-		dispatchCount   int
-		shouldEscalate  bool
-		description     string
+		name           string
+		maxHops        int
+		dispatchCount  int
+		shouldEscalate bool
+		description    string
 	}{
 		{
-			name:            "Below limit",
-			maxHops:         20,
-			dispatchCount:   10,
-			shouldEscalate:  false,
-			description:     "10 < 20, no escalation",
+			name:           "Below limit",
+			maxHops:        20,
+			dispatchCount:  10,
+			shouldEscalate: false,
+			description:    "10 < 20, no escalation",
 		},
 		{
-			name:            "At limit",
-			maxHops:         20,
-			dispatchCount:   20,
-			shouldEscalate:  true,
-			description:     "20 >= 20, should escalate",
+			name:           "At limit",
+			maxHops:        20,
+			dispatchCount:  20,
+			shouldEscalate: true,
+			description:    "20 >= 20, should escalate",
 		},
 		{
-			name:            "Above limit",
-			maxHops:         20,
-			dispatchCount:   25,
-			shouldEscalate:  true,
-			description:     "25 >= 20, should escalate",
+			name:           "Above limit",
+			maxHops:        20,
+			dispatchCount:  25,
+			shouldEscalate: true,
+			description:    "25 >= 20, should escalate",
 		},
 		{
-			name:            "Low limit at threshold",
-			maxHops:         5,
-			dispatchCount:   5,
-			shouldEscalate:  true,
-			description:     "5 >= 5, should escalate",
+			name:           "Low limit at threshold",
+			maxHops:        5,
+			dispatchCount:  5,
+			shouldEscalate: true,
+			description:    "5 >= 5, should escalate",
 		},
 		{
-			name:            "High limit below threshold",
-			maxHops:         50,
-			dispatchCount:   30,
-			shouldEscalate:  false,
-			description:     "30 < 50, no escalation",
+			name:           "High limit below threshold",
+			maxHops:        50,
+			dispatchCount:  30,
+			shouldEscalate: false,
+			description:    "30 < 50, no escalation",
 		},
 	}
 
@@ -330,11 +330,11 @@ func TestDispatcher_AlreadyEscalated(t *testing.T) {
 		ID:        "bead-already-escalated",
 		ProjectID: "test-project",
 		Context: map[string]string{
-			"dispatch_count":                     "25",
-			"escalated_to_ceo_decision_id":       "decision-123",
-			"dispatch_escalated_at":              time.Now().UTC().Format(time.RFC3339),
-			"dispatch_escalation_reason":         "dispatch_count=20 exceeded max_hops=20",
-			"dispatch_escalation_decision_id":    "decision-123",
+			"dispatch_count":                  "25",
+			"escalated_to_ceo_decision_id":    "decision-123",
+			"dispatch_escalated_at":           time.Now().UTC().Format(time.RFC3339),
+			"dispatch_escalation_reason":      "dispatch_count=20 exceeded max_hops=20",
+			"dispatch_escalation_decision_id": "decision-123",
 		},
 	}
 

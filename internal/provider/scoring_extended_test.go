@@ -152,7 +152,7 @@ func TestScorerRankProvidersForComplexity_OverqualifiedPrefersSmaller(t *testing
 	s := NewScorer()
 	// Both overqualified for simple task, but medium is "less wasteful"
 	s.UpdateProviderMetrics("medium", 32, 100, 500, 0)  // TierMedium
-	s.UpdateProviderMetrics("xlarge", 480, 100, 500, 0)  // TierXLarge
+	s.UpdateProviderMetrics("xlarge", 480, 100, 500, 0) // TierXLarge
 
 	ranked := s.RankProvidersForComplexity(
 		[]string{"medium", "xlarge"}, ComplexitySimple,
@@ -167,7 +167,7 @@ func TestScorerRankProvidersForComplexity_UnderqualifiedPrefersLarger(t *testing
 	s := NewScorer()
 	// Both underqualified for extended task
 	s.UpdateProviderMetrics("small", 7, 100, 500, 0)   // TierSmall
-	s.UpdateProviderMetrics("medium", 32, 100, 500, 0)  // TierMedium
+	s.UpdateProviderMetrics("medium", 32, 100, 500, 0) // TierMedium
 
 	ranked := s.RankProvidersForComplexity(
 		[]string{"small", "medium"}, ComplexityExtended,

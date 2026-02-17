@@ -169,10 +169,10 @@ func TestServer_extractID(t *testing.T) {
 	server := &Server{}
 
 	tests := []struct {
-		name    string
-		path    string
-		prefix  string
-		want    string
+		name   string
+		path   string
+		prefix string
+		want   string
 	}{
 		{
 			name:   "simple ID",
@@ -221,7 +221,6 @@ func TestServer_extractID(t *testing.T) {
 		})
 	}
 }
-
 
 func TestNewServer(t *testing.T) {
 	cfg := &config.Config{}
@@ -295,7 +294,6 @@ func TestServer_handleHealth(t *testing.T) {
 		})
 	}
 }
-
 
 func TestServer_SetupRoutes(t *testing.T) {
 	cfg := &config.Config{

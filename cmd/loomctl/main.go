@@ -767,7 +767,7 @@ func newStatusCommand() *cobra.Command {
 						counts[s]++
 					}
 					result["beads"] = map[string]interface{}{
-						"total":    len(beads),
+						"total":     len(beads),
 						"by_status": counts,
 					}
 				}
@@ -1126,9 +1126,9 @@ func newWorkflowListCommand() *cobra.Command {
 
 func newWorkflowShowCommand() *cobra.Command {
 	return &cobra.Command{
-		Use:  "show <workflow-id>",
+		Use:   "show <workflow-id>",
 		Short: "Show workflow details",
-		Args: cobra.ExactArgs(1),
+		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client := newClient()
 			data, err := client.get(fmt.Sprintf("/api/v1/workflows/%s", args[0]), nil)

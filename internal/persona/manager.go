@@ -31,10 +31,10 @@ func NewManager(personaDir string) *Manager {
 
 // SkillFrontmatter represents the YAML frontmatter of a SKILL.md file
 type SkillFrontmatter struct {
-	Name          string            `yaml:"name"`
-	Description   string            `yaml:"description"`
-	License       string            `yaml:"license"`
-	Compatibility string            `yaml:"compatibility"`
+	Name          string                 `yaml:"name"`
+	Description   string                 `yaml:"description"`
+	License       string                 `yaml:"license"`
+	Compatibility string                 `yaml:"compatibility"`
 	Metadata      map[string]interface{} `yaml:"metadata"`
 }
 

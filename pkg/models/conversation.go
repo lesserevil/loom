@@ -16,15 +16,15 @@ const EntityTypeConversation EntityType = "conversation"
 // It stores the complete message history across multiple agent dispatches,
 // enabling iterative problem-solving and context retention.
 type ConversationContext struct {
-	SessionID  string       `json:"session_id" db:"session_id"`
-	BeadID     string       `json:"bead_id" db:"bead_id"`
-	ProjectID  string       `json:"project_id" db:"project_id"`
-	Messages   []ChatMessage `json:"messages" db:"messages"` // Stored as JSON in SQLite
-	CreatedAt  time.Time    `json:"created_at" db:"created_at"`
-	UpdatedAt  time.Time    `json:"updated_at" db:"updated_at"`
-	ExpiresAt  time.Time    `json:"expires_at" db:"expires_at"`
-	TokenCount int          `json:"token_count" db:"token_count"` // Cumulative token usage
-	Metadata   map[string]string `json:"metadata" db:"metadata"` // Stored as JSON in SQLite
+	SessionID  string            `json:"session_id" db:"session_id"`
+	BeadID     string            `json:"bead_id" db:"bead_id"`
+	ProjectID  string            `json:"project_id" db:"project_id"`
+	Messages   []ChatMessage     `json:"messages" db:"messages"` // Stored as JSON in SQLite
+	CreatedAt  time.Time         `json:"created_at" db:"created_at"`
+	UpdatedAt  time.Time         `json:"updated_at" db:"updated_at"`
+	ExpiresAt  time.Time         `json:"expires_at" db:"expires_at"`
+	TokenCount int               `json:"token_count" db:"token_count"` // Cumulative token usage
+	Metadata   map[string]string `json:"metadata" db:"metadata"`       // Stored as JSON in SQLite
 
 	// Entity versioning
 	EntityMetadata `json:"entity_metadata,omitempty"`
@@ -34,9 +34,9 @@ type ConversationContext struct {
 // This extends the basic provider.ChatMessage with additional fields needed
 // for conversation tracking.
 type ChatMessage struct {
-	Role       string    `json:"role"`       // "system", "user", "assistant"
-	Content    string    `json:"content"`    // Message content
-	Timestamp  time.Time `json:"timestamp"`  // When this message was created
+	Role       string    `json:"role"`                  // "system", "user", "assistant"
+	Content    string    `json:"content"`               // Message content
+	Timestamp  time.Time `json:"timestamp"`             // When this message was created
 	TokenCount int       `json:"token_count,omitempty"` // Tokens in this message (0 if not counted)
 }
 

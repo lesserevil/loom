@@ -16,17 +16,17 @@ type BootstrapRequest struct {
 	GitHubURL string `json:"github_url"`
 	Name      string `json:"name"`
 	Branch    string `json:"branch"`
-	PRDText   string `json:"prd_text,omitempty"`   // PRD as text
-	PRDFile   []byte `json:"prd_file,omitempty"`   // Or uploaded file content
+	PRDText   string `json:"prd_text,omitempty"` // PRD as text
+	PRDFile   []byte `json:"prd_file,omitempty"` // Or uploaded file content
 }
 
 // BootstrapResult contains the result of a bootstrap operation
 type BootstrapResult struct {
 	ProjectID            string `json:"project_id"`
 	Status               string `json:"status"`
-	InitialBead          string `json:"initial_bead_id,omitempty"`          // PM's PRD expansion bead
-	PublicKey            string `json:"public_key,omitempty"`               // SSH public key for deploy key setup
-	GitSetupInstructions string `json:"git_setup_instructions,omitempty"`   // Instructions for adding deploy key
+	InitialBead          string `json:"initial_bead_id,omitempty"`        // PM's PRD expansion bead
+	PublicKey            string `json:"public_key,omitempty"`             // SSH public key for deploy key setup
+	GitSetupInstructions string `json:"git_setup_instructions,omitempty"` // Instructions for adding deploy key
 	Error                string `json:"error,omitempty"`
 }
 
@@ -98,8 +98,8 @@ func (bs *BootstrapService) Bootstrap(ctx context.Context, req BootstrapRequest)
 
 	// Register project with Loom
 	project, err := bs.projectManager.CreateProject(req.Name, projectPath, req.Branch, ".beads", map[string]string{
-		"bootstrap":    "true",
-		"github_url":   req.GitHubURL,
+		"bootstrap":   "true",
+		"github_url":  req.GitHubURL,
 		"description": "Bootstrapped project from PRD",
 	})
 	if err != nil {
@@ -295,8 +295,8 @@ func (bs *BootstrapService) createPMExpandPRDBead(ctx context.Context, projectPa
 	// Commit the bead
 	cmd = exec.CommandContext(ctx, "git", "-C", projectPath, "add", ".beads/")
 	_ = cmd.Run()
-	
-	cmd = exec.CommandContext(ctx, "git", "-C", projectPath, "commit", "-m", 
+
+	cmd = exec.CommandContext(ctx, "git", "-C", projectPath, "commit", "-m",
 		"chore: create PM bead for PRD expansion\n\nCo-Authored-By: Loom <noreply@loom.dev>")
 	_ = cmd.Run()
 
@@ -355,7 +355,7 @@ func (bs *BootstrapService) CreateEpicBreakdownBead(ctx context.Context, project
 // CreateCEODemoBead creates the CEO demo/review bead when MVP is ready
 func (bs *BootstrapService) CreateCEODemoBead(ctx context.Context, projectPath, projectID string, completedFeatures []string) (string, error) {
 	featuresText := "- " + fmt.Sprintf("%v", completedFeatures)
-	
+
 	description := fmt.Sprintf(`The initial implementation is ready for review and testing.
 
 ## What's Been Built
@@ -365,10 +365,10 @@ func (bs *BootstrapService) CreateCEODemoBead(ctx context.Context, projectPath, 
 See docs/DEPLOYMENT.md or README.md for instructions.
 
 Example:
-` + "```bash\n" + `npm install
+`+"```bash\n"+`npm install
 npm run dev
 # Open http://localhost:3000
-` + "```\n" + `
+`+"```\n"+`
 
 ## Testing Checklist
 - [ ] Application launches successfully

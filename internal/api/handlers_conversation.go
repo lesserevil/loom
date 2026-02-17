@@ -112,9 +112,9 @@ func (s *Server) handleResetConversation(w http.ResponseWriter, r *http.Request,
 	}
 
 	s.respondJSON(w, http.StatusOK, map[string]interface{}{
-		"message":              "Conversation reset successfully",
-		"session_id":           sessionID,
-		"keep_system_message":  req.KeepSystemMessage,
+		"message":             "Conversation reset successfully",
+		"session_id":          sessionID,
+		"keep_system_message": req.KeepSystemMessage,
 	})
 }
 

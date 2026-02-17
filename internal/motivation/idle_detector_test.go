@@ -288,9 +288,11 @@ type mockIdleListener struct {
 	projectIdleCalls int
 }
 
-func (m *mockIdleListener) OnSystemIdle(duration time.Duration)                   { m.systemIdleCalls++ }
-func (m *mockIdleListener) OnProjectIdle(projectID string, duration time.Duration) { m.projectIdleCalls++ }
-func (m *mockIdleListener) OnAgentIdle(agentID string, duration time.Duration)     {}
+func (m *mockIdleListener) OnSystemIdle(duration time.Duration) { m.systemIdleCalls++ }
+func (m *mockIdleListener) OnProjectIdle(projectID string, duration time.Duration) {
+	m.projectIdleCalls++
+}
+func (m *mockIdleListener) OnAgentIdle(agentID string, duration time.Duration) {}
 
 func TestIdleDetector_AddListenerAndNotify(t *testing.T) {
 	config := DefaultIdleConfig()
@@ -301,7 +303,7 @@ func TestIdleDetector_AddListenerAndNotify(t *testing.T) {
 
 	// Notify with system idle state
 	state := &IdleState{
-		IsSystemIdle:    true,
+		IsSystemIdle:     true,
 		SystemIdlePeriod: 5 * time.Minute,
 		IdleProjects: []ProjectIdleState{
 			{ProjectID: "proj1", IsIdle: true, IdlePeriod: 3 * time.Minute},

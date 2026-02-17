@@ -13,35 +13,35 @@ import (
 
 // Violation represents a single linter violation
 type Violation struct {
-	File     string `json:"file"`      // File path relative to project
-	Line     int    `json:"line"`      // Line number
-	Column   int    `json:"column"`    // Column number (if available)
-	Rule     string `json:"rule"`      // Rule identifier (e.g., "unused-var")
-	Severity string `json:"severity"`  // "error", "warning", "info"
-	Message  string `json:"message"`   // Human-readable message
-	Linter   string `json:"linter"`    // Specific linter that reported (e.g., "staticcheck")
+	File     string `json:"file"`     // File path relative to project
+	Line     int    `json:"line"`     // Line number
+	Column   int    `json:"column"`   // Column number (if available)
+	Rule     string `json:"rule"`     // Rule identifier (e.g., "unused-var")
+	Severity string `json:"severity"` // "error", "warning", "info"
+	Message  string `json:"message"`  // Human-readable message
+	Linter   string `json:"linter"`   // Specific linter that reported (e.g., "staticcheck")
 }
 
 // LintResult contains the complete linting result
 type LintResult struct {
-	Framework  string      `json:"framework"`   // "golangci-lint", "eslint", "pylint"
-	Success    bool        `json:"success"`     // True if no violations
-	ExitCode   int         `json:"exit_code"`   // Process exit code
-	Violations []Violation `json:"violations"`  // List of violations
-	RawOutput  string      `json:"raw_output"`  // Full linter output
-	Duration   time.Duration `json:"duration"` // Execution time
-	TimedOut   bool        `json:"timed_out"`   // Whether execution timed out
-	Error      string      `json:"error"`       // Error message if execution failed
+	Framework  string        `json:"framework"`  // "golangci-lint", "eslint", "pylint"
+	Success    bool          `json:"success"`    // True if no violations
+	ExitCode   int           `json:"exit_code"`  // Process exit code
+	Violations []Violation   `json:"violations"` // List of violations
+	RawOutput  string        `json:"raw_output"` // Full linter output
+	Duration   time.Duration `json:"duration"`   // Execution time
+	TimedOut   bool          `json:"timed_out"`  // Whether execution timed out
+	Error      string        `json:"error"`      // Error message if execution failed
 }
 
 // LintRequest defines parameters for linter execution
 type LintRequest struct {
-	ProjectPath  string            // Absolute path to project
-	LintCommand  string            // Optional: override lint command
-	Framework    string            // Optional: specify linter (auto-detect if empty)
-	Files        []string          // Optional: specific files to lint
-	Environment  map[string]string // Environment variables
-	Timeout      time.Duration     // Max execution time
+	ProjectPath string            // Absolute path to project
+	LintCommand string            // Optional: override lint command
+	Framework   string            // Optional: specify linter (auto-detect if empty)
+	Files       []string          // Optional: specific files to lint
+	Environment map[string]string // Environment variables
+	Timeout     time.Duration     // Max execution time
 }
 
 const (

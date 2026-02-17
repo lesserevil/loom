@@ -12,12 +12,12 @@ func TestAnalyzeBugForRouting_AllRoutes(t *testing.T) {
 	router := NewAutoBugRouter()
 
 	tests := []struct {
-		name         string
-		bead         *models.Bead
-		shouldRoute  bool
-		personaHint  string
-		hasUpdated   bool
-		routeReason  string
+		name        string
+		bead        *models.Bead
+		shouldRoute bool
+		personaHint string
+		hasUpdated  bool
+		routeReason string
 	}{
 		{
 			name: "build error via title",

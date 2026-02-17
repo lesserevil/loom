@@ -398,9 +398,9 @@ func TestCalendarEvaluator_ScheduledIntervalWithLastTrigger(t *testing.T) {
 
 	past := time.Now().Add(-2 * time.Hour)
 	m := &Motivation{
-		Condition:      ConditionScheduledInterval,
+		Condition:       ConditionScheduledInterval,
 		LastTriggeredAt: &past,
-		CooldownPeriod: 1 * time.Hour,
+		CooldownPeriod:  1 * time.Hour,
 	}
 
 	triggered, _, err := eval.Evaluate(ctx, m, sp)

@@ -384,10 +384,10 @@ func TestOrgChart_GetRequiredPositions_Empty(t *testing.T) {
 func TestOrgChart_GetVacantPositions(t *testing.T) {
 	orgChart := &OrgChart{
 		Positions: []Position{
-			{ID: "pos-1", AgentIDs: []string{"agent-1"}},       // filled
-			{ID: "pos-2", AgentIDs: []string{}},                // vacant
-			{ID: "pos-3", AgentIDs: []string{"agent-2"}},       // filled
-			{ID: "pos-4", AgentIDs: nil},                       // vacant
+			{ID: "pos-1", AgentIDs: []string{"agent-1"}},        // filled
+			{ID: "pos-2", AgentIDs: []string{}},                 // vacant
+			{ID: "pos-3", AgentIDs: []string{"agent-2"}},        // filled
+			{ID: "pos-4", AgentIDs: nil},                        // vacant
 			{ID: "pos-5", AgentIDs: []string{"a1", "a2", "a3"}}, // filled
 		},
 	}

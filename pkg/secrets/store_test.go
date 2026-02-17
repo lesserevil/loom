@@ -200,7 +200,7 @@ func TestStore_DecryptInvalidData(t *testing.T) {
 	}{
 		{"empty string", ""},
 		{"invalid base64", "not-valid-base64!!!"},
-		{"too short", "YQ=="}, // "a" in base64, too short for nonce
+		{"too short", "YQ=="},                        // "a" in base64, too short for nonce
 		{"garbage data", "YWJjZGVmZ2hpamtsbW5vcA=="}, // valid base64 but invalid ciphertext
 	}
 

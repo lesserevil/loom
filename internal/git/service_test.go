@@ -228,11 +228,11 @@ func TestValidateBranchNameWithPrefix(t *testing.T) {
 
 func TestEnsureCommitMetadata(t *testing.T) {
 	tests := []struct {
-		name     string
-		message  string
-		beadID   string
-		agentID  string
-		checkFn  func(t *testing.T, result string)
+		name    string
+		message string
+		beadID  string
+		agentID string
+		checkFn func(t *testing.T, result string)
 	}{
 		{
 			name:    "empty message gets default",
