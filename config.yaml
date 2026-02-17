@@ -186,9 +186,6 @@ projects:
       build_command: "go build"
       test_command: "go test ./..."
       description: "The Loom project itself - perpetual self-improvement"
-  # NOTE: Only one project should be configured at a time until multi-project
-  # agent allocation is fixed. The system has a global max_concurrent agent limit
-  # that prevents multiple projects from having their own agent teams.
   # - id: example-project
   #   name: Example Project
   #   git_repo: /path/to/repo

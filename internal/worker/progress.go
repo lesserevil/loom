@@ -149,8 +149,10 @@ func (pt *ProgressTracker) IsProgressStagnant(iteration int, actionTypeCount map
 	}
 
 	// Check 1: No files written after significant iterations
-	if iteration > 20 && len(pt.filesWritten) == 0 {
-		return true, "no files modified after 20+ iterations"
+	// Raised threshold from 20 to 35 — diagnostic and audit beads are
+	// legitimately read-only for many iterations before taking action.
+	if iteration > 35 && len(pt.filesWritten) == 0 {
+		return true, "no files modified after 35+ iterations"
 	}
 
 	// Check 2: Build/test status not improving
@@ -173,8 +175,10 @@ func (pt *ProgressTracker) IsProgressStagnant(iteration int, actionTypeCount map
 	}
 
 	// Check 5: Same action type dominating (likely searching/reading same thing)
+	// Uses canonical action type names (post-ParseSimpleJSON), not simple-mode verbs.
 	for actionType, count := range actionTypeCount {
-		if count > 15 && (actionType == "search" || actionType == "read" || actionType == "scope") {
+		if count > 15 && (actionType == "search_text" || actionType == "read_file" ||
+			actionType == "read_code" || actionType == "read_tree" || actionType == "run_command") {
 			return true, fmt.Sprintf("repeated %s action %d times", actionType, count)
 		}
 	}
