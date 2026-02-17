@@ -8,13 +8,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jordanhubbard/loom/internal/loom"
 	"github.com/jordanhubbard/loom/internal/analytics"
 	"github.com/jordanhubbard/loom/internal/auth"
 	"github.com/jordanhubbard/loom/internal/cache"
 	"github.com/jordanhubbard/loom/internal/files"
 	"github.com/jordanhubbard/loom/internal/keymanager"
 	"github.com/jordanhubbard/loom/internal/logging"
+	"github.com/jordanhubbard/loom/internal/loom"
 	"github.com/jordanhubbard/loom/internal/metrics"
 	"github.com/jordanhubbard/loom/pkg/config"
 	"github.com/jordanhubbard/loom/pkg/models"
@@ -264,6 +264,7 @@ func (s *Server) SetupRoutes() http.Handler {
 	mux.HandleFunc("/api/v1/analytics/export-stats", s.handleExportStats)
 	mux.HandleFunc("/api/v1/analytics/costs", s.handleGetCostReport)
 	mux.HandleFunc("/api/v1/analytics/batching", s.handleGetBatchingRecommendations)
+	mux.HandleFunc("/api/v1/analytics/change-velocity", s.handleGetChangeVelocity)
 
 	// Cache management
 	mux.HandleFunc("/api/v1/cache/stats", s.handleGetCacheStats)

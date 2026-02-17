@@ -4694,6 +4694,107 @@ document.getElementById('export-logs-csv-btn')?.addEventListener('click', () => 
     exportAnalytics('logs', 'csv');
 });
 
+// Change Velocity Widget Functions
+async function loadChangeVelocity(projectID) {
+    if (!projectID) {
+        // Default to first project or show message
+        const projects = await loadProjects();
+        if (projects && projects.length > 0) {
+            projectID = projects[0].id;
+        } else {
+            console.warn('No projects available for change velocity');
+            return;
+        }
+    }
+
+    try {
+        const response = await fetch(`/api/v1/analytics/change-velocity?project_id=${projectID}&time_window=24h`, {
+            headers: {
+                'Authorization': `Bearer ${state.token}`
+            }
+        });
+
+        if (!response.ok) throw new Error('Failed to load change velocity');
+
+        const metrics = await response.json();
+        renderChangeVelocityWidget(metrics);
+    } catch (error) {
+        console.error('Error loading change velocity:', error);
+        // Don't show toast - this is a background widget update
+    }
+}
+
+function renderChangeVelocityWidget(metrics) {
+    const container = document.getElementById('change-velocity-widget');
+    if (!container) return;
+
+    const uncommittedCount = metrics.uncommitted_files ? metrics.uncommitted_files.length : 0;
+    const uncommittedClass = uncommittedCount > 0 ? 'text-red-600 font-bold' : 'text-green-600';
+
+    const html = `
+        <div class="bg-white rounded-lg shadow p-4">
+            <h3 class="text-lg font-semibold mb-3">Change Velocity (24h)</h3>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <div class="text-sm text-gray-600">Commits/Day</div>
+                    <div class="text-2xl font-bold">${metrics.change_velocity.toFixed(1)}</div>
+                </div>
+                <div>
+                    <div class="text-sm text-gray-600">Uncommitted Files</div>
+                    <div class="text-2xl font-bold ${uncommittedClass}">${uncommittedCount}</div>
+                </div>
+            </div>
+            <div class="mt-4">
+                <div class="text-sm font-semibold mb-2">Development Funnel</div>
+                <div class="space-y-1 text-sm">
+                    <div class="flex justify-between">
+                        <span>Files Modified:</span>
+                        <span class="font-mono">${metrics.files_modified}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>Builds Passed:</span>
+                        <span class="font-mono">${metrics.builds_succeeded}/${metrics.builds_attempted}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>Tests Passed:</span>
+                        <span class="font-mono">${metrics.tests_passed}/${metrics.tests_attempted}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>Commits:</span>
+                        <span class="font-mono">${metrics.commits_succeeded}/${metrics.commits_attempted}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>Pushes:</span>
+                        <span class="font-mono">${metrics.pushes_succeeded}/${metrics.pushes_attempted}</span>
+                    </div>
+                </div>
+            </div>
+            ${uncommittedCount > 0 ? `
+                <div class="mt-3 p-2 bg-red-50 border border-red-200 rounded text-xs">
+                    <div class="font-semibold text-red-800">⚠️ Uncommitted Changes:</div>
+                    <div class="text-red-700 mt-1 max-h-20 overflow-y-auto">
+                        ${metrics.uncommitted_files.slice(0, 5).join('<br>')}
+                        ${uncommittedCount > 5 ? `<br><em>...and ${uncommittedCount - 5} more</em>` : ''}
+                    </div>
+                </div>
+            ` : ''}
+        </div>
+    `;
+
+    container.innerHTML = html;
+}
+
+// Load change velocity widget on dashboard view
+document.querySelectorAll('.view-tab').forEach(tab => {
+    const originalClick = tab.onclick;
+    tab.onclick = function() {
+        if (originalClick) originalClick.call(this);
+        if (this.dataset.target === 'home' && state.token && state.currentProject) {
+            setTimeout(() => loadChangeVelocity(state.currentProject), 100);
+        }
+    };
+});
+
 // =====================
 // Motivations Dashboard
 // =====================
@@ -5133,4 +5234,5 @@ document.addEventListener('click', function(event) {
 
 // TEST BUG: Intentional error for self-healing workflow demonstration
 // This should be detected, auto-filed, investigated, and fixed by Loom agents
-testSelfHealingWorkflow();
+// FIXED: Commented out to prevent UI errors on every page load
+// testSelfHealingWorkflow();

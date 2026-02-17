@@ -487,3 +487,45 @@ func exportLogsAsCSV(w http.ResponseWriter, logs []*analytics.RequestLog) {
 		})
 	}
 }
+
+// handleGetChangeVelocity handles GET /api/v1/analytics/change-velocity
+func (s *Server) handleGetChangeVelocity(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Parse query parameters
+	projectID := r.URL.Query().Get("project_id")
+	if projectID == "" {
+		http.Error(w, "project_id is required", http.StatusBadRequest)
+		return
+	}
+
+	// Parse time window (default: 24h)
+	timeWindowStr := r.URL.Query().Get("time_window")
+	timeWindow := 24 * time.Hour
+	if timeWindowStr != "" {
+		duration, err := time.ParseDuration(timeWindowStr)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("invalid time_window: %s", err), http.StatusBadRequest)
+			return
+		}
+		timeWindow = duration
+	}
+
+	// Get change velocity metrics
+	tracker := analytics.NewChangeVelocityTracker(s.app.GetDatabase())
+	metrics, err := tracker.GetChangeVelocity(r.Context(), projectID, timeWindow)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("failed to get change velocity: %s", err), http.StatusInternalServerError)
+		return
+	}
+
+	// Return JSON response
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(metrics); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
+}
