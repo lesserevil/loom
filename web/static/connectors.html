@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connectors - Loom</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        .connectors-container {
+            max-width: 1400px;
+            margin: 20px auto;
+            padding: 20px;
+        }
+
+        .connectors-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .add-connector-btn {
+            background: #2196F3;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .add-connector-btn:hover {
+            background: #1976D2;
+        }
+
+        .connectors-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .connector-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .connector-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+
+        .connector-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .connector-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            margin: 0;
+        }
+
+        .connector-type {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .type-observability { background: #e3f2fd; color: #1565c0; }
+        .type-agent { background: #f3e5f5; color: #6a1b9a; }
+        .type-storage { background: #fff3e0; color: #e65100; }
+
+        .connector-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .status-healthy { background: #4caf50; }
+        .status-unhealthy { background: #f44336; }
+        .status-unknown { background: #9e9e9e; }
+
+        .connector-info {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        .connector-endpoint {
+            font-family: monospace;
+            background: #f5f5f5;
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 13px;
+            margin-bottom: 12px;
+            word-break: break-all;
+        }
+
+        .connector-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .action-btn {
+            flex: 1;
+            padding: 8px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: opacity 0.2s;
+        }
+
+        .action-btn:hover {
+            opacity: 0.8;
+        }
+
+        .test-btn {
+            background: #4caf50;
+            color: white;
+        }
+
+        .edit-btn {
+            background: #ff9800;
+            color: white;
+        }
+
+        .delete-btn {
+            background: #f44336;
+            color: white;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 25px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .btn-primary {
+            background: #2196F3;
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #757575;
+            color: white;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="connectors-container">
+        <div class="connectors-header">
+            <div>
+                <h1>Connectors</h1>
+                <p>Manage external service integrations</p>
+            </div>
+            <button class="add-connector-btn" onclick="showAddConnectorModal()">+ Add Connector</button>
+        </div>
+
+        <div id="error-message" class="error" style="display: none;"></div>
+        <div id="loading" class="loading">Loading connectors...</div>
+        <div id="connectors-grid" class="connectors-grid"></div>
+    </div>
+
+    <!-- Add/Edit Connector Modal -->
+    <div id="connector-modal" class="modal">
+        <div class="modal-content">
+            <h2 id="modal-title">Add Connector</h2>
+            <form id="connector-form" onsubmit="saveConnector(event)">
+                <div class="form-group">
+                    <label for="connector-id">ID *</label>
+                    <input type="text" id="connector-id" required placeholder="e.g., my-prometheus">
+                </div>
+
+                <div class="form-group">
+                    <label for="connector-name">Name *</label>
+                    <input type="text" id="connector-name" required placeholder="e.g., My Prometheus">
+                </div>
+
+                <div class="form-group">
+                    <label for="connector-type">Type *</label>
+                    <select id="connector-type" required>
+                        <option value="observability">Observability</option>
+                        <option value="agent">Agent</option>
+                        <option value="storage">Storage</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="connector-mode">Mode *</label>
+                    <select id="connector-mode" required>
+                        <option value="local">Local</option>
+                        <option value="remote">Remote</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="connector-host">Host *</label>
+                    <input type="text" id="connector-host" required placeholder="e.g., localhost or prometheus.example.com">
+                </div>
+
+                <div class="form-group">
+                    <label for="connector-port">Port *</label>
+                    <input type="number" id="connector-port" required placeholder="e.g., 9090">
+                </div>
+
+                <div class="form-group">
+                    <label for="connector-scheme">Scheme</label>
+                    <select id="connector-scheme">
+                        <option value="http">HTTP</option>
+                        <option value="https">HTTPS</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="connector-description">Description</label>
+                    <textarea id="connector-description" placeholder="Optional description"></textarea>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let connectors = [];
+        let editingConnectorId = null;
+
+        async function loadConnectors() {
+            try {
+                const response = await fetch('/api/v1/connectors');
+                const data = await response.json();
+                connectors = data.connectors || [];
+                renderConnectors();
+                document.getElementById('loading').style.display = 'none';
+            } catch (error) {
+                showError('Failed to load connectors: ' + error.message);
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+
+        function renderConnectors() {
+            const grid = document.getElementById('connectors-grid');
+
+            if (connectors.length === 0) {
+                grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: #666;">No connectors configured. Click "Add Connector" to get started.</div>';
+                return;
+            }
+
+            grid.innerHTML = connectors.map(c => `
+                <div class="connector-card">
+                    <div class="connector-header">
+                        <h3 class="connector-title">${escapeHtml(c.name)}</h3>
+                    </div>
+                    <div class="connector-type type-${c.type}">${c.type}</div>
+                    <div class="connector-status">
+                        <div class="status-indicator status-${c.status}"></div>
+                        <span>${c.status}</span>
+                        <span style="margin-left: auto; font-size: 12px; color: #999;">${c.mode}</span>
+                    </div>
+                    <div class="connector-info">${escapeHtml(c.description || '')}</div>
+                    <div class="connector-endpoint">${escapeHtml(c.endpoint)}</div>
+                    <div class="connector-actions">
+                        <button class="action-btn test-btn" onclick="testConnector('${c.id}')">Test</button>
+                        <button class="action-btn edit-btn" onclick="editConnector('${c.id}')">Edit</button>
+                        <button class="action-btn delete-btn" onclick="deleteConnector('${c.id}')">Delete</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function showAddConnectorModal() {
+            editingConnectorId = null;
+            document.getElementById('modal-title').textContent = 'Add Connector';
+            document.getElementById('connector-form').reset();
+            document.getElementById('connector-id').disabled = false;
+            document.getElementById('connector-modal').classList.add('active');
+        }
+
+        function editConnector(id) {
+            const connector = connectors.find(c => c.id === id);
+            if (!connector) return;
+
+            editingConnectorId = id;
+            document.getElementById('modal-title').textContent = 'Edit Connector';
+            document.getElementById('connector-id').value = connector.id;
+            document.getElementById('connector-id').disabled = true;
+            document.getElementById('connector-name').value = connector.name;
+            document.getElementById('connector-type').value = connector.type;
+            document.getElementById('connector-mode').value = connector.mode;
+            document.getElementById('connector-host').value = connector.endpoint.split('://')[1]?.split(':')[0] || '';
+            document.getElementById('connector-port').value = connector.endpoint.split(':').pop() || '';
+            document.getElementById('connector-scheme').value = connector.endpoint.startsWith('https') ? 'https' : 'http';
+            document.getElementById('connector-description').value = connector.description || '';
+            document.getElementById('connector-modal').classList.add('active');
+        }
+
+        async function saveConnector(event) {
+            event.preventDefault();
+
+            const connector = {
+                id: document.getElementById('connector-id').value,
+                name: document.getElementById('connector-name').value,
+                type: document.getElementById('connector-type').value,
+                mode: document.getElementById('connector-mode').value,
+                host: document.getElementById('connector-host').value,
+                port: parseInt(document.getElementById('connector-port').value),
+                scheme: document.getElementById('connector-scheme').value,
+                description: document.getElementById('connector-description').value,
+                enabled: true
+            };
+
+            try {
+                const url = editingConnectorId
+                    ? `/api/v1/connectors/${editingConnectorId}`
+                    : '/api/v1/connectors';
+                const method = editingConnectorId ? 'PUT' : 'POST';
+
+                const response = await fetch(url, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(connector)
+                });
+
+                if (!response.ok) {
+                    const error = await response.text();
+                    throw new Error(error);
+                }
+
+                closeModal();
+                await loadConnectors();
+            } catch (error) {
+                showError('Failed to save connector: ' + error.message);
+            }
+        }
+
+        async function deleteConnector(id) {
+            if (!confirm('Are you sure you want to delete this connector?')) return;
+
+            try {
+                const response = await fetch(`/api/v1/connectors/${id}`, {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok) {
+                    const error = await response.text();
+                    throw new Error(error);
+                }
+
+                await loadConnectors();
+            } catch (error) {
+                showError('Failed to delete connector: ' + error.message);
+            }
+        }
+
+        async function testConnector(id) {
+            try {
+                const response = await fetch(`/api/v1/connectors/${id}/test`, {
+                    method: 'POST'
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert(`Connection test successful!\nStatus: ${result.status}`);
+                } else {
+                    alert(`Connection test failed:\n${result.error || 'Unknown error'}`);
+                }
+
+                await loadConnectors();
+            } catch (error) {
+                showError('Failed to test connector: ' + error.message);
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('connector-modal').classList.remove('active');
+            editingConnectorId = null;
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error-message');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            setTimeout(() => {
+                errorDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Close modal when clicking outside
+        document.getElementById('connector-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'connector-modal') {
+                closeModal();
+            }
+        });
+
+        // Load connectors on page load
+        loadConnectors();
+
+        // Refresh connectors every 30 seconds
+        setInterval(loadConnectors, 30000);
+    </script>
+</body>
+</html>

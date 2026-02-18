@@ -48,6 +48,7 @@ import (
 	"github.com/jordanhubbard/loom/internal/temporal/workflows"
 	"github.com/jordanhubbard/loom/internal/workflow"
 	"github.com/jordanhubbard/loom/pkg/config"
+	"github.com/jordanhubbard/loom/pkg/connectors"
 	"github.com/jordanhubbard/loom/pkg/models"
 )
 
@@ -93,6 +94,7 @@ type Loom struct {
 	openclawClient      *openclaw.Client
 	openclawBridge      *openclaw.Bridge
 	containerOrchestrator *containers.Orchestrator
+	connectorManager    *connectors.Manager
 	readinessMu         sync.Mutex
 	readinessCache      map[string]projectReadinessState
 	readinessFailures   map[string]time.Time
@@ -275,6 +277,15 @@ func New(cfg *config.Config) (*Loom, error) {
 		return nil, fmt.Errorf("failed to initialize container orchestrator: %w", err)
 	}
 
+	// Initialize connector manager for external service integrations
+	connectorsConfigPath := filepath.Join("/app/data", "connectors.yaml")
+	connectorMgr := connectors.NewManager(connectorsConfigPath)
+	if err := connectorMgr.LoadConfig(); err != nil {
+		log.Printf("Warning: Failed to load connectors config: %v", err)
+	}
+	// Start health monitoring for all connectors
+	connectorMgr.StartHealthMonitoring(30 * time.Second)
+
 	beadsMgr := beads.NewManager(cfg.Beads.BDPath)
 	beadsMgr.SetBackend(cfg.Beads.Backend)
 
@@ -307,6 +318,7 @@ func New(cfg *config.Config) (*Loom, error) {
 		openclawClient:        ocClient,
 		openclawBridge:        ocBridge,
 		containerOrchestrator: containerOrch,
+		connectorManager:      connectorMgr,
 	}
 
 	actionRouter := &actions.Router{
@@ -1081,6 +1093,11 @@ func (a *Loom) GetEventBus() *eventbus.EventBus {
 // GetDatabase returns the database instance
 func (a *Loom) GetDatabase() *database.Database {
 	return a.database
+}
+
+// GetConnectorManager returns the connector manager instance
+func (a *Loom) GetConnectorManager() *connectors.Manager {
+	return a.connectorManager
 }
 
 // ExecuteShellCommand executes a shell command and logs it

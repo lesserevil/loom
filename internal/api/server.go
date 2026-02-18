@@ -188,6 +188,10 @@ func (s *Server) SetupRoutes() http.Handler {
 	mux.HandleFunc("/api/v1/beads", s.handleBeads)
 	mux.HandleFunc("/api/v1/beads/", s.handleBead)
 
+	// Connectors
+	mux.HandleFunc("/api/v1/connectors", s.HandleConnectors)
+	mux.HandleFunc("/api/v1/connectors/", s.HandleConnectors)
+
 	// Federation
 	mux.HandleFunc("/api/v1/federation/status", s.handleFederationStatus)
 	mux.HandleFunc("/api/v1/federation/sync", s.handleFederationSync)
