@@ -1576,6 +1576,14 @@ func (d *Dispatcher) createRemediationBead(stuckBead *models.Bead, stuckAgent *m
 		return
 	}
 
+	// CRITICAL FIX: Do NOT create remediation beads for remediation beads
+	// This prevents infinite cascading loops
+	if strings.Contains(stuckBead.Title, "Remediation:") ||
+	   (stuckBead.Context != nil && stuckBead.Context["remediation_for"] != "") {
+		log.Printf("[Remediation] Skipping remediation for %s - already a remediation bead (prevents cascade)", stuckBead.ID)
+		return
+	}
+
 	// Extract progress metrics if available
 	var progressMetrics string
 	var stagnationReason string

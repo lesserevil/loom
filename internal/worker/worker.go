@@ -858,17 +858,17 @@ func (w *Worker) ExecuteTaskWithLoop(ctx context.Context, task *Task, config *Lo
 			}
 
 			consecutiveParseFailures++
-			if consecutiveParseFailures >= 2 {
+			if consecutiveParseFailures >= 5 {
 				loopResult.TerminalReason = "parse_failures"
 				loopResult.Iterations = iteration + 1
 				loopResult.Actions = allActions
 				loopResult.Success = false
-				loopResult.Error = fmt.Sprintf("two consecutive parse failures: %v", parseErr)
+				loopResult.Error = fmt.Sprintf("five consecutive parse failures: %v", parseErr)
 				loopResult.CompletedAt = time.Now()
 				return loopResult, nil
 			}
 
-			feedback := fmt.Sprintf("## Parse Error\n\nFailed to parse your response as valid JSON actions: %v\n\nPlease respond with a valid JSON object containing an \"actions\" array. Do not include any text outside the JSON.", parseErr)
+			feedback := fmt.Sprintf("## Parse Error (attempt %d/5)\n\nFailed to parse your response as valid JSON: %v\n\nYou MUST respond with a SINGLE JSON object in this exact format:\n{\"action\": \"scope\", \"path\": \".\"}\n\nValid actions: scope, read, search, edit, write, build, test, bash, git_commit, git_push, done\n\nDo NOT wrap in an array. Do NOT include any text outside the JSON object.", consecutiveParseFailures, parseErr)
 			messages = append(messages, provider.ChatMessage{Role: "user", Content: feedback})
 			if conversationCtx != nil {
 				conversationCtx.AddMessage("user", feedback, len(feedback)/4)
