@@ -1,268 +1,210 @@
-# Development Plan: Workflow System Implementation
+# Development Plan: Microservices Architecture Implementation
 
-*Generated on 2026-02-15 by Vibe Feature MCP*
-*Workflow: [waterfall](https://mrsimpson.github.io/responsible-vibe-mcp/workflows/waterfall)*
+*Generated on 2026-02-18 by Vibe Feature MCP*
+*Workflow: [epcc](https://mrsimpson.github.io/responsible-vibe-mcp/workflows/epcc)*
 
 ## Goal
-Implement a comprehensive workflow system to enable multi-step agent workflows, role-based task assignment, and autonomous self-healing. This will unblock Loom's ability to fully fix its own bugs by defining who does what in multi-step processes (investigation → approval → fix → commit → verify).
+Implement a true microservices architecture for Loom with message bus, service-to-service communication, and distributed database access. This will fix architectural gaps identified in MICROSERVICES_ARCHITECTURE_REVIEW.md and improve system robustness and scalability.
 
-## Requirements
-<!-- beads-phase-id: loom-vhi7k -->
+## Explore
+<!-- beads-phase-id: explore -->
 
 ### Objectives
-Define comprehensive requirements for the workflow system based on findings from SELF_HEALING_TEST_RESULTS.md.
+Understand the current architecture and identify all components that need to be modified for the microservices redesign.
 
-### Tasks
-*Tasks managed via `bd` CLI*
+### Findings
 
-### Key Requirements to Define
-- Workflow DAG structure (nodes, edges, transitions)
-- Multi-dispatch support for long-running agent investigations
-- Role-based assignment (Engineering Manager for commits, QA for verification)
-- Retry and escalation logic
-- CEO override capabilities
-- Workflow state persistence
-- Concurrent workflow execution
+**Current State:**
+- Monolithic application with partial containerization
+- Per-project agent containers but no inter-service communication
+- In-memory only message bus (AgentMessageBus)
+- SQLite database with no service abstraction
+- No service registry or discovery
+- No message bus for cross-container communication
+
+**Architecture Review Reference:**
+See `docs/MICROSERVICES_ARCHITECTURE_REVIEW.md` for comprehensive analysis of gaps and solutions.
+
+**Critical Gaps Identified:**
+1. **No External Message Bus**: In-memory EventBus doesn't support cross-container communication
+2. **No Service-to-Service Protocol**: No gRPC or typed contracts between services
+3. **Monolithic Database**: SQLite doesn't support concurrent writes from multiple containers
+4. **Isolated Project Containers**: No way for project agents to communicate with control plane
+
+**Technology Decisions:**
+- **Message Bus**: NATS with JetStream (lighter than RabbitMQ, excellent Go support)
+- **Database**: PostgreSQL 15 with gRPC service for abstraction
+- **Service Mesh**: Linkerd (simpler than Istio, lower overhead)
+- **Protocols**: gRPC with protobuf for typed service contracts
 
 ---
 
-## Design
-<!-- beads-phase-id: TBD -->
+## Plan
+<!-- beads-phase-id: plan -->
 
 ### Phase Entrance Criteria:
-- [ ] Requirements for workflow DAG structure are clearly defined
-- [ ] Multi-dispatch mechanism requirements are documented
-- [ ] Role-based assignment requirements are specified
-- [ ] Retry/escalation logic requirements are defined
-- [ ] Database schema requirements are outlined
-- [ ] Integration points with dispatcher are identified
-- [ ] Success criteria and metrics are defined
+- [x] Current architecture gaps are documented
+- [x] Technology choices are made (NATS, PostgreSQL, gRPC, Linkerd)
+- [x] Architecture review document exists
+- [x] Implementation phases are defined
+- [x] Success criteria are clear
 
-### Objectives
-Design the architecture and implementation approach for the workflow system.
+### Implementation Phases
 
-### Tasks
-*Tasks managed via `bd` CLI*
+#### **Phase 1: Message Bus Foundation (Current Focus)**
+**Goal**: Add NATS message bus container and implement publish/subscribe in Go
 
-### Key Design Areas
-- Workflow package structure and API
-- Database schema for workflows and state
-- Workflow engine state machine
-- Dispatcher integration
-- Role assignment logic
-- Bead context extensions
+**Tasks:**
+1. Add NATS container to docker-compose.yml
+2. Create `internal/messagebus/nats.go` package
+3. Define message schemas in `pkg/messages/`
+4. Implement NatsMessageBus with publish/subscribe methods
+5. Add message bus health checks
+6. Update Loom initialization to connect to NATS
+
+**Files to Create:**
+- `internal/messagebus/nats.go` - NATS client wrapper
+- `pkg/messages/tasks.go` - Task message schemas
+- `pkg/messages/results.go` - Result message schemas
+- `pkg/messages/events.go` - Event message schemas
+
+**Files to Modify:**
+- `docker-compose.yml` - Add NATS service
+- `internal/loom/loom.go` - Initialize NATS connection
+- `go.mod` - Add NATS dependencies
+
+**Deliverable**: All containers can publish/subscribe to NATS topics
+
+#### **Phase 2: Database Service (Follow-up)**
+**Goal**: Replace SQLite with PostgreSQL and create gRPC database service
+
+**Tasks:**
+1. Add PostgreSQL container to docker-compose.yml
+2. Create protobuf schemas for database operations
+3. Implement gRPC Database Service
+4. Migrate control plane to use Database Service
+5. Add connection pooling (PgBouncer)
+
+**Deliverable**: Database access via gRPC service
+
+#### **Phase 3: Project Agent Communication (Follow-up)**
+**Goal**: Enable project agents to communicate via message bus
+
+**Tasks:**
+1. Add NATS client to project-agent containers
+2. Implement task subscription in project agents
+3. Implement result publishing from agents
+4. Update dispatcher to publish tasks instead of direct calls
+5. Add correlation IDs for request tracking
+
+**Deliverable**: Project agents receive tasks and publish results via NATS
+
+#### **Phase 4: Connectors Service (Follow-up)**
+**Goal**: Extract connector management to independent service
+
+**Tasks:**
+1. Define protobuf for connector operations
+2. Implement gRPC Connectors Service
+3. Update control plane to call Connectors Service
+4. Update agents to call Connectors Service
+
+**Deliverable**: Connectors as independent microservice
+
+#### **Phase 5: Service Mesh & Observability (Follow-up)**
+**Goal**: Add service mesh for security and observability
+
+**Tasks:**
+1. Add Linkerd service mesh
+2. Configure mTLS between services
+3. Add distributed tracing (Jaeger)
+4. Add centralized logging (Loki)
+
+**Deliverable**: Full observability and security
 
 ---
 
-## Implementation
-<!-- beads-phase-id: TBD -->
+## Code
+<!-- beads-phase-id: code -->
 
 ### Phase Entrance Criteria:
-- [ ] Architecture design is complete and documented in $ARCHITECTURE_DOC
-- [ ] Database schema is designed
-- [ ] API interfaces are defined
-- [ ] Integration approach with existing dispatcher is clear
-- [ ] Data structures for workflow DAGs are specified
-- [ ] State machine transitions are documented
-- [ ] Error handling strategy is defined
+- [ ] Plan is approved and understood
+- [ ] Phase 1 scope is clear (NATS message bus foundation)
+- [ ] Technology stack is confirmed (NATS with JetStream)
+- [ ] Message schemas are designed
+- [ ] Integration points are identified
 
-### Objectives
-Implement the workflow system components.
-
-### Tasks
-*Tasks managed via `bd` CLI*
-
-### Implementation Components
-1. Workflow package (`internal/workflow`)
-   - DAG structures and validation
-   - Workflow engine
-   - State management
-2. Database layer
-   - Schema migrations
-   - Workflow CRUD operations
-3. Dispatcher integration
-   - Multi-dispatch support
-   - Role-based assignment
-4. Retry and escalation logic
-5. CEO permission checks
+### Implementation Notes
+*Code implementation details will be documented here as work progresses*
 
 ---
 
-## Unit Testing
-<!-- beads-phase-id: TBD -->
+## Commit
+<!-- beads-phase-id: commit -->
 
 ### Phase Entrance Criteria:
-- [ ] All core workflow components are implemented
-- [ ] Workflow DAG creation and validation work
-- [ ] State machine transitions are functional
-- [ ] Database operations are working
-- [ ] Integration with dispatcher is functional
+- [ ] All Phase 1 code is implemented
 - [ ] Code compiles without errors
+- [ ] NATS container starts successfully
+- [ ] Message publishing works
+- [ ] Message subscription works
+- [ ] Health checks pass
+- [ ] No regressions in existing functionality
 
-### Objectives
-Write comprehensive unit tests for all workflow components.
-
-### Tasks
-*Tasks managed via `bd` CLI*
-
-### Testing Areas
-- Workflow DAG validation
-- State machine transitions
-- Role assignment logic
-- Retry and escalation
-- Multi-dispatch behavior
-- Database operations
-- Edge cases and error handling
-
----
-
-## Integration Testing
-<!-- beads-phase-id: TBD -->
-
-### Phase Entrance Criteria:
-- [ ] Unit tests are written and passing
-- [ ] Test coverage is >75% for workflow package
-- [ ] All critical paths have test coverage
-- [ ] Edge cases are tested
-- [ ] Database operations are tested
-
-### Objectives
-Test end-to-end workflow execution with real agents and beads.
-
-### Tasks
-*Tasks managed via `bd` CLI*
-
-### Integration Test Scenarios
-1. Simple linear workflow (Start → Task → End)
-2. Multi-step investigation with auto-redispatch
-3. Approval workflow (Agent → CEO → Apply)
-4. Retry on failure
-5. Escalation to CEO after max retries
-6. Concurrent workflows without conflicts
-7. Role-based assignment (Engineering Manager commits)
-
----
-
-## System Testing
-<!-- beads-phase-id: TBD -->
-
-### Phase Entrance Criteria:
-- [ ] Integration tests are passing
-- [ ] End-to-end workflows execute successfully
-- [ ] Multi-dispatch works correctly
-- [ ] Role assignment works correctly
-- [ ] Retry/escalation logic works
-- [ ] No critical bugs found in integration testing
-
-### Objectives
-Test complete self-healing loop from bug detection through fix verification.
-
-### Tasks
-*Tasks managed via `bd` CLI*
-
-### System Test Scenarios
-From SELF_HEALING_TEST_RESULTS.md:
-1. **Investigation Continuation**: Agent gets multiple dispatch cycles
-2. **Full Self-Healing Loop**: Bug → Investigate → Approve → Fix/Commit → Verify → Close
-3. **Failure Handling**: Agent attempts fix 3 times → Escalate to CEO
-4. **Concurrent Bugs**: 5 bugs simultaneously without conflicts
-
----
-
-## Deployment
-<!-- beads-phase-id: TBD -->
-
-### Phase Entrance Criteria:
-- [ ] System tests pass
-- [ ] Full self-healing loop works end-to-end
-- [ ] Performance is acceptable
-- [ ] No critical bugs found
-- [ ] Documentation is complete
-- [ ] Migration path is defined
-
-### Objectives
-Deploy workflow system to enable autonomous self-healing.
-
-### Tasks
-*Tasks managed via `bd` CLI*
-
-### Deployment Steps
-1. Run database migrations
-2. Deploy updated loom binary
-3. Configure default workflows (auto-bug workflow)
-4. Enable auto-redispatch in dispatcher
-5. Monitor initial workflow executions
-6. Measure self-healing metrics
+### Commit Strategy
+- Atomic commits per component (e.g., "feat(messagebus): add NATS container and docker-compose config")
+- Follow conventional commit format
+- Include Co-Authored-By: Claude Sonnet 4.5
+- Test after each commit
 
 ---
 
 ## Key Decisions
-*Important decisions will be documented here as they are made*
 
-### Requirements Phase (2026-02-15):
-- **Workflow Type**: Directed Acyclic Graph (DAG) for deterministic execution
-- **Database**: SQLite with 3 tables (workflows, workflow_executions, workflow_transitions)
-- **Node Types**: task, approval, decision, merge
-- **Roles**: engineering-manager, qa-engineer, web-designer, backend-engineer, project-manager, ceo
-- **Multi-Dispatch**: `redispatch_requested` flag in bead context enables multi-turn work
-- **Commit Safety**: Serialize commit operations with queue and lock mechanism
-- **Max Attempts**: Default 3 retries per node before escalation
-- **Escalation**: Auto-create CEO approval bead when max attempts exceeded
+### Phase 1 Decisions (2026-02-18):
+- **Message Bus Choice**: NATS with JetStream
+  - Reasoning: Simpler than RabbitMQ, better performance, excellent Go client
+- **Topic Structure**: `loom.{category}.{project_id}`
+  - Examples: `loom.tasks.loom`, `loom.results.loom`, `loom.events.dispatch`
+- **Message Format**: JSON for human readability (can optimize to protobuf later)
+- **Durable Consumers**: Yes, to prevent message loss on restart
+- **Connection Strategy**: Single NATS connection per service, multiplexed
 
-### From SELF_HEALING_TEST_RESULTS.md:
-- **Beads to Implement**: ac-1450 through ac-1455
-- **Priority**: P0 - Blocks all self-healing functionality
-- **Critical Path**: Engineering Manager must handle commits/pushes
-- **Safety**: Single commit node per workflow to prevent conflicts
+---
 
-### Design Phase Discovery (2026-02-15):
-**MAJOR DISCOVERY**: Workflow system infrastructure is **100% COMPLETE** (Phases 1-5, implemented 2026-01-27)
+## Success Criteria
 
-**What Exists:**
-- ✅ Database schema (5 tables) with migrations
-- ✅ Workflow engine (`internal/workflow/engine.go`, 16KB) with full state machine
-- ✅ Dispatcher integration (`internal/dispatch/dispatcher.go:460-831`)
-- ✅ Default workflows (bug.yaml, feature.yaml, ui.yaml, self-improvement.yaml)
-- ✅ YAML loader (`internal/workflow/loader.go`)
-- ✅ Database access layer (`internal/database/workflows.go`)
-- ✅ Cycle detection (escalates after 3 cycles)
-- ✅ Max attempts enforcement (default 3 per node)
-- ✅ CEO escalation with auto-created decision beads
-- ✅ Role-based routing (QA, Engineering Manager, Product Manager)
-- ✅ REST API + visualization UI (Phase 4)
-- ✅ Real-time monitoring + analytics (Phase 5)
+### Phase 1 Success Metrics:
+- [ ] NATS container runs and is healthy
+- [ ] Control plane can publish messages to NATS
+- [ ] Control plane can subscribe to NATS topics
+- [ ] Messages are durable (survive container restart)
+- [ ] Health endpoint shows NATS connection status
+- [ ] No increase in API latency
+- [ ] Existing bead operations still work
 
-**Critical Gaps Identified:**
-- ⚠️ **Gap #1**: Multi-dispatch `redispatch_requested` flag NOT implemented (blocks investigation continuation)
-- ⚠️ **Gap #2**: Commit serialization NOT verified (potential concurrent git conflicts)
-- ⚠️ **Gap #3**: Agent role assignment incomplete (falls back to persona matching)
-
-**Task Scope Change:**
-- **Original Plan**: Implement workflow system from scratch
-- **Actual Task**: Close 2-3 integration gaps in existing system (est. 5-8 hours) + comprehensive testing (est. 4-6 hours)
-- **Total**: ~9-14 hours to achieve full autonomous self-healing
+### Overall Architecture Success:
+- [ ] Task dispatch latency < 100ms
+- [ ] Message throughput > 10,000 msgs/sec
+- [ ] No message loss (persistent queues)
+- [ ] Horizontal scaling of all services
+- [ ] Service-level metrics (RED method)
 
 ---
 
 ## Notes
-*Additional context and observations*
 
-### Current State (from SELF_HEALING_TEST_RESULTS.md):
-- Auto-filing: ✅ Working
-- Auto-routing: ✅ Working
-- Auto-dispatch: ✅ Working
-- Agent investigation start: ✅ Working
-- Multi-step investigation: ❌ Blocked (agents get 1 turn then stop)
-- Fix application: ❌ Blocked (no defined commit/push role)
-- Verification: ❌ Blocked (no workflow for testing)
+### Current Implementation Status:
+- ✅ Git-centric bead storage implemented
+- ✅ Working directory fix deployed
+- ✅ System operational
+- ⚠️ API showing slowness (may be fixed by architecture improvements)
 
 ### Architecture References:
-- Workflow DAG structures needed
-- State machine for transitions
-- Database schema for persistence
-- Integration with `internal/dispatch/dispatcher.go`
-- Extension of bead context for workflow state
+- `docs/MICROSERVICES_ARCHITECTURE_REVIEW.md` - Full architecture analysis and plan
+- Message Bus: NATS Documentation (https://docs.nats.io/)
+- gRPC Best Practices: https://grpc.io/docs/guides/performance/
+- Microservices Patterns: https://microservices.io/patterns/index.html
 
 ---
 
-*This plan is maintained by the LLM and uses beads CLI for task management. Tool responses provide guidance on which bd commands to use for task management.*
+*This plan follows the EPCC workflow and is maintained by the development AI agent.*

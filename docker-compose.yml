@@ -65,6 +65,30 @@ services:
     networks:
       - loom-network
 
+  # NATS message bus with JetStream for inter-service communication
+  nats:
+    image: nats:2.10-alpine
+    container_name: nats
+    restart: unless-stopped
+    command:
+      - "--jetstream"
+      - "--store_dir=/data"
+      - "--max_memory_store=1G"
+      - "--max_file_store=10G"
+    ports:
+      - "4222:4222"  # Client connections
+      - "8222:8222"  # HTTP management/monitoring
+      - "6222:6222"  # Cluster connections
+    networks:
+      - loom-network
+    volumes:
+      - nats-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8222/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   loom:
     build:
       context: .
@@ -77,6 +101,8 @@ services:
     depends_on:
       temporal:
         condition: service_healthy
+      nats:
+        condition: service_healthy
     ports:
       - "8080:8081"
       - "3307:3307"     # Dolt SQL server for beads federation
@@ -87,6 +113,7 @@ services:
       - TZ=UTC
       - TEMPORAL_HOST=temporal:7233
       - TEMPORAL_NAMESPACE=default
+      - NATS_URL=nats://nats:4222
       - CONFIG_PATH=/app/config.yaml
       - DOLT_PORT=3307
     networks:
@@ -202,5 +229,6 @@ networks:
 volumes:
   temporal-db-data:
   loom-db:
+  nats-data:
   prometheus-data:
   grafana-data:

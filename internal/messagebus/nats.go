@@ -1,0 +1,291 @@
+package messagebus
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"log"
+	"time"
+
+	"github.com/jordanhubbard/loom/pkg/messages"
+	"github.com/nats-io/nats.go"
+)
+
+// NatsMessageBus implements a message bus using NATS with JetStream
+type NatsMessageBus struct {
+	conn           *nats.Conn
+	js             nats.JetStreamContext
+	subscriptions  map[string]*nats.Subscription
+	streamName     string
+	url            string
+}
+
+// Config holds NATS configuration
+type Config struct {
+	URL        string        // NATS server URL (e.g., "nats://nats:4222")
+	StreamName string        // JetStream stream name (default: "LOOM")
+	Timeout    time.Duration // Connection timeout
+}
+
+// NewNatsMessageBus creates a new NATS message bus with JetStream
+func NewNatsMessageBus(cfg Config) (*NatsMessageBus, error) {
+	if cfg.URL == "" {
+		cfg.URL = "nats://localhost:4222"
+	}
+	if cfg.StreamName == "" {
+		cfg.StreamName = "LOOM"
+	}
+	if cfg.Timeout == 0 {
+		cfg.Timeout = 10 * time.Second
+	}
+
+	// Connect to NATS
+	nc, err := nats.Connect(cfg.URL,
+		nats.Timeout(cfg.Timeout),
+		nats.ReconnectWait(1*time.Second),
+		nats.MaxReconnects(-1), // Unlimited reconnects
+		nats.DisconnectErrHandler(func(nc *nats.Conn, err error) {
+			if err != nil {
+				log.Printf("NATS disconnected: %v", err)
+			}
+		}),
+		nats.ReconnectHandler(func(nc *nats.Conn) {
+			log.Printf("NATS reconnected to %s", nc.ConnectedUrl())
+		}),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to NATS: %w", err)
+	}
+
+	// Create JetStream context
+	js, err := nc.JetStream()
+	if err != nil {
+		nc.Close()
+		return nil, fmt.Errorf("failed to create JetStream context: %w", err)
+	}
+
+	mb := &NatsMessageBus{
+		conn:          nc,
+		js:            js,
+		subscriptions: make(map[string]*nats.Subscription),
+		streamName:    cfg.StreamName,
+		url:           cfg.URL,
+	}
+
+	// Create or update the LOOM stream
+	if err := mb.ensureStream(); err != nil {
+		nc.Close()
+		return nil, fmt.Errorf("failed to ensure stream: %w", err)
+	}
+
+	log.Printf("Connected to NATS at %s with JetStream stream %s", cfg.URL, cfg.StreamName)
+	return mb, nil
+}
+
+// ensureStream creates or updates the JetStream stream
+func (mb *NatsMessageBus) ensureStream() error {
+	// Define the stream configuration
+	streamConfig := &nats.StreamConfig{
+		Name:        mb.streamName,
+		Subjects:    []string{"loom.>"},
+		Retention:   nats.WorkQueuePolicy,
+		MaxAge:      24 * time.Hour,
+		MaxBytes:    1024 * 1024 * 1024, // 1GB
+		Storage:     nats.FileStorage,
+		Replicas:    1,
+		Discard:     nats.DiscardOld,
+	}
+
+	// Try to get existing stream info
+	_, err := mb.js.StreamInfo(mb.streamName)
+	if err != nil {
+		// Stream doesn't exist, create it
+		_, err = mb.js.AddStream(streamConfig)
+		if err != nil {
+			return fmt.Errorf("failed to create stream: %w", err)
+		}
+		log.Printf("Created JetStream stream: %s", mb.streamName)
+	} else {
+		// Stream exists, update it
+		_, err = mb.js.UpdateStream(streamConfig)
+		if err != nil {
+			return fmt.Errorf("failed to update stream: %w", err)
+		}
+		log.Printf("Updated JetStream stream: %s", mb.streamName)
+	}
+
+	return nil
+}
+
+// PublishTask publishes a task message to the message bus
+func (mb *NatsMessageBus) PublishTask(ctx context.Context, projectID string, task *messages.TaskMessage) error {
+	subject := fmt.Sprintf("loom.tasks.%s", projectID)
+	return mb.publish(subject, task)
+}
+
+// PublishResult publishes a result message to the message bus
+func (mb *NatsMessageBus) PublishResult(ctx context.Context, projectID string, result *messages.ResultMessage) error {
+	subject := fmt.Sprintf("loom.results.%s", projectID)
+	return mb.publish(subject, result)
+}
+
+// PublishEvent publishes an event message to the message bus
+func (mb *NatsMessageBus) PublishEvent(ctx context.Context, eventType string, event *messages.EventMessage) error {
+	subject := fmt.Sprintf("loom.events.%s", eventType)
+	return mb.publish(subject, event)
+}
+
+// publish is the internal method to publish messages
+func (mb *NatsMessageBus) publish(subject string, msg interface{}) error {
+	data, err := json.Marshal(msg)
+	if err != nil {
+		return fmt.Errorf("failed to marshal message: %w", err)
+	}
+
+	// Publish to JetStream for durability
+	_, err = mb.js.Publish(subject, data)
+	if err != nil {
+		return fmt.Errorf("failed to publish message to %s: %w", subject, err)
+	}
+
+	return nil
+}
+
+// SubscribeTasks subscribes to task messages for a specific project
+func (mb *NatsMessageBus) SubscribeTasks(projectID string, handler func(*messages.TaskMessage)) error {
+	subject := fmt.Sprintf("loom.tasks.%s", projectID)
+	consumerName := fmt.Sprintf("tasks-%s", projectID)
+
+	return mb.subscribe(subject, consumerName, func(msg *nats.Msg) {
+		var task messages.TaskMessage
+		if err := json.Unmarshal(msg.Data, &task); err != nil {
+			log.Printf("Failed to unmarshal task message: %v", err)
+			msg.Nak() // Negative acknowledgment
+			return
+		}
+
+		handler(&task)
+		msg.Ack() // Acknowledge successful processing
+	})
+}
+
+// SubscribeResults subscribes to result messages for all projects
+func (mb *NatsMessageBus) SubscribeResults(handler func(*messages.ResultMessage)) error {
+	subject := "loom.results.*"
+	consumerName := "results-all"
+
+	return mb.subscribe(subject, consumerName, func(msg *nats.Msg) {
+		var result messages.ResultMessage
+		if err := json.Unmarshal(msg.Data, &result); err != nil {
+			log.Printf("Failed to unmarshal result message: %v", err)
+			msg.Nak()
+			return
+		}
+
+		handler(&result)
+		msg.Ack()
+	})
+}
+
+// SubscribeEvents subscribes to event messages
+func (mb *NatsMessageBus) SubscribeEvents(eventType string, handler func(*messages.EventMessage)) error {
+	subject := fmt.Sprintf("loom.events.%s", eventType)
+	consumerName := fmt.Sprintf("events-%s", eventType)
+
+	return mb.subscribe(subject, consumerName, func(msg *nats.Msg) {
+		var event messages.EventMessage
+		if err := json.Unmarshal(msg.Data, &event); err != nil {
+			log.Printf("Failed to unmarshal event message: %v", err)
+			msg.Nak()
+			return
+		}
+
+		handler(&event)
+		msg.Ack()
+	})
+}
+
+// subscribe is the internal method to set up durable subscriptions
+func (mb *NatsMessageBus) subscribe(subject, consumerName string, handler nats.MsgHandler) error {
+	// Create durable consumer
+	sub, err := mb.js.Subscribe(subject, handler,
+		nats.Durable(consumerName),
+		nats.AckExplicit(),
+		nats.MaxDeliver(3), // Retry up to 3 times
+		nats.AckWait(30*time.Second),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to subscribe to %s: %w", subject, err)
+	}
+
+	mb.subscriptions[subject] = sub
+	log.Printf("Subscribed to %s with consumer %s", subject, consumerName)
+	return nil
+}
+
+// Unsubscribe removes a subscription
+func (mb *NatsMessageBus) Unsubscribe(subject string) error {
+	sub, ok := mb.subscriptions[subject]
+	if !ok {
+		return fmt.Errorf("no subscription found for %s", subject)
+	}
+
+	if err := sub.Unsubscribe(); err != nil {
+		return fmt.Errorf("failed to unsubscribe from %s: %w", subject, err)
+	}
+
+	delete(mb.subscriptions, subject)
+	log.Printf("Unsubscribed from %s", subject)
+	return nil
+}
+
+// Close closes all subscriptions and the NATS connection
+func (mb *NatsMessageBus) Close() error {
+	// Unsubscribe from all
+	for subject := range mb.subscriptions {
+		_ = mb.Unsubscribe(subject)
+	}
+
+	// Close connection
+	mb.conn.Close()
+	log.Printf("Closed NATS connection")
+	return nil
+}
+
+// Health returns the health status of the NATS connection
+func (mb *NatsMessageBus) Health() error {
+	if mb.conn.IsClosed() {
+		return fmt.Errorf("NATS connection is closed")
+	}
+
+	if !mb.conn.IsConnected() {
+		return fmt.Errorf("NATS is not connected")
+	}
+
+	// Check stream health
+	_, err := mb.js.StreamInfo(mb.streamName)
+	if err != nil {
+		return fmt.Errorf("JetStream stream %s is unhealthy: %w", mb.streamName, err)
+	}
+
+	return nil
+}
+
+// Stats returns statistics about the message bus
+func (mb *NatsMessageBus) Stats() map[string]interface{} {
+	stats := make(map[string]interface{})
+	stats["url"] = mb.url
+	stats["stream"] = mb.streamName
+	stats["connected"] = mb.conn.IsConnected()
+	stats["subscriptions"] = len(mb.subscriptions)
+
+	// Get stream info
+	streamInfo, err := mb.js.StreamInfo(mb.streamName)
+	if err == nil {
+		stats["stream_messages"] = streamInfo.State.Msgs
+		stats["stream_bytes"] = streamInfo.State.Bytes
+		stats["stream_consumers"] = streamInfo.State.Consumers
+	}
+
+	return stats
+}

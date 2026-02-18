@@ -29,6 +29,7 @@ import (
 	"github.com/jordanhubbard/loom/internal/gitops"
 	"github.com/jordanhubbard/loom/internal/keymanager"
 	"github.com/jordanhubbard/loom/internal/logging"
+	"github.com/jordanhubbard/loom/internal/messagebus"
 	"github.com/jordanhubbard/loom/internal/metrics"
 	"github.com/jordanhubbard/loom/internal/modelcatalog"
 	internalmodels "github.com/jordanhubbard/loom/internal/models"
@@ -95,6 +96,7 @@ type Loom struct {
 	openclawBridge      *openclaw.Bridge
 	containerOrchestrator *containers.Orchestrator
 	connectorManager    *connectors.Manager
+	messageBus          interface{} // messagebus.NatsMessageBus interface (to avoid import cycle)
 	readinessMu         sync.Mutex
 	readinessCache      map[string]projectReadinessState
 	readinessFailures   map[string]time.Time
@@ -116,6 +118,25 @@ func New(cfg *config.Config) (*Loom, error) {
 		temporalMgr, err = temporal.NewManager(&cfg.Temporal)
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize temporal: %w", err)
+		}
+	}
+
+	// Initialize NATS message bus if configured
+	var messageBus interface{}
+	natsURL := os.Getenv("NATS_URL")
+	if natsURL != "" {
+		mbCfg := messagebus.Config{
+			URL:        natsURL,
+			StreamName: "LOOM",
+			Timeout:    10 * time.Second,
+		}
+		mb, err := messagebus.NewNatsMessageBus(mbCfg)
+		if err != nil {
+			log.Printf("Warning: failed to initialize NATS message bus: %v", err)
+			// Don't fail startup if NATS is unavailable - allow graceful degradation
+		} else {
+			messageBus = mb
+			log.Printf("Initialized NATS message bus at %s", natsURL)
 		}
 	}
 
@@ -319,6 +340,7 @@ func New(cfg *config.Config) (*Loom, error) {
 		openclawBridge:        ocBridge,
 		containerOrchestrator: containerOrch,
 		connectorManager:      connectorMgr,
+		messageBus:            messageBus,
 	}
 
 	actionRouter := &actions.Router{
@@ -1094,6 +1116,11 @@ func (a *Loom) GetEventBus() *eventbus.EventBus {
 // GetDatabase returns the database instance
 func (a *Loom) GetDatabase() *database.Database {
 	return a.database
+}
+
+// GetMessageBus returns the NATS message bus instance
+func (a *Loom) GetMessageBus() interface{} {
+	return a.messageBus
 }
 
 // GetConnectorManager returns the connector manager instance

@@ -187,6 +187,9 @@ func (s *Server) checkDependencies(ctx context.Context) map[string]DepHealth {
 		}
 	}
 
+	// Check NATS message bus (optional)
+	deps["message_bus"] = s.checkMessageBus(ctx)
+
 	return deps
 }
 
@@ -269,6 +272,46 @@ func (s *Server) checkProviders(ctx context.Context) DepHealth {
 	return DepHealth{
 		Status:  "healthy",
 		Message: "operational",
+	}
+}
+
+// checkMessageBus checks NATS message bus health.
+func (s *Server) checkMessageBus(ctx context.Context) DepHealth {
+	if s.app == nil {
+		return DepHealth{
+			Status:  "unknown",
+			Message: "not initialized",
+		}
+	}
+
+	messageBus := s.app.GetMessageBus()
+	if messageBus == nil {
+		return DepHealth{
+			Status:  "unknown",
+			Message: "not configured",
+		}
+	}
+
+	// Type assert to get Health() method
+	type healthChecker interface {
+		Health() error
+	}
+
+	start := time.Now()
+	if hc, ok := messageBus.(healthChecker); ok {
+		if err := hc.Health(); err != nil {
+			return DepHealth{
+				Status:  "unhealthy",
+				Message: err.Error(),
+				Latency: time.Since(start).Milliseconds(),
+			}
+		}
+	}
+
+	return DepHealth{
+		Status:  "healthy",
+		Message: "connected",
+		Latency: time.Since(start).Milliseconds(),
 	}
 }
 

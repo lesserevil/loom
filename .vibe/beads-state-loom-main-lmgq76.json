@@ -1,0 +1,29 @@
+{
+  "conversationId": "loom-main-lmgq76",
+  "projectPath": "/home/jkh/Src/loom",
+  "epicId": "loom-7gr5t",
+  "phaseTasks": [
+    {
+      "phaseId": "explore",
+      "phaseName": "Explore",
+      "taskId": "loom-7gr5t.1"
+    },
+    {
+      "phaseId": "plan",
+      "phaseName": "Plan",
+      "taskId": "loom-7gr5t.2"
+    },
+    {
+      "phaseId": "code",
+      "phaseName": "Code",
+      "taskId": "loom-7gr5t.3"
+    },
+    {
+      "phaseId": "commit",
+      "phaseName": "Commit",
+      "taskId": "loom-7gr5t.4"
+    }
+  ],
+  "createdAt": "2026-02-18T16:54:51.497Z",
+  "updatedAt": "2026-02-18T16:54:51.497Z"
+}
