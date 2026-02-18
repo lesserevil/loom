@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jordanhubbard/loom/internal/containers"
 	"github.com/jordanhubbard/loom/pkg/models"
 )
 
@@ -67,9 +68,16 @@ var allowedCommands = map[string]bool{
 	"cargo":   true,
 }
 
+// ProjectGetter interface for checking if a project uses containers
+type ProjectGetter interface {
+	GetProject(projectID string) (*models.Project, error)
+}
+
 // ShellExecutor provides shell command execution with persistent logging
 type ShellExecutor struct {
-	db *sql.DB
+	db            *sql.DB
+	containerOrch *containers.Orchestrator
+	projectGetter ProjectGetter
 }
 
 // NewShellExecutor creates a new shell executor
@@ -77,6 +85,12 @@ func NewShellExecutor(db *sql.DB) *ShellExecutor {
 	return &ShellExecutor{
 		db: db,
 	}
+}
+
+// SetContainerOrchestrator sets the container orchestrator for per-project isolation
+func (e *ShellExecutor) SetContainerOrchestrator(orch *containers.Orchestrator, projGetter ProjectGetter) {
+	e.containerOrch = orch
+	e.projectGetter = projGetter
 }
 
 // validateCommand checks if a command is allowed and returns the parsed command parts
@@ -155,6 +169,15 @@ type ExecuteCommandResult struct {
 func (e *ShellExecutor) ExecuteCommand(ctx context.Context, req ExecuteCommandRequest) (*ExecuteCommandResult, error) {
 	if req.Command == "" {
 		return nil, fmt.Errorf("command is required")
+	}
+
+	// Check if project uses containers and route accordingly
+	if e.containerOrch != nil && e.projectGetter != nil && req.ProjectID != "" {
+		project, err := e.projectGetter.GetProject(req.ProjectID)
+		if err == nil && project != nil && project.UseContainer {
+			log.Printf("[ShellExecutor] Routing command to container for project %s", req.ProjectID)
+			return e.executeInContainer(ctx, req)
+		}
 	}
 
 	// Validate command against allowlist
@@ -274,6 +297,120 @@ func (e *ShellExecutor) ExecuteCommand(ctx context.Context, req ExecuteCommandRe
 	log.Printf("[ShellExecutor] Command completed: exit_code=%d duration=%dms", cmdLog.ExitCode, duration)
 
 	return result, nil
+}
+
+// executeInContainer routes command execution to a project container
+func (e *ShellExecutor) executeInContainer(ctx context.Context, req ExecuteCommandRequest) (*ExecuteCommandResult, error) {
+	// Get container agent client for this project
+	agentInterface, err := e.containerOrch.GetAgent(req.ProjectID)
+	if err != nil {
+		log.Printf("[ShellExecutor] Failed to get container agent for project %s: %v", req.ProjectID, err)
+		return nil, fmt.Errorf("container agent not available: %w", err)
+	}
+
+	// Set default timeout if not specified
+	timeout := req.Timeout
+	if timeout <= 0 {
+		timeout = 300 // 5 minutes default
+	}
+
+	// Set default working directory for container
+	workingDir := req.WorkingDir
+	if workingDir == "" {
+		workingDir = "/workspace" // Container workspace
+	}
+
+	// Prepare task request for container
+	taskID := fmt.Sprintf("cmd-%s", uuid.New().String()[:8])
+	taskReq := map[string]interface{}{
+		"task_id":    taskID,
+		"bead_id":    req.BeadID,
+		"action":     "bash",
+		"project_id": req.ProjectID,
+		"params": map[string]interface{}{
+			"command":     req.Command,
+			"working_dir": workingDir,
+			"timeout":     timeout,
+		},
+	}
+
+	startTime := time.Now()
+	log.Printf("[ShellExecutor] Sending command to container for project %s: %s", req.ProjectID, req.Command)
+
+	// Execute in container
+	err = agentInterface.ExecuteTask(ctx, taskReq)
+	endTime := time.Now()
+	duration := endTime.Sub(startTime).Milliseconds()
+
+	if err != nil {
+		// Container execution failed
+		result := &ExecuteCommandResult{
+			ID:          taskID,
+			Command:     req.Command,
+			ExitCode:    -1,
+			Stdout:      "",
+			Stderr:      err.Error(),
+			Duration:    duration,
+			StartedAt:   startTime,
+			CompletedAt: endTime,
+			Success:     false,
+			Error:       err.Error(),
+		}
+
+		// Still log to database for audit trail
+		e.logCommandToDB(req, result)
+
+		return result, fmt.Errorf("container execution failed: %w", err)
+	}
+
+	// Success - container command executed
+	// NOTE: For now we don't get detailed output back from container in async mode
+	// TODO: Implement result polling or webhook for full output
+	result := &ExecuteCommandResult{
+		ID:          taskID,
+		Command:     req.Command,
+		ExitCode:    0,
+		Stdout:      "(executed in container - see container logs for output)",
+		Stderr:      "",
+		Duration:    duration,
+		StartedAt:   startTime,
+		CompletedAt: endTime,
+		Success:     true,
+	}
+
+	// Log to database
+	e.logCommandToDB(req, result)
+
+	log.Printf("[ShellExecutor] Container command completed: duration=%dms", duration)
+	return result, nil
+}
+
+// logCommandToDB logs a command execution to the database
+func (e *ShellExecutor) logCommandToDB(req ExecuteCommandRequest, result *ExecuteCommandResult) {
+	if e.db == nil {
+		return
+	}
+
+	contextJSON := ""
+	if req.Context != nil {
+		if b, err := json.Marshal(req.Context); err == nil {
+			contextJSON = string(b)
+		}
+	}
+
+	insertQuery := `
+		INSERT INTO command_logs (id, agent_id, bead_id, project_id, command, working_dir,
+			exit_code, stdout, stderr, duration_ms, started_at, completed_at, context, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`
+	_, err := e.db.Exec(insertQuery,
+		result.ID, req.AgentID, req.BeadID, req.ProjectID, req.Command,
+		req.WorkingDir, result.ExitCode, result.Stdout, result.Stderr, result.Duration,
+		result.StartedAt, result.CompletedAt, contextJSON, time.Now(),
+	)
+	if err != nil {
+		log.Printf("[ShellExecutor] Warning: Failed to save command log: %v", err)
+	}
 }
 
 // GetCommandLogs retrieves command logs with optional filters

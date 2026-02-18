@@ -37,27 +37,37 @@ RUN if [ -n "$GITHUB_TOKEN" ]; then \
 # Copy source code
 COPY . .
 
-# Build the application with CGO enabled for sqlite3
+# Build the main application with CGO enabled for sqlite3
 RUN CGO_ENABLED=1 GOOS=linux go build \
     -ldflags="-w -s" \
     -o loom \
     ./cmd/loom
 
+# Build the project agent for per-project containers
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -ldflags="-w -s" \
+    -o loom-project-agent \
+    ./cmd/loom-project-agent
+
 # Runtime stage
 FROM alpine:latest
 
-# Install runtime dependencies including git, openssh, wget, and C++ libs for bd with CGO
-RUN apk add --no-cache ca-certificates tzdata git openssh-client wget libstdc++ libgcc icu-libs
+# Install runtime dependencies including git, openssh, wget, Docker CLI, and C++ libs for bd with CGO
+RUN apk add --no-cache ca-certificates tzdata git openssh-client wget libstdc++ libgcc icu-libs docker-cli docker-compose
 
-# Create non-root user
-RUN addgroup -g 1000 loom && \
-    adduser -D -u 1000 -G loom loom
+# Create non-root user and docker group for Docker socket access
+# Use GID 988 to match host docker socket (may need adjustment on different systems)
+RUN addgroup -g 988 docker && \
+    addgroup -g 1000 loom && \
+    adduser -D -u 1000 -G loom loom && \
+    adduser loom docker
 
 # Set working directory
 WORKDIR /app
 
-# Copy binary from builder
+# Copy binaries from builder
 COPY --from=builder /build/loom /app/loom
+COPY --from=builder /build/loom-project-agent /app/loom-project-agent
 
 # Copy bd CLI (v0.50.3 pre-built binary)
 COPY --from=builder /go/bin/bd /usr/local/bin/bd
@@ -83,6 +93,10 @@ COPY --from=builder /build/web/static /app/web/static
 # Copy scripts (entrypoint + beads schema SQL)
 COPY --from=builder /build/scripts /app/scripts
 RUN chmod +x /app/scripts/entrypoint.sh
+
+# Install git-askpass-helper for token authentication
+COPY scripts/git-askpass-helper.sh /usr/local/bin/git-askpass-helper
+RUN chmod +x /usr/local/bin/git-askpass-helper
 
 # Create SSH directory for mounted keys and set permissions
 RUN mkdir -p /home/loom/.ssh && \

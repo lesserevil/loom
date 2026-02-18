@@ -20,6 +20,7 @@ import (
 	"github.com/jordanhubbard/loom/internal/analytics"
 	"github.com/jordanhubbard/loom/internal/beads"
 	"github.com/jordanhubbard/loom/internal/comments"
+	"github.com/jordanhubbard/loom/internal/containers"
 	"github.com/jordanhubbard/loom/internal/database"
 	"github.com/jordanhubbard/loom/internal/decision"
 	"github.com/jordanhubbard/loom/internal/dispatch"
@@ -91,6 +92,7 @@ type Loom struct {
 	doltCoordinator     *beads.DoltCoordinator
 	openclawClient      *openclaw.Client
 	openclawBridge      *openclaw.Bridge
+	containerOrchestrator *containers.Orchestrator
 	readinessMu         sync.Mutex
 	readinessCache      map[string]projectReadinessState
 	readinessFailures   map[string]time.Time
@@ -261,6 +263,18 @@ func New(cfg *config.Config) (*Loom, error) {
 	ocClient := openclaw.NewClient(&cfg.OpenClaw)
 	ocBridge := openclaw.NewBridge(ocClient, eb, &cfg.OpenClaw)
 
+	// Initialize container orchestrator for per-project containers
+	// Control plane URL for project agents to communicate back
+	// Use container name "loom" as hostname (Docker network DNS resolution)
+	controlPlaneURL := fmt.Sprintf("http://loom:8081")  // Port 8081 is the internal port
+	if host := os.Getenv("CONTROL_PLANE_HOST"); host != "" {
+		controlPlaneURL = fmt.Sprintf("http://%s:8081", host)
+	}
+	containerOrch, err := containers.NewOrchestrator(projectKeyDir, controlPlaneURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize container orchestrator: %w", err)
+	}
+
 	beadsMgr := beads.NewManager(cfg.Beads.BDPath)
 	beadsMgr.SetBackend(cfg.Beads.Backend)
 
@@ -289,9 +303,10 @@ func New(cfg *config.Config) (*Loom, error) {
 		workflowEngine:      workflowEngine,
 		patternManager:      patternMgr,
 		metrics:             metrics.NewMetrics(),
-		doltCoordinator:     doltCoord,
-		openclawClient:      ocClient,
-		openclawBridge:      ocBridge,
+		doltCoordinator:       doltCoord,
+		openclawClient:        ocClient,
+		openclawBridge:        ocBridge,
+		containerOrchestrator: containerOrch,
 	}
 
 	actionRouter := &actions.Router{
@@ -331,6 +346,14 @@ func New(cfg *config.Config) (*Loom, error) {
 	// Enable conversation context support for multi-turn conversations
 	if db != nil {
 		arb.dispatcher.SetDatabase(db)
+	}
+
+	// Wire container orchestrator for per-project isolation
+	if containerOrch != nil {
+		arb.dispatcher.SetContainerOrchestrator(containerOrch)
+		if shellExec != nil {
+			shellExec.SetContainerOrchestrator(containerOrch, arb.projectManager)
+		}
 	}
 
 	// Setup provider metrics tracking
@@ -422,6 +445,7 @@ func (a *Loom) Initialize(ctx context.Context) error {
 					GitCredentialID: p.GitCredentialID,
 					IsPerpetual:     p.IsPerpetual,
 					IsSticky:        p.IsSticky,
+					UseContainer:    p.UseContainer,
 					Context:         p.Context,
 					Status:          models.ProjectStatusOpen,
 				}
@@ -442,6 +466,7 @@ func (a *Loom) Initialize(ctx context.Context) error {
 					GitCredentialID: p.GitCredentialID,
 					IsPerpetual:     p.IsPerpetual,
 					IsSticky:        p.IsSticky,
+					UseContainer:    p.UseContainer,
 					Context:         p.Context,
 					Status:          models.ProjectStatusOpen,
 				}
@@ -462,6 +487,7 @@ func (a *Loom) Initialize(ctx context.Context) error {
 				GitCredentialID: p.GitCredentialID,
 				IsPerpetual:     p.IsPerpetual,
 				IsSticky:        p.IsSticky,
+				UseContainer:    p.UseContainer,
 				Context:         p.Context,
 				Status:          models.ProjectStatusOpen,
 			})
@@ -492,6 +518,7 @@ func (a *Loom) Initialize(ctx context.Context) error {
 				GitCredentialID: p.GitCredentialID,
 				IsPerpetual:     p.IsPerpetual,
 				IsSticky:        p.IsSticky,
+				UseContainer:    p.UseContainer,
 				Context:         p.Context,
 				Status:          models.ProjectStatusOpen,
 			})
@@ -685,6 +712,17 @@ func (a *Loom) Initialize(ctx context.Context) error {
 			a.beadsManager.SetProjectPrefix(p.ID, p.BeadPrefix)
 		}
 		_ = a.beadsManager.LoadBeadsFromGit(ctx, p.ID, beadsPath)
+
+		// Spawn isolated container for project if configured
+		if p.UseContainer {
+			log.Printf("[Loom] Spawning isolated container for project %s", p.ID)
+			if err := a.containerOrchestrator.EnsureProjectContainer(ctx, p); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: Failed to start container for project %s: %v\n", p.ID, err)
+				// Continue without container - fallback to local execution
+			} else {
+				log.Printf("[Loom] Project %s container started successfully", p.ID)
+			}
+		}
 
 		// Start git-based federation (replaces Dolt)
 		if a.config.Beads.Federation.Enabled && a.config.Beads.Federation.SyncMode == "git-native" {

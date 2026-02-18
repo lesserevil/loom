@@ -158,6 +158,9 @@ type Project struct {
 	LastSyncAt       *time.Time        `json:"last_sync_at,omitempty"`       // Last git pull/fetch
 	LastCommitHash   string            `json:"last_commit_hash,omitempty"`   // Last known commit SHA
 	GitConfigOptions map[string]string `json:"git_config_options,omitempty"` // Custom git config for this project
+
+	// Container isolation (per-project containers)
+	UseContainer     bool              `json:"use_container"`                // If true, project executes in isolated container
 }
 
 // VersionedEntity interface implementation for Project

@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jordanhubbard/loom/internal/agent"
 	"github.com/jordanhubbard/loom/internal/beads"
+	"github.com/jordanhubbard/loom/internal/containers"
 	"github.com/jordanhubbard/loom/internal/database"
 	"github.com/jordanhubbard/loom/internal/observability"
 	"github.com/jordanhubbard/loom/internal/project"
@@ -67,6 +68,7 @@ type Dispatcher struct {
 	db                  *database.Database
 	eventBus            *eventbus.EventBus
 	workflowEngine      *workflow.Engine
+	containerOrch       *containers.Orchestrator // Per-project container orchestration
 	personaMatcher      *PersonaMatcher
 	autoBugRouter       *AutoBugRouter
 	complexityEstimator *provider.ComplexityEstimator
@@ -154,6 +156,13 @@ func (d *Dispatcher) SetWorkflowEngine(engine *workflow.Engine) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.workflowEngine = engine
+}
+
+// SetContainerOrchestrator sets the container orchestrator for per-project containers
+func (d *Dispatcher) SetContainerOrchestrator(orch *containers.Orchestrator) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.containerOrch = orch
 }
 
 // SetEscalator sets the escalator used for CEO escalation.

@@ -82,6 +82,8 @@ services:
       - "3307:3307"     # Dolt SQL server for beads federation
     environment:
       - LOOM_PASSWORD=${LOOM_PASSWORD}
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - GITLAB_TOKEN=${GITLAB_TOKEN}
       - TZ=UTC
       - TEMPORAL_HOST=temporal:7233
       - TEMPORAL_NAMESPACE=default
@@ -98,6 +100,8 @@ services:
       # Mount known_hosts for git SSH operations (read-only)
       # Loom uses its own per-project SSH deploy keys (stored encrypted in DB)
       - ~/.ssh/known_hosts:/home/loom/.ssh/known_hosts:ro
+      # Mount Docker socket for per-project container orchestration
+      - /var/run/docker.sock:/var/run/docker.sock
     healthcheck:
       test: ["CMD", "/app/loom", "-version"]
       interval: 30s

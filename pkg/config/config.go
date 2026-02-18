@@ -184,6 +184,7 @@ type ProjectConfig struct {
 	BeadsPath       string            `yaml:"beads_path"`       // Path within beads worktree
 	BeadsBranch     string            `yaml:"beads_branch"`     // Branch for beads (default: "beads-sync")
 	UseWorktrees    bool              `yaml:"use_worktrees"`    // Enable git worktree isolation (default: true)
+	UseContainer    bool              `yaml:"use_container"`    // Enable per-project container for hermetic execution
 	GitAuthMethod   string            `yaml:"git_auth_method" json:"git_auth_method,omitempty"`
 	GitStrategy     string            `yaml:"git_strategy" json:"git_strategy,omitempty"`
 	GitCredentialID string            `yaml:"git_credential_id" json:"git_credential_id,omitempty"`

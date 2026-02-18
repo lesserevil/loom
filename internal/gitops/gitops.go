@@ -55,6 +55,29 @@ func projectIDFromWorkDir(workDir string) string {
 	return filepath.Base(workDir)
 }
 
+// convertSSHtoHTTPS converts SSH-style git URLs to HTTPS for token authentication
+// Examples:
+//   git@github.com:user/repo.git -> https://github.com/user/repo.git
+//   git@gitlab.com:group/project.git -> https://gitlab.com/group/project.git
+func convertSSHtoHTTPS(gitURL string) string {
+	// Check if it's already HTTPS
+	if strings.HasPrefix(gitURL, "https://") || strings.HasPrefix(gitURL, "http://") {
+		return gitURL
+	}
+
+	// Convert SSH format: git@host:path -> https://host/path
+	if strings.HasPrefix(gitURL, "git@") {
+		// Remove git@ prefix
+		withoutPrefix := strings.TrimPrefix(gitURL, "git@")
+		// Replace first : with /
+		httpsURL := strings.Replace(withoutPrefix, ":", "/", 1)
+		return "https://" + httpsURL
+	}
+
+	// Already in correct format or unknown format
+	return gitURL
+}
+
 // NewManager creates a new git operations manager.
 // db and km are optional — pass nil to disable database-backed key persistence.
 func NewManager(baseWorkDir, projectKeyDir string, db *database.Database, km *keymanager.KeyManager) (*Manager, error) {
@@ -94,10 +117,18 @@ func (m *Manager) CloneProject(ctx context.Context, project *models.Project) err
 		return fmt.Errorf("project %s has no git_repo configured", project.ID)
 	}
 
+	// Convert SSH URLs to HTTPS when using token authentication
+	gitURL := project.GitRepo
+	if project.GitAuthMethod == models.GitAuthToken {
+		gitURL = convertSSHtoHTTPS(gitURL)
+		log.Printf("Using HTTPS URL for token auth: %s", gitURL)
+	}
+
 	workDir := m.GetProjectWorkDir(project.ID)
 	start := time.Now()
 	logGitEvent("git.clone.start", project, map[string]interface{}{
 		"work_dir": workDir,
+		"git_url":  gitURL,
 	})
 
 	// Check if already cloned
@@ -128,7 +159,7 @@ func (m *Manager) CloneProject(ctx context.Context, project *models.Project) err
 			args []string
 		}{
 			{"init", []string{"init"}},
-			{"remote add", []string{"remote", "add", "origin", project.GitRepo}},
+			{"remote add", []string{"remote", "add", "origin", gitURL}},
 			{"fetch", []string{"fetch", "--depth=1", "origin", branch}},
 			{"checkout", []string{"checkout", "-b", branch, "FETCH_HEAD"}},
 			{"set-upstream", []string{"branch", "--set-upstream-to=origin/" + branch, branch}},
@@ -163,7 +194,7 @@ func (m *Manager) CloneProject(ctx context.Context, project *models.Project) err
 		if project.Branch != "" {
 			args = append(args, "--branch", project.Branch)
 		}
-		args = append(args, "--single-branch", project.GitRepo, workDir)
+		args = append(args, "--single-branch", gitURL, workDir)
 
 		cmd := exec.CommandContext(ctx, "git", args...)
 		if err := m.configureAuth(cmd, project); err != nil {
@@ -668,8 +699,29 @@ func (m *Manager) configureAuth(cmd *exec.Cmd, project *models.Project) error {
 		return nil
 
 	case models.GitAuthToken:
-		// For HTTPS with token, we could inject into URL or use credential helper
-		// This is a simplified approach - production would use credential helper
+		// Token-based authentication for HTTPS git operations
+		// Supports GITHUB_TOKEN and GITLAB_TOKEN environment variables
+		token := os.Getenv("GITHUB_TOKEN")
+		if token == "" {
+			token = os.Getenv("GITLAB_TOKEN")
+		}
+		if token == "" {
+			return fmt.Errorf("GitAuthToken selected but no GITHUB_TOKEN or GITLAB_TOKEN environment variable set")
+		}
+
+		// Configure git credential helper to use the token
+		if cmd.Env == nil {
+			cmd.Env = os.Environ()
+		}
+
+		// Use GIT_ASKPASS to inject token authentication
+		// This works for both GitHub and GitLab
+		cmd.Env = append(cmd.Env,
+			"GIT_TERMINAL_PROMPT=0",
+			fmt.Sprintf("GIT_ASKPASS=%s", "/usr/local/bin/git-askpass-helper"),
+			fmt.Sprintf("GIT_TOKEN=%s", token),
+			fmt.Sprintf("GIT_REPO=%s", project.GitRepo),
+		)
 		return nil
 
 	case models.GitAuthBasic:

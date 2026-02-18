@@ -10,8 +10,6 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
-	"github.com/jordanhubbard/loom/pkg/models"
 )
 
 // Config holds the configuration for a project agent
