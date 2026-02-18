@@ -8,7 +8,7 @@
 # NOTE: Providers with the same ID will be replaced (upsert behavior).
 # This makes bootstrap.local safe to run multiple times.
 
-LOOM_URL="${LOOM_URL:-http://localhost:8081}"
+LOOM_URL="${LOOM_URL:-http://localhost:8080}"
 
 register_provider() {
   local id="$1" name="$2" type="$3" endpoint="$4" model="$5" api_key="${6:-}"
