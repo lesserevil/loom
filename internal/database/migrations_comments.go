@@ -6,6 +6,11 @@ import (
 
 // migrateComments creates the bead comments and mentions tables
 func (d *Database) migrateComments() error {
+	// Skip migrations for PostgreSQL (schema is complete in initSchemaPostgres)
+	if d.dbType == "postgres" {
+		return nil
+	}
+
 	// Bead comments table
 	commentsSchema := `
 	CREATE TABLE IF NOT EXISTS bead_comments (

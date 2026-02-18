@@ -7,6 +7,11 @@ import (
 // migrateConversations creates the conversation_contexts table for
 // storing multi-turn conversation sessions
 func (d *Database) migrateConversations() error {
+	// Skip migrations for PostgreSQL (schema is complete in initSchemaPostgres)
+	if d.dbType == "postgres" {
+		return nil
+	}
+
 	// Conversation contexts table
 	// SQLite uses TEXT type for JSON storage (JSONB is PostgreSQL-specific)
 	conversationSchema := `

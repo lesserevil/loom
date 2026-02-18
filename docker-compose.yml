@@ -18,6 +18,27 @@ services:
       timeout: 5s
       retries: 5
 
+  # PostgreSQL database for Loom
+  loom-postgresql:
+    image: postgres:15-alpine
+    container_name: loom-postgresql
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: loom
+      POSTGRES_PASSWORD: loom
+      POSTGRES_DB: loom
+    networks:
+      - loom-network
+    volumes:
+      - loom-db-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U loom"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "5432:5432"  # Expose for development/debugging
+
   # Temporal server with auto-setup
   temporal:
     image: temporalio/auto-setup:1.22.4
@@ -104,6 +125,8 @@ services:
         condition: service_healthy
       nats:
         condition: service_healthy
+      loom-postgresql:
+        condition: service_healthy
     ports:
       - "8080:8081"
       - "3307:3307"     # Dolt SQL server for beads federation
@@ -117,6 +140,12 @@ services:
       - NATS_URL=nats://nats:4222
       - CONFIG_PATH=/app/config.yaml
       - DOLT_PORT=3307
+      - DB_TYPE=postgres
+      - POSTGRES_HOST=loom-postgresql
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=loom
+      - POSTGRES_PASSWORD=loom
+      - POSTGRES_DB=loom
     networks:
       - loom-network
     extra_hosts:
@@ -230,6 +259,7 @@ networks:
 volumes:
   temporal-db-data:
   loom-db:
+  loom-db-postgres:
   nats-data:
   prometheus-data:
   grafana-data:

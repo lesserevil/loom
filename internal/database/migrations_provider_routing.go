@@ -2,6 +2,11 @@ package database
 
 // Migration to add routing metadata to providers table
 func (d *Database) migrateProviderRouting() error {
+	// Skip migrations for PostgreSQL (schema is complete in initSchemaPostgres)
+	if d.dbType == "postgres" {
+		return nil
+	}
+
 	// Check if columns already exist
 	var hasCost, hasContext, hasFunction, hasVision, hasStreaming, hasTags bool
 

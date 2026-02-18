@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/jordanhubbard/loom/internal/memory"
@@ -23,7 +24,7 @@ func (d *Database) migrateLessons() error {
 		source_bead_id TEXT,
 		source_agent_id TEXT,
 		relevance_score REAL NOT NULL DEFAULT 1.0,
-		created_at DATETIME NOT NULL
+		created_at TIMESTAMP NOT NULL
 	);
 	CREATE INDEX IF NOT EXISTS idx_lessons_project ON lessons(project_id);
 	CREATE INDEX IF NOT EXISTS idx_lessons_category ON lessons(category);
@@ -33,7 +34,14 @@ func (d *Database) migrateLessons() error {
 	}
 
 	// Add embedding column if it doesn't exist (migration)
-	_, err := d.db.Exec(`ALTER TABLE lessons ADD COLUMN embedding BLOB`)
+	// Use BLOB for SQLite, BYTEA for PostgreSQL
+	embeddingType := "BLOB"
+	if d.dbType == "postgres" {
+		embeddingType = "BYTEA"
+	}
+
+	query := fmt.Sprintf(`ALTER TABLE lessons ADD COLUMN embedding %s`, embeddingType)
+	_, err := d.db.Exec(query)
 	if err != nil {
 		// Column already exists — ignore the error
 		if !isAlterColumnExistsError(err) {
@@ -49,7 +57,10 @@ func isAlterColumnExistsError(err error) bool {
 		return false
 	}
 	msg := err.Error()
-	return len(msg) >= 9 && msg[:9] == "duplicate"
+	// SQLite: "duplicate column name"
+	// PostgreSQL: "column \"...\" of relation \"...\" already exists"
+	return (len(msg) >= 9 && msg[:9] == "duplicate") ||
+	       strings.Contains(msg, "already exists")
 }
 
 // CreateLesson inserts a new lesson record.

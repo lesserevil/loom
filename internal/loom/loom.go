@@ -149,8 +149,18 @@ func New(cfg *config.Config) (*Loom, error) {
 	}
 
 	// Initialize database if configured
+	// Priority: 1) Environment variables (DB_TYPE, POSTGRES_*), 2) Config file
 	var db *database.Database
-	if cfg.Database.Type == "sqlite" && cfg.Database.Path != "" {
+	dbType := os.Getenv("DB_TYPE")
+	if dbType != "" {
+		// Use environment-based initialization
+		var err error
+		db, err = database.NewFromEnv()
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize database from environment: %w", err)
+		}
+		log.Printf("Initialized %s database from environment variables", dbType)
+	} else if cfg.Database.Type == "sqlite" && cfg.Database.Path != "" {
 		var err error
 		db, err = database.New(cfg.Database.Path)
 		if err != nil {

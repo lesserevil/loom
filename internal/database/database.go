@@ -4,12 +4,14 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
 	internalmodels "github.com/jordanhubbard/loom/internal/models"
 	"github.com/jordanhubbard/loom/pkg/models"
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/lib/pq"           // PostgreSQL driver
+	_ "github.com/mattn/go-sqlite3" // SQLite driver
 )
 
 // Database represents the loom database
@@ -92,6 +94,145 @@ func New(dbPath string) (*Database, error) {
 	}
 
 	if err := migratePatterns(db); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to migrate patterns: %w", err)
+	}
+
+	if err := d.migrateCredentials(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to migrate credentials: %w", err)
+	}
+
+	if err := d.migrateLessons(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to migrate lessons: %w", err)
+	}
+
+	return d, nil
+}
+
+// NewFromEnv creates a database instance using environment variables
+// Supports both PostgreSQL (when DB_TYPE=postgres) and SQLite (default)
+func NewFromEnv() (*Database, error) {
+	dbType := os.Getenv("DB_TYPE")
+
+	if dbType == "postgres" || dbType == "postgresql" {
+		return NewPostgreSQL()
+	}
+
+	// Default to SQLite
+	dbPath := os.Getenv("DB_PATH")
+	if dbPath == "" {
+		dbPath = "/app/data/loom.db"
+	}
+	return New(dbPath)
+}
+
+// NewPostgreSQL creates a PostgreSQL database instance from environment variables
+func NewPostgreSQL() (*Database, error) {
+	host := os.Getenv("POSTGRES_HOST")
+	if host == "" {
+		host = "localhost"
+	}
+
+	port := os.Getenv("POSTGRES_PORT")
+	if port == "" {
+		port = "5432"
+	}
+
+	user := os.Getenv("POSTGRES_USER")
+	if user == "" {
+		user = "loom"
+	}
+
+	password := os.Getenv("POSTGRES_PASSWORD")
+	if password == "" {
+		password = "loom"
+	}
+
+	dbname := os.Getenv("POSTGRES_DB")
+	if dbname == "" {
+		dbname = "loom"
+	}
+
+	sslmode := os.Getenv("POSTGRES_SSLMODE")
+	if sslmode == "" {
+		sslmode = "disable"
+	}
+
+	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+		host, port, user, password, dbname, sslmode)
+
+	db, err := sql.Open("postgres", connStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open PostgreSQL database: %w", err)
+	}
+
+	// Test connection
+	if err := db.Ping(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to ping PostgreSQL database: %w", err)
+	}
+
+	// Configure connection pool
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(5)
+	db.SetConnMaxLifetime(5 * time.Minute)
+
+	d := &Database{
+		db:         db,
+		dbType:     "postgres",
+		supportsHA: true, // PostgreSQL supports HA features
+	}
+
+	// Initialize schema
+	if err := d.initSchemaPostgres(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to initialize PostgreSQL schema: %w", err)
+	}
+
+	// Run migrations
+	if err := d.migrateProviderOwnership(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to migrate provider ownership: %w", err)
+	}
+
+	if err := d.migrateProviderRouting(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to migrate provider routing: %w", err)
+	}
+
+	if err := d.migrateProviderScoring(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to migrate provider scoring: %w", err)
+	}
+
+	if err := d.migrateMotivations(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to migrate motivations: %w", err)
+	}
+
+	if err := d.migrateWorkflows(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to migrate workflows: %w", err)
+	}
+
+	if err := d.migrateActivity(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to migrate activity: %w", err)
+	}
+
+	if err := d.migrateComments(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to migrate comments: %w", err)
+	}
+
+	if err := d.migrateConversations(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to migrate conversations: %w", err)
+	}
+
+	if err := migratePatterns(d.db); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("failed to migrate patterns: %w", err)
 	}

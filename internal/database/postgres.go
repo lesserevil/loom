@@ -130,12 +130,114 @@ func (d *Database) initSchemaPostgres() error {
 		ip_address TEXT
 	);
 
+	-- Projects with hierarchy support (parent_id for sub-projects)
+	CREATE TABLE IF NOT EXISTS projects (
+		id TEXT PRIMARY KEY,
+		name TEXT NOT NULL,
+		git_repo TEXT NOT NULL,
+		branch TEXT NOT NULL,
+		beads_path TEXT NOT NULL,
+		parent_id TEXT,
+		is_perpetual BOOLEAN NOT NULL DEFAULT false,
+		is_sticky BOOLEAN NOT NULL DEFAULT false,
+		git_strategy TEXT NOT NULL DEFAULT 'direct',
+		git_auth_method TEXT NOT NULL DEFAULT 'none',
+		status TEXT NOT NULL DEFAULT 'open',
+		context_json TEXT,
+		schema_version TEXT NOT NULL DEFAULT '1.0',
+		attributes_json TEXT,
+		created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		closed_at TIMESTAMP,
+		FOREIGN KEY (parent_id) REFERENCES projects(id) ON DELETE SET NULL
+	);
+
+	-- Org charts define the team structure for each project
+	CREATE TABLE IF NOT EXISTS org_charts (
+		id TEXT PRIMARY KEY,
+		project_id TEXT NOT NULL,
+		name TEXT NOT NULL,
+		is_template BOOLEAN NOT NULL DEFAULT false,
+		parent_id TEXT,
+		schema_version TEXT NOT NULL DEFAULT '1.0',
+		attributes_json TEXT,
+		created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+		FOREIGN KEY (parent_id) REFERENCES org_charts(id) ON DELETE SET NULL
+	);
+
+	-- Positions within an org chart (role slots)
+	CREATE TABLE IF NOT EXISTS org_chart_positions (
+		id TEXT PRIMARY KEY,
+		org_chart_id TEXT NOT NULL,
+		role_name TEXT NOT NULL,
+		persona_path TEXT NOT NULL,
+		required BOOLEAN NOT NULL DEFAULT false,
+		max_instances INTEGER NOT NULL DEFAULT 0,
+		reports_to TEXT,
+		schema_version TEXT NOT NULL DEFAULT '1.0',
+		attributes_json TEXT,
+		created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (org_chart_id) REFERENCES org_charts(id) ON DELETE CASCADE,
+		FOREIGN KEY (reports_to) REFERENCES org_chart_positions(id) ON DELETE SET NULL
+	);
+
+	-- Agent instances assigned to positions
+	CREATE TABLE IF NOT EXISTS agents (
+		id TEXT PRIMARY KEY,
+		name TEXT NOT NULL,
+		role TEXT,
+		persona_name TEXT,
+		provider_id TEXT,
+		status TEXT NOT NULL DEFAULT 'idle',
+		current_bead TEXT,
+		project_id TEXT,
+		position_id TEXT,
+		schema_version TEXT NOT NULL DEFAULT '1.0',
+		attributes_json TEXT,
+		started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		last_active TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL,
+		FOREIGN KEY (position_id) REFERENCES org_chart_positions(id) ON DELETE SET NULL,
+		FOREIGN KEY (provider_id) REFERENCES providers(id) ON DELETE SET NULL
+	);
+
+	-- Command Logs for agent shell command execution
+	CREATE TABLE IF NOT EXISTS command_logs (
+		id TEXT PRIMARY KEY,
+		agent_id TEXT NOT NULL,
+		bead_id TEXT,
+		project_id TEXT,
+		command TEXT NOT NULL,
+		working_dir TEXT NOT NULL,
+		exit_code INTEGER NOT NULL,
+		stdout TEXT,
+		stderr TEXT,
+		duration_ms INTEGER NOT NULL,
+		started_at TIMESTAMP NOT NULL,
+		completed_at TIMESTAMP NOT NULL,
+		context TEXT,
+		created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+	);
+
 	-- Create indexes for performance
 	CREATE INDEX IF NOT EXISTS idx_request_logs_timestamp ON request_logs(timestamp);
 	CREATE INDEX IF NOT EXISTS idx_request_logs_user_id ON request_logs(user_id);
 	CREATE INDEX IF NOT EXISTS idx_request_logs_provider_id ON request_logs(provider_id);
 	CREATE INDEX IF NOT EXISTS idx_distributed_locks_expires_at ON distributed_locks(expires_at);
 	CREATE INDEX IF NOT EXISTS idx_instances_last_heartbeat ON instances(last_heartbeat);
+	CREATE INDEX IF NOT EXISTS idx_agents_status ON agents(status);
+	CREATE INDEX IF NOT EXISTS idx_agents_project_id ON agents(project_id);
+	CREATE INDEX IF NOT EXISTS idx_agents_position_id ON agents(position_id);
+	CREATE INDEX IF NOT EXISTS idx_providers_status ON providers(status);
+	CREATE INDEX IF NOT EXISTS idx_projects_parent_id ON projects(parent_id);
+	CREATE INDEX IF NOT EXISTS idx_org_charts_project_id ON org_charts(project_id);
+	CREATE INDEX IF NOT EXISTS idx_positions_org_chart_id ON org_chart_positions(org_chart_id);
+	CREATE INDEX IF NOT EXISTS idx_command_logs_agent_id ON command_logs(agent_id);
+	CREATE INDEX IF NOT EXISTS idx_command_logs_bead_id ON command_logs(bead_id);
+	CREATE INDEX IF NOT EXISTS idx_command_logs_project_id ON command_logs(project_id);
+	CREATE INDEX IF NOT EXISTS idx_command_logs_created_at ON command_logs(created_at);
 	`
 
 	_, err := d.db.Exec(schema)

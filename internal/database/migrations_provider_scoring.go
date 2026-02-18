@@ -2,6 +2,11 @@ package database
 
 // Migration to add dynamic scoring columns to providers table
 func (d *Database) migrateProviderScoring() error {
+	// Skip migrations for PostgreSQL (schema is complete in initSchemaPostgres)
+	if d.dbType == "postgres" {
+		return nil
+	}
+
 	// Check if columns already exist
 	var hasModelParams, hasCapabilityScore, hasAvgLatency bool
 

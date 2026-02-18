@@ -2,6 +2,11 @@ package database
 
 // Migration to add owner_id and is_shared to providers table
 func (d *Database) migrateProviderOwnership() error {
+	// Skip migrations for PostgreSQL (schema is complete in initSchemaPostgres)
+	if d.dbType == "postgres" {
+		return nil
+	}
+
 	// Check if columns already exist
 	var hasOwnerID, hasIsShared bool
 

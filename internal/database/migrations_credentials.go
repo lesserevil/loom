@@ -4,6 +4,11 @@ import "log"
 
 // migrateCredentials creates the credentials table for storing encrypted SSH keys
 func (d *Database) migrateCredentials() error {
+	// Skip migrations for PostgreSQL (schema is complete in initSchemaPostgres)
+	if d.dbType == "postgres" {
+		return nil
+	}
+
 	schema := `
 	CREATE TABLE IF NOT EXISTS credentials (
 		id TEXT PRIMARY KEY,

@@ -16,9 +16,9 @@ func migratePatterns(db *sql.DB) error {
 		total_tokens INTEGER NOT NULL,
 		avg_latency REAL NOT NULL,
 		error_rate REAL NOT NULL,
-		first_seen DATETIME NOT NULL,
-		last_seen DATETIME NOT NULL,
-		analyzed_at DATETIME NOT NULL,
+		first_seen TIMESTAMP NOT NULL,
+		last_seen TIMESTAMP NOT NULL,
+		analyzed_at TIMESTAMP NOT NULL,
 		metadata_json TEXT
 	);
 
@@ -35,11 +35,11 @@ func migratePatterns(db *sql.DB) error {
 		recommendation TEXT NOT NULL,
 		projected_savings_usd REAL NOT NULL,
 		actual_savings_usd REAL,
-		applied_at DATETIME,
+		applied_at TIMESTAMP,
 		applied_by TEXT,
 		status TEXT NOT NULL DEFAULT 'pending',
 		metadata_json TEXT,
-		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 		FOREIGN KEY (pattern_id) REFERENCES usage_patterns(id)
 	);
 
