@@ -20,13 +20,15 @@ beads:
   auto_sync: true
   sync_interval: 5m
   compact_old_days: 90  # Compact closed beads older than 90 days
-  backend: dolt          # "sqlite" or "dolt"
+  backend: sqlite        # "sqlite" or "dolt" - using sqlite for simpler setup
+  beads_branch: "beads-sync"    # Global default for beads branch
+  use_git_storage: true         # Enable git-centric storage
   federation:
-    enabled: false
-    auto_sync: false
-    sync_interval: 10m
+    enabled: true        # Enable git-based federation
+    auto_sync: true
+    sync_interval: 30s   # Pull beads-sync branch every 30 seconds
     sync_strategy: ours
-    sync_mode: dolt-native
+    sync_mode: git-native  # Changed from dolt-native
     peers: []            # Add peers via API or config for multi-container sync
 
 agents:
@@ -175,10 +177,12 @@ providers: []
 projects:
   - id: loom-self
     name: Loom Self-Improvement
-    git_repo: .  # Local development mode - use current directory
+    git_repo: "https://github.com/jordanhubbard/loom"  # Clone from GitHub like any other project
     branch: main
-    beads_path: data/.beads  # Store in persisted volume
-    git_auth_method: ssh  # Deploy key for push access
+    beads_path: ".beads"  # Path within beads worktree
+    beads_branch: "beads-sync"  # Branch for beads storage
+    use_worktrees: true  # Enable git worktree isolation
+    git_auth_method: none  # No auth for public repo (change to ssh for push access)
     git_strategy: direct
     is_perpetual: true
     is_sticky: true

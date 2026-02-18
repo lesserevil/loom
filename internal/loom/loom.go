@@ -194,17 +194,7 @@ func New(cfg *config.Config) (*Loom, error) {
 		return nil, fmt.Errorf("failed to initialize gitops manager: %w", err)
 	}
 
-	// For sticky projects running from their own source tree, override the
-	// workdir to point to the actual source (cwd) instead of a separate clone.
-	cwd, _ := os.Getwd()
-	for _, p := range cfg.Projects {
-		if p.IsSticky && cwd != "" {
-			if _, err := os.Stat(filepath.Join(cwd, ".git")); err == nil {
-				gitopsMgr.SetProjectWorkDir(p.ID, cwd)
-				log.Printf("[Loom] Project %s workdir set to source tree: %s", p.ID, cwd)
-			}
-		}
-	}
+	// All projects are cloned consistently - no special workdir handling
 
 	agentMgr := agent.NewWorkerManager(cfg.Agents.MaxConcurrent, providerRegistry, eb)
 	if db != nil {
@@ -271,12 +261,15 @@ func New(cfg *config.Config) (*Loom, error) {
 	ocClient := openclaw.NewClient(&cfg.OpenClaw)
 	ocBridge := openclaw.NewBridge(ocClient, eb, &cfg.OpenClaw)
 
+	beadsMgr := beads.NewManager(cfg.Beads.BDPath)
+	beadsMgr.SetBackend(cfg.Beads.Backend)
+
 	arb := &Loom{
 		config:              cfg,
 		agentManager:        agentMgr,
 		projectManager:      project.NewManager(),
 		personaManager:      persona.NewManager(personaPath),
-		beadsManager:        beads.NewManager(cfg.Beads.BDPath),
+		beadsManager:        beadsMgr,
 		decisionManager:     decision.NewManager(),
 		fileLockManager:     NewFileLockManager(cfg.Agents.FileLockTimeout),
 		orgChartManager:     orgchart.NewManager(),
@@ -541,196 +534,167 @@ func (a *Loom) Initialize(ctx context.Context) error {
 			continue
 		}
 
-		// Detect local project: git_repo is "." or empty, OR the beads path
-		// already exists in the current working directory (self-hosted project).
-		isLocal := p.GitRepo == "" || p.GitRepo == "."
-		if !isLocal {
-			if _, err := os.Stat(p.BeadsPath); err == nil {
-				isLocal = true
+		// All projects are now treated consistently - clone from git
+		// No special case for loom-self
+
+		// Set default auth method if not specified
+		if p.GitAuthMethod == "" {
+			p.GitAuthMethod = models.GitAuthNone // Default to no auth for public repos
+		}
+
+		// For SSH-auth projects, ensure an SSH key exists
+		if p.GitAuthMethod == models.GitAuthSSH {
+			pubKey, err := a.gitopsManager.EnsureProjectSSHKey(p.ID)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: Failed to ensure SSH key for %s: %v\n", p.ID, err)
+			} else {
+				fmt.Printf("Project %s SSH public key:\n%s\n", p.ID, pubKey)
 			}
 		}
 
-		// For projects with git repositories, clone/pull them first
-		if !isLocal {
-			// Set default auth method if not specified
-			if p.GitAuthMethod == "" {
-				p.GitAuthMethod = models.GitAuthNone // Default to no auth for public repos
-			}
+		// Check if already cloned
+		workDir := a.gitopsManager.GetProjectWorkDir(p.ID)
+		p.WorkDir = workDir
+		// Persist WorkDir so maintenance loop and dispatcher can find project files
+		if mgdProject, _ := a.projectManager.GetProject(p.ID); mgdProject != nil {
+			mgdProject.WorkDir = workDir
+		}
 
-			// For SSH-auth projects, ensure an SSH key exists
-			if p.GitAuthMethod == models.GitAuthSSH {
-				pubKey, err := a.gitopsManager.EnsureProjectSSHKey(p.ID)
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "Warning: Failed to ensure SSH key for %s: %v\n", p.ID, err)
-				} else {
-					fmt.Printf("Project %s SSH public key:\n%s\n", p.ID, pubKey)
-				}
-			}
-
-			// Check if already cloned
-			workDir := a.gitopsManager.GetProjectWorkDir(p.ID)
-			p.WorkDir = workDir
-			// Persist WorkDir so maintenance loop and dispatcher can find project files
-			if mgdProject, _ := a.projectManager.GetProject(p.ID); mgdProject != nil {
-				mgdProject.WorkDir = workDir
-			}
-
-			needsClone := false
-			gitDir := filepath.Join(workDir, ".git")
-			if _, err := os.Stat(gitDir); os.IsNotExist(err) {
-				needsClone = true
-			} else {
-				// .git exists, but check if it's a valid clone (has commits)
-				// An empty git-init repo with no commits means clone never succeeded
-				checkCmd := exec.CommandContext(ctx, "git", "rev-parse", "HEAD")
-				checkCmd.Dir = workDir
-				if out, err := checkCmd.CombinedOutput(); err != nil {
-					outStr := strings.TrimSpace(string(out))
-					if strings.Contains(outStr, "does not have any commits") || strings.Contains(outStr, "unknown revision") {
-						fmt.Printf("Project %s has empty repo (prior clone failed), re-cloning...\n", p.ID)
-						// Remove the broken repo so CloneProject can start fresh
-						os.RemoveAll(workDir)
-						needsClone = true
-					}
-				}
-			}
-
-			if needsClone {
-				// Clone the repository
-				fmt.Printf("Cloning project %s from %s...\n", p.ID, p.GitRepo)
-				if err := a.gitopsManager.CloneProject(ctx, p); err != nil {
-					errStr := err.Error()
-					fmt.Fprintf(os.Stderr, "Warning: Failed to clone project %s: %v\n", p.ID, err)
-
-					// If SSH auth failed, show the deploy key that needs to be registered
-					if p.GitAuthMethod == models.GitAuthSSH && strings.Contains(errStr, "Permission denied") {
-						if pubKey, keyErr := a.gitopsManager.EnsureProjectSSHKey(p.ID); keyErr == nil {
-							fmt.Fprintf(os.Stderr, "\n"+
-								"╔══════════════════════════════════════════════════════════════════╗\n"+
-								"║  DEPLOY KEY NOT REGISTERED                                      ║\n"+
-								"║                                                                  ║\n"+
-								"║  Add this deploy key to your git remote:                         ║\n"+
-								"║  %s\n"+
-								"║                                                                  ║\n"+
-								"║  For GitHub: Settings → Deploy Keys → Add deploy key             ║\n"+
-								"║  Enable 'Allow write access' if agents need to push.             ║\n"+
-								"╚══════════════════════════════════════════════════════════════════╝\n\n",
-								pubKey)
-						}
-					}
-					continue
-				}
-				fmt.Printf("Successfully cloned project %s\n", p.ID)
-			} else {
-				// Pull latest changes
-				fmt.Printf("Pulling latest changes for project %s...\n", p.ID)
-				if err := a.gitopsManager.PullProject(ctx, p); err != nil {
-					fmt.Fprintf(os.Stderr, "Warning: Failed to pull project %s: %v\n", p.ID, err)
-					// Continue anyway with existing checkout
-				} else {
-					fmt.Printf("Successfully pulled project %s\n", p.ID)
-				}
-			}
-
-			// Initialize beads database if needed.
-			// For dolt backend, ensure bd is initialized with the correct prefix
-			// so that bead creation doesn't fail with "database not initialized".
-			{
-				beadsDir := filepath.Join(workDir, p.BeadsPath)
-				if _, err := os.Stat(beadsDir); err == nil {
-					bdPath := a.config.Beads.BDPath
-					if bdPath == "" {
-						bdPath = "bd"
-					}
-					// Determine prefix for this project
-					bdPrefix := p.BeadPrefix
-					if bdPrefix == "" {
-						bdPrefix = p.ID
-					}
-					initArgs := []string{"init", "--prefix", bdPrefix}
-					if a.config.Beads.Backend != "dolt" {
-						initArgs = append(initArgs, "--from-jsonl")
-					}
-					initCmd := exec.Command(bdPath, initArgs...)
-					initCmd.Dir = workDir
-					if out, err := initCmd.CombinedOutput(); err != nil {
-						outStr := strings.TrimSpace(string(out))
-						if !strings.Contains(outStr, "already initialized") {
-							fmt.Fprintf(os.Stderr, "Warning: bd init failed for %s: %v (%s)\n", p.ID, err, outStr)
-						}
-					} else {
-						fmt.Printf("Initialized beads database for project %s\n", p.ID)
-					}
-				}
-			}
-
-			// Update project in database with git metadata
-			if a.database != nil {
-				_ = a.database.UpsertProject(p)
-			}
-
-			// Load beads from the cloned repository
-			beadsPath := filepath.Join(workDir, p.BeadsPath)
-			a.beadsManager.SetBeadsPath(beadsPath)
-			// Load project prefix from config
-			configPath := filepath.Join(workDir, p.BeadsPath)
-			_ = a.beadsManager.LoadProjectPrefixFromConfig(p.ID, configPath)
-			// Use project's BeadPrefix if set in the model
-			if p.BeadPrefix != "" {
-				a.beadsManager.SetProjectPrefix(p.ID, p.BeadPrefix)
-			}
-			_ = a.beadsManager.LoadBeadsFromFilesystem(p.ID, beadsPath)
-
-			// Start per-project Dolt instance if using dolt backend
-			if a.doltCoordinator != nil {
-				if _, err := a.doltCoordinator.EnsureInstance(ctx, p.ID, beadsPath); err != nil {
-					fmt.Fprintf(os.Stderr, "Warning: Failed to start Dolt instance for %s: %v\n", p.ID, err)
-				}
-			}
-
-			// Federation sync after loading beads
-			if a.config.Beads.Federation.Enabled && a.config.Beads.Federation.AutoSync {
-				fmt.Printf("Syncing federation peers for project %s...\n", p.ID)
-				if err := a.beadsManager.SyncFederation(ctx, &a.config.Beads.Federation); err != nil {
-					fmt.Fprintf(os.Stderr, "Warning: Federation sync failed for %s: %v\n", p.ID, err)
-				}
-				// Reload beads after sync to pick up remote changes
-				_ = a.beadsManager.LoadBeadsFromFilesystem(p.ID, beadsPath)
-			}
+		needsClone := false
+		gitDir := filepath.Join(workDir, ".git")
+		if _, err := os.Stat(gitDir); os.IsNotExist(err) {
+			needsClone = true
 		} else {
-			// Local project (Loom itself), load beads directly
-			log.Printf("[Loom] DEBUG: Loading local project %s", p.ID)
-			cwd, _ := os.Getwd()
-			p.WorkDir = cwd
-			if mgdProject, _ := a.projectManager.GetProject(p.ID); mgdProject != nil {
-				mgdProject.WorkDir = cwd
-			}
-			a.beadsManager.SetBeadsPath(p.BeadsPath)
-			// Load project prefix from config
-			_ = a.beadsManager.LoadProjectPrefixFromConfig(p.ID, p.BeadsPath)
-			// Use project's BeadPrefix if set in the model
-			if p.BeadPrefix != "" {
-				a.beadsManager.SetProjectPrefix(p.ID, p.BeadPrefix)
-			}
-			_ = a.beadsManager.LoadBeadsFromFilesystem(p.ID, p.BeadsPath)
-			log.Printf("[Loom] DEBUG: Loaded beads from filesystem for project %s", p.ID)
-
-			// Start per-project Dolt instance for local projects too
-			if a.doltCoordinator != nil {
-				if _, err := a.doltCoordinator.EnsureInstance(ctx, p.ID, p.BeadsPath); err != nil {
-					fmt.Fprintf(os.Stderr, "Warning: Failed to start Dolt instance for %s: %v\n", p.ID, err)
+			// .git exists, but check if it's a valid clone (has commits)
+			// An empty git-init repo with no commits means clone never succeeded
+			checkCmd := exec.CommandContext(ctx, "git", "rev-parse", "HEAD")
+			checkCmd.Dir = workDir
+			if out, err := checkCmd.CombinedOutput(); err != nil {
+				outStr := strings.TrimSpace(string(out))
+				if strings.Contains(outStr, "does not have any commits") || strings.Contains(outStr, "unknown revision") {
+					fmt.Printf("Project %s has empty repo (prior clone failed), re-cloning...\n", p.ID)
+					// Remove the broken repo so CloneProject can start fresh
+					os.RemoveAll(workDir)
+					needsClone = true
 				}
 			}
+		}
 
-			// Federation sync after loading beads
-			if a.config.Beads.Federation.Enabled && a.config.Beads.Federation.AutoSync {
-				fmt.Printf("Syncing federation peers for project %s...\n", p.ID)
-				if err := a.beadsManager.SyncFederation(ctx, &a.config.Beads.Federation); err != nil {
-					fmt.Fprintf(os.Stderr, "Warning: Federation sync failed for %s: %v\n", p.ID, err)
+		if needsClone {
+			// Clone the repository
+			fmt.Printf("Cloning project %s from %s...\n", p.ID, p.GitRepo)
+			if err := a.gitopsManager.CloneProject(ctx, p); err != nil {
+				errStr := err.Error()
+				fmt.Fprintf(os.Stderr, "Warning: Failed to clone project %s: %v\n", p.ID, err)
+
+				// If SSH auth failed, show the deploy key that needs to be registered
+				if p.GitAuthMethod == models.GitAuthSSH && strings.Contains(errStr, "Permission denied") {
+					if pubKey, keyErr := a.gitopsManager.EnsureProjectSSHKey(p.ID); keyErr == nil {
+						fmt.Fprintf(os.Stderr, "\n"+
+							"╔══════════════════════════════════════════════════════════════════╗\n"+
+							"║  DEPLOY KEY NOT REGISTERED                                      ║\n"+
+							"║                                                                  ║\n"+
+							"║  Add this deploy key to your git remote:                         ║\n"+
+							"║  %s\n"+
+							"║                                                                  ║\n"+
+							"║  For GitHub: Settings → Deploy Keys → Add deploy key             ║\n"+
+							"║  Enable 'Allow write access' if agents need to push.             ║\n"+
+							"╚══════════════════════════════════════════════════════════════════╝\n\n",
+							pubKey)
+					}
 				}
-				// Reload beads after sync to pick up remote changes
-				_ = a.beadsManager.LoadBeadsFromFilesystem(p.ID, p.BeadsPath)
+				continue
 			}
+			fmt.Printf("Successfully cloned project %s\n", p.ID)
+		} else {
+			// Pull latest changes
+			fmt.Printf("Pulling latest changes for project %s...\n", p.ID)
+			if err := a.gitopsManager.PullProject(ctx, p); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: Failed to pull project %s: %v\n", p.ID, err)
+				// Continue anyway with existing checkout
+			} else {
+				fmt.Printf("Successfully pulled project %s\n", p.ID)
+			}
+		}
+
+		// Initialize beads database if needed.
+		// For dolt backend, ensure bd is initialized with the correct prefix
+		// so that bead creation doesn't fail with "database not initialized".
+		{
+			beadsDir := filepath.Join(workDir, p.BeadsPath)
+			if _, err := os.Stat(beadsDir); err == nil {
+				bdPath := a.config.Beads.BDPath
+				if bdPath == "" {
+					bdPath = "bd"
+				}
+				// Determine prefix for this project
+				bdPrefix := p.BeadPrefix
+				if bdPrefix == "" {
+					bdPrefix = p.ID
+				}
+				initArgs := []string{"init", "--prefix", bdPrefix}
+				if a.config.Beads.Backend != "dolt" {
+					initArgs = append(initArgs, "--from-jsonl")
+				}
+				initCmd := exec.Command(bdPath, initArgs...)
+				initCmd.Dir = workDir
+				if out, err := initCmd.CombinedOutput(); err != nil {
+					outStr := strings.TrimSpace(string(out))
+					if !strings.Contains(outStr, "already initialized") {
+						fmt.Fprintf(os.Stderr, "Warning: bd init failed for %s: %v (%s)\n", p.ID, err, outStr)
+					}
+				} else {
+					fmt.Printf("Initialized beads database for project %s\n", p.ID)
+				}
+			}
+		}
+
+		// Update project in database with git metadata
+		if a.database != nil {
+			_ = a.database.UpsertProject(p)
+		}
+
+		// Setup git worktrees for project
+		// Main branch at /app/data/projects/{id}/main
+		// Beads branch at /app/data/projects/{id}/beads
+		wtManager := gitops.NewGitWorktreeManager("/app/data/projects")
+		beadsBranch := p.BeadsBranch
+		if beadsBranch == "" {
+			beadsBranch = a.config.Beads.BeadsBranch
+		}
+		if beadsBranch == "" {
+			beadsBranch = "beads-sync" // Default
+		}
+		if err := wtManager.SetupBeadsWorktree(p.ID, p.Branch, beadsBranch); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: Failed to setup beads worktree for %s: %v\n", p.ID, err)
+		} else {
+			log.Printf("[Loom] Setup beads worktree for project %s", p.ID)
+		}
+
+		// Load beads from the beads worktree
+		beadsWorktree := wtManager.GetWorktreePath(p.ID, "beads")
+		beadsPath := filepath.Join(beadsWorktree, p.BeadsPath)
+		a.beadsManager.SetBeadsPath(beadsPath)
+		// Configure git storage for this project
+		a.beadsManager.SetGitStorage(p.ID, wtManager, beadsBranch, a.config.Beads.UseGitStorage)
+		// Load project prefix from config
+		configPath := filepath.Join(beadsWorktree, p.BeadsPath)
+		_ = a.beadsManager.LoadProjectPrefixFromConfig(p.ID, configPath)
+		// Use project's BeadPrefix if set in the model
+		if p.BeadPrefix != "" {
+			a.beadsManager.SetProjectPrefix(p.ID, p.BeadPrefix)
+		}
+		_ = a.beadsManager.LoadBeadsFromGit(ctx, p.ID, beadsPath)
+
+		// Start git-based federation (replaces Dolt)
+		if a.config.Beads.Federation.Enabled && a.config.Beads.Federation.SyncMode == "git-native" {
+			syncInterval := a.config.Beads.Federation.SyncInterval
+			if syncInterval == 0 {
+				syncInterval = 30 * time.Second // Default to 30 seconds
+			}
+			coordinator := beads.NewGitCoordinator(p.ID, wtManager, syncInterval)
+			go coordinator.StartSyncLoop(ctx, a.beadsManager)
+			log.Printf("[Loom] Started GitCoordinator for project %s", p.ID)
 		}
 	}
 

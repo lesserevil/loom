@@ -77,11 +77,8 @@ COPY --from=builder /build/workflows /app/workflows
 # Copy web static files
 COPY --from=builder /build/web/static /app/web/static
 
-# Copy .beads directory (bead YAML files for loom-self project)
-COPY --from=builder /build/.beads /app/.beads
-
-# Copy .git directory (makes /app a valid git repo for loom-self project)
-COPY --from=builder /build/.git /app/.git
+# Projects (including loom-self) will be cloned at runtime, not copied at build time
+# No more COPY .beads or .git - git-centric architecture
 
 # Copy scripts (entrypoint + beads schema SQL)
 COPY --from=builder /build/scripts /app/scripts

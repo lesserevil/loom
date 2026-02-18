@@ -1,3 +1,6 @@
+// DEPRECATED: This file is deprecated in favor of git_coordinator.go
+// Git-based federation replaces Dolt for multi-instance coordination
+// Will be removed in next release
 package beads
 
 import (

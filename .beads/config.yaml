@@ -43,7 +43,7 @@ no-auto-import: true
 # This setting persists across clones (unlike database config which is gitignored).
 # Can also use BEADS_SYNC_BRANCH env var for local override.
 # If not set, bd sync will require you to run 'bd config set sync.branch <branch>'.
-# sync-branch: "beads-sync"
+sync-branch: "beads-sync"
 
 # Multi-repo configuration (experimental - bd-307)
 # Allows hydrating from multiple repositories and routing writes to the correct JSONL
@@ -55,7 +55,7 @@ no-auto-import: true
 
 # Federation sync mode
 sync:
-  mode: dolt-native
+  mode: git-native
 
 # Integration settings (access with 'bd config get/set')
 # These are stored in the database, not in this file:

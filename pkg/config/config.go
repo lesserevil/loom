@@ -73,21 +73,23 @@ type DatabaseConfig struct {
 
 // BeadsConfig configures beads integration
 type BeadsConfig struct {
-	BDPath         string                `yaml:"bd_path"` // Path to bd executable
+	BDPath         string                `yaml:"bd_path"`       // Path to bd executable
 	AutoSync       bool                  `yaml:"auto_sync"`
 	SyncInterval   time.Duration         `yaml:"sync_interval"`
 	CompactOldDays int                   `yaml:"compact_old_days"` // Days before compacting closed beads
 	Backend        string                `yaml:"backend"`          // "sqlite" or "dolt"
+	BeadsBranch    string                `yaml:"beads_branch"`     // Global default for beads branch
+	UseGitStorage  bool                  `yaml:"use_git_storage"`  // Enable git-centric storage (default: true)
 	Federation     BeadsFederationConfig `yaml:"federation"`
 }
 
-// BeadsFederationConfig configures peer-to-peer federation via Dolt remotes
+// BeadsFederationConfig configures peer-to-peer federation
 type BeadsFederationConfig struct {
 	Enabled      bool             `yaml:"enabled"`
 	AutoSync     bool             `yaml:"auto_sync"`     // Sync with peers on startup
 	SyncInterval time.Duration    `yaml:"sync_interval"` // Periodic sync interval (0 = disabled)
 	SyncStrategy string           `yaml:"sync_strategy"` // "ours", "theirs", or "" (manual)
-	SyncMode     string           `yaml:"sync_mode"`     // "dolt-native" or "belt-and-suspenders"
+	SyncMode     string           `yaml:"sync_mode"`     // "git-native" (replaces "dolt-native")
 	Peers        []FederationPeer `yaml:"peers"`
 }
 
@@ -177,9 +179,11 @@ type CacheConfig struct {
 type ProjectConfig struct {
 	ID              string            `yaml:"id"`
 	Name            string            `yaml:"name"`
-	GitRepo         string            `yaml:"git_repo"`
-	Branch          string            `yaml:"branch"`
-	BeadsPath       string            `yaml:"beads_path"`
+	GitRepo         string            `yaml:"git_repo"`         // No more "." - always a git URL
+	Branch          string            `yaml:"branch"`           // Main branch (default: "main")
+	BeadsPath       string            `yaml:"beads_path"`       // Path within beads worktree
+	BeadsBranch     string            `yaml:"beads_branch"`     // Branch for beads (default: "beads-sync")
+	UseWorktrees    bool              `yaml:"use_worktrees"`    // Enable git worktree isolation (default: true)
 	GitAuthMethod   string            `yaml:"git_auth_method" json:"git_auth_method,omitempty"`
 	GitStrategy     string            `yaml:"git_strategy" json:"git_strategy,omitempty"`
 	GitCredentialID string            `yaml:"git_credential_id" json:"git_credential_id,omitempty"`

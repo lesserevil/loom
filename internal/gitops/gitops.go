@@ -595,7 +595,9 @@ func (m *Manager) GetProjectWorkDir(projectID string) string {
 			return override
 		}
 	}
-	return filepath.Join(m.baseWorkDir, projectID)
+	// Git-centric architecture: clone to {projectID}/main subdirectory
+	// This allows beads worktree to live at {projectID}/beads
+	return filepath.Join(m.baseWorkDir, projectID, "main")
 }
 
 // LoadBeadsFromProject loads beads from a project's cloned repository

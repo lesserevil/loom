@@ -133,6 +133,7 @@ type Project struct {
 	GitRepo     string            `json:"git_repo"`
 	Branch      string            `json:"branch"`
 	BeadsPath   string            `json:"beads_path"`          // Path to .beads directory
+	BeadsBranch string            `json:"beads_branch"`        // Branch for beads storage (e.g., "beads-sync")
 	BeadPrefix  string            `json:"bead_prefix"`         // Prefix for bead IDs (e.g., "ac" for ac-001)
 	ParentID    string            `json:"parent_id,omitempty"` // For sub-projects
 	Context     map[string]string `json:"context"`             // Additional context for agents

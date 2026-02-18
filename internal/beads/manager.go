@@ -19,10 +19,11 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Manager integrates with the bd (beads) CLI tool
+// Manager integrates with the bd (beads) CLI tool and git-centric storage
 type Manager struct {
 	bdPath          string
 	beadsPath       string
+	backend         string            // "sqlite" or "dolt"
 	mu              sync.RWMutex
 	beads           map[string]*models.Bead
 	beadFiles       map[string]string
@@ -30,6 +31,12 @@ type Manager struct {
 	nextID          int               // For generating IDs when bd CLI is not available
 	projectPrefixes map[string]string // Project ID -> bead prefix (e.g., "loom-self" -> "ac")
 	projectNextIDs  map[string]int    // Per-project next ID counter
+
+	// Git-centric storage fields
+	projectID       string      // Project ID for this manager
+	worktreeManager interface{} // GitWorktreeManager interface (to avoid import cycle)
+	useGitStorage   bool        // Enable git commit/push for beads
+	beadsBranch     string      // Branch name for beads (e.g., "beads-sync")
 }
 
 // NewManager creates a new beads manager
@@ -37,6 +44,7 @@ func NewManager(bdPath string) *Manager {
 	return &Manager{
 		bdPath:    bdPath,
 		beadsPath: ".beads",
+		backend:   "sqlite", // Default to sqlite for simpler setup
 		beads:     make(map[string]*models.Bead),
 		beadFiles: make(map[string]string),
 		workGraph: &models.WorkGraph{
@@ -48,6 +56,22 @@ func NewManager(bdPath string) *Manager {
 		projectPrefixes: make(map[string]string),
 		projectNextIDs:  make(map[string]int),
 	}
+}
+
+// SetBackend sets the beads backend type ("sqlite" or "dolt")
+func (m *Manager) SetBackend(backend string) {
+	m.backend = backend
+}
+
+// buildBDCommand constructs a bd command with the correct --db flag for sqlite backend
+func (m *Manager) buildBDCommand(args ...string) *exec.Cmd {
+	// For sqlite backend, explicitly pass --db flag to avoid dolt auto-discovery
+	if m.backend == "sqlite" && m.beadsPath != "" {
+		dbPath := filepath.Join(m.beadsPath, "beads.db")
+		finalArgs := append([]string{"--db", dbPath}, args...)
+		return exec.Command(m.bdPath, finalArgs...)
+	}
+	return exec.Command(m.bdPath, args...)
 }
 
 // Reset clears cached beads and work graph state.
@@ -342,9 +366,9 @@ func (m *Manager) UpdateBead(id string, updates map[string]interface{}) error {
 		})
 	}
 
-	// Save to filesystem
-	if err := m.SaveBeadToFilesystem(bead, m.beadsPath); err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: failed to save bead to filesystem: %v\n", err)
+	// Save to filesystem and git
+	if err := m.SaveBeadToGit(context.Background(), bead, m.beadsPath); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to save bead to git: %v\n", err)
 	}
 
 	return nil
@@ -759,7 +783,7 @@ func (m *Manager) loadBeadsFromBD(projectID, beadsPath string) error {
 	dir := beadsRootDir(beadsPath)
 	failCount := 0
 	for _, status := range []string{"open", "in_progress", "blocked"} {
-		cmd := exec.Command(m.bdPath, "list", "--json", "--limit", "0", "--allow-stale", "--status="+status)
+		cmd := m.buildBDCommand("list", "--json", "--limit", "0", "--allow-stale", "--status="+status)
 		if dir != "" {
 			cmd.Dir = dir
 		}
@@ -877,6 +901,115 @@ func (m *Manager) SaveBeadToFilesystem(bead *models.Bead, beadsPath string) erro
 	}
 
 	return nil
+}
+
+// SetGitStorage configures git-centric storage for this manager
+func (m *Manager) SetGitStorage(projectID string, worktreeManager interface{}, beadsBranch string, useGitStorage bool) {
+	m.projectID = projectID
+	m.worktreeManager = worktreeManager
+	m.beadsBranch = beadsBranch
+	m.useGitStorage = useGitStorage
+}
+
+// LoadBeadsFromGit syncs beads branch from git and loads YAMLs
+func (m *Manager) LoadBeadsFromGit(ctx context.Context, projectID, beadsPath string) error {
+	if !m.useGitStorage || m.worktreeManager == nil {
+		// Fallback to filesystem-only loading
+		return m.LoadBeadsFromFilesystem(projectID, beadsPath)
+	}
+
+	// Pull latest beads from remote using worktree manager
+	// We use type assertion to call the sync method
+	type syncer interface {
+		SyncBeadsBranch(string) error
+	}
+	if wt, ok := m.worktreeManager.(syncer); ok {
+		if err := wt.SyncBeadsBranch(projectID); err != nil {
+			log.Printf("Warning: git pull failed for project %s, using local beads: %v", projectID, err)
+		}
+	}
+
+	// Load from filesystem (now synced with git)
+	return m.LoadBeadsFromFilesystem(projectID, beadsPath)
+}
+
+// SaveBeadToGit commits bead to git and pushes to remote
+func (m *Manager) SaveBeadToGit(ctx context.Context, bead *models.Bead, beadsPath string) error {
+	// First save to filesystem (YAML)
+	if err := m.SaveBeadToFilesystem(bead, beadsPath); err != nil {
+		return fmt.Errorf("failed to save bead YAML: %w", err)
+	}
+
+	if !m.useGitStorage || m.worktreeManager == nil {
+		return nil // No git operations if disabled
+	}
+
+	// Get beads worktree path
+	type pathGetter interface {
+		GetWorktreePath(string, string) string
+	}
+	var beadsWorktree string
+	if wt, ok := m.worktreeManager.(pathGetter); ok {
+		beadsWorktree = wt.GetWorktreePath(m.projectID, "beads")
+	} else {
+		return fmt.Errorf("worktree manager does not support GetWorktreePath")
+	}
+
+	// Build path relative to beads worktree
+	beadFile := filepath.Join(".beads", "beads", fmt.Sprintf("%s-%s.yaml", bead.ID, sanitizeFilename(bead.Title)))
+
+	// Stage the bead file
+	addCmd := exec.Command("git", "add", beadFile)
+	addCmd.Dir = beadsWorktree
+	if output, err := addCmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("git add failed: %s - %w", output, err)
+	}
+
+	// Commit with descriptive message
+	message := fmt.Sprintf("Update bead %s: %s\n\nStatus: %s\nAgent: %s\nPriority: %v",
+		bead.ID, bead.Title, bead.Status, bead.AssignedTo, bead.Priority)
+	commitCmd := exec.Command("git", "commit", "-m", message)
+	commitCmd.Dir = beadsWorktree
+	if output, err := commitCmd.CombinedOutput(); err != nil {
+		// Check if it's "nothing to commit" (not an error)
+		if !strings.Contains(string(output), "nothing to commit") {
+			return fmt.Errorf("git commit failed: %s - %w", output, err)
+		}
+		// Nothing to commit is OK, just return
+		return nil
+	}
+
+	// Push to remote with retry logic for conflicts
+	maxRetries := 3
+	for i := 0; i < maxRetries; i++ {
+		pushCmd := exec.Command("git", "push")
+		pushCmd.Dir = beadsWorktree
+		output, err := pushCmd.CombinedOutput()
+		if err == nil {
+			// Success!
+			return nil
+		}
+
+		// Check if it's a conflict (rejected, non-fast-forward)
+		if strings.Contains(string(output), "rejected") || strings.Contains(string(output), "non-fast-forward") {
+			log.Printf("Git push conflict detected (attempt %d/%d), rebasing...", i+1, maxRetries)
+
+			// Pull with rebase to resolve conflict
+			pullCmd := exec.Command("git", "pull", "--rebase")
+			pullCmd.Dir = beadsWorktree
+			if pullOutput, pullErr := pullCmd.CombinedOutput(); pullErr != nil {
+				return fmt.Errorf("git pull --rebase failed after push conflict: %s - %w", pullOutput, pullErr)
+			}
+
+			// Retry push
+			continue
+		}
+
+		// Non-conflict error
+		return fmt.Errorf("git push failed: %s - %w", output, err)
+	}
+
+	return fmt.Errorf("git push failed after %d retries due to conflicts", maxRetries)
 }
 
 // SyncFederation syncs with all enabled federation peers.
