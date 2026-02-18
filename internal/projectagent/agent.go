@@ -126,8 +126,14 @@ func (a *Agent) Start(ctx context.Context) error {
 	heartbeatTicker := time.NewTicker(a.config.HeartbeatInterval)
 	defer heartbeatTicker.Stop()
 
-	// Start result reporter
-	go a.resultReporter(ctx)
+	// Start HTTP result reporter only if NATS is not available
+	// When NATS is available, results are published via NATS in executeTaskWithNats()
+	if a.messageBus == nil {
+		log.Printf("NATS unavailable - using HTTP for result reporting")
+		go a.resultReporter(ctx)
+	} else {
+		log.Printf("NATS available - using message bus for result reporting")
+	}
 
 	for {
 		select {
@@ -267,8 +273,47 @@ func (a *Agent) executeTask(req *TaskRequest) {
 		log.Printf("Task %s completed successfully in %v", req.TaskID, result.Duration)
 	}
 
-	// Send result to control plane
-	a.taskResultCh <- result
+	// Send result - prefer NATS if available, fallback to HTTP
+	if a.messageBus != nil {
+		// Publish result to NATS
+		var resultMsg *messages.ResultMessage
+		if err != nil {
+			resultMsg = messages.TaskFailed(
+				req.ProjectID,
+				req.BeadID,
+				a.config.ProjectID,
+				messages.ResultData{
+					Status:   "failure",
+					Output:   output,
+					Error:    err.Error(),
+					Duration: result.Duration.Milliseconds(),
+				},
+				req.TaskID, // Use task ID as correlation ID
+			)
+		} else {
+			resultMsg = messages.TaskCompleted(
+				req.ProjectID,
+				req.BeadID,
+				a.config.ProjectID,
+				messages.ResultData{
+					Status:   "success",
+					Output:   output,
+					Duration: result.Duration.Milliseconds(),
+				},
+				req.TaskID,
+			)
+		}
+
+		if publishErr := a.messageBus.PublishResult(context.Background(), req.ProjectID, resultMsg); publishErr != nil {
+			log.Printf("Failed to publish result to NATS: %v, falling back to HTTP", publishErr)
+			a.taskResultCh <- result // Fallback to HTTP
+		} else {
+			log.Printf("Published result to NATS for task %s", req.TaskID)
+		}
+	} else {
+		// Send result via HTTP (NATS not available)
+		a.taskResultCh <- result
+	}
 }
 
 // executeBash executes a bash command in the work directory

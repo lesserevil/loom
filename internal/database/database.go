@@ -799,6 +799,26 @@ func (d *Database) CreateProvider(provider *internalmodels.Provider) error {
 	return nil
 }
 
+// rebindPlaceholders converts ? placeholders to $1, $2, ... for PostgreSQL
+func (d *Database) rebindPlaceholders(query string) string {
+	if d.dbType != "postgres" {
+		return query
+	}
+
+	// Convert ? to $1, $2, $3, ...
+	placeholder := 1
+	result := strings.Builder{}
+	for _, ch := range query {
+		if ch == '?' {
+			result.WriteString(fmt.Sprintf("$%d", placeholder))
+			placeholder++
+		} else {
+			result.WriteRune(ch)
+		}
+	}
+	return result.String()
+}
+
 // UpsertProvider inserts or updates a provider.
 func (d *Database) UpsertProvider(provider *internalmodels.Provider) error {
 	if provider == nil {
@@ -837,6 +857,8 @@ func (d *Database) UpsertProvider(provider *internalmodels.Provider) error {
 			avg_latency_ms = excluded.avg_latency_ms,
 			updated_at = excluded.updated_at
 	`
+
+	query = d.rebindPlaceholders(query)
 
 	_, err := d.db.Exec(query,
 		provider.ID,

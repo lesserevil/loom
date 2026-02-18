@@ -6,8 +6,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/jordanhubbard/loom/pkg/messages"
 )
 
 // Helper functions for converting map[string]interface{} to TaskRequest
@@ -29,11 +33,17 @@ func getMapFromMap(m map[string]interface{}, key string) map[string]interface{} 
 	return nil
 }
 
+// MessageBus defines the interface for publishing task messages to NATS
+type MessageBus interface {
+	PublishTask(ctx context.Context, projectID string, task *messages.TaskMessage) error
+}
+
 // ProjectAgentClient communicates with project agent containers
 type ProjectAgentClient struct {
 	baseURL    string
 	projectID  string
 	httpClient *http.Client
+	messageBus MessageBus // NATS message bus for async task publishing
 }
 
 // TaskRequest represents a task to send to project agent
@@ -73,6 +83,11 @@ func NewProjectAgentClient(baseURL, projectID string) *ProjectAgentClient {
 			Timeout: 60 * time.Second,
 		},
 	}
+}
+
+// SetMessageBus sets the NATS message bus for async task publishing
+func (c *ProjectAgentClient) SetMessageBus(mb MessageBus) {
+	c.messageBus = mb
 }
 
 // Health checks if the project agent is healthy
@@ -122,6 +137,7 @@ func (c *ProjectAgentClient) Status(ctx context.Context) (*AgentStatus, error) {
 }
 
 // ExecuteTask sends a task to the project agent for execution
+// Prefers NATS for async task publishing, falls back to HTTP if NATS unavailable
 func (c *ProjectAgentClient) ExecuteTask(ctx context.Context, req interface{}) error {
 	// Convert interface{} to TaskRequest if needed
 	var taskReq *TaskRequest
@@ -144,6 +160,43 @@ func (c *ProjectAgentClient) ExecuteTask(ctx context.Context, req interface{}) e
 	// Ensure project ID matches
 	taskReq.ProjectID = c.projectID
 
+	// Try NATS first if message bus is available
+	if c.messageBus != nil {
+		log.Printf("[ProjectAgentClient] Publishing task %s to NATS for project %s", taskReq.TaskID, taskReq.ProjectID)
+
+		// Convert TaskRequest to TaskMessage for NATS
+		taskMsg := messages.TaskAssigned(
+			taskReq.ProjectID,
+			taskReq.BeadID,
+			c.projectID, // Use project ID as agent ID for container agents
+			messages.TaskData{
+				Title:       fmt.Sprintf("Task %s", taskReq.TaskID),
+				Description: fmt.Sprintf("Execute %s action", taskReq.Action),
+				Type:        "task",
+				Priority:    1,
+				WorkDir:     getStringFromMap(taskReq.Params, "work_dir"),
+			},
+			uuid.New().String(), // Generate correlation ID
+		)
+
+		// Copy task parameters into TaskData metadata
+		if taskReq.Params != nil {
+			// Store original task request in task data for agent to access
+			taskMsg.TaskData.Type = taskReq.Action // Use action as task type
+		}
+
+		if err := c.messageBus.PublishTask(ctx, taskReq.ProjectID, taskMsg); err != nil {
+			log.Printf("[ProjectAgentClient] NATS publish failed: %v, falling back to HTTP", err)
+			// Fall through to HTTP fallback
+		} else {
+			log.Printf("[ProjectAgentClient] Task %s published successfully via NATS", taskReq.TaskID)
+			return nil
+		}
+	} else {
+		log.Printf("[ProjectAgentClient] No message bus available, using HTTP for task %s", taskReq.TaskID)
+	}
+
+	// HTTP fallback (original implementation)
 	body, err := json.Marshal(taskReq)
 	if err != nil {
 		return err
@@ -166,6 +219,7 @@ func (c *ProjectAgentClient) ExecuteTask(ctx context.Context, req interface{}) e
 		return fmt.Errorf("task submission failed: %d - %s", resp.StatusCode, respBody)
 	}
 
+	log.Printf("[ProjectAgentClient] Task %s submitted via HTTP fallback", taskReq.TaskID)
 	return nil
 }
 

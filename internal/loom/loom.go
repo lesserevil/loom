@@ -246,7 +246,9 @@ func New(cfg *config.Config) (*Loom, error) {
 	var logMgr *logging.Manager
 	if db != nil {
 		logMgr = logging.NewManager(db.DB())
-		logMgr.InstallLogInterceptor()
+		// FIXME: InstallLogInterceptor() is blocking loom.New() from returning
+		// Temporarily disabled to allow HTTP server to start
+		// logMgr.InstallLogInterceptor()
 	}
 
 	// Initialize motivation system
@@ -299,7 +301,7 @@ func New(cfg *config.Config) (*Loom, error) {
 	// Initialize container orchestrator for per-project containers
 	// Control plane URL for project agents to communicate back
 	// Use container name "loom" as hostname (Docker network DNS resolution)
-	controlPlaneURL := fmt.Sprintf("http://loom:8081")  // Port 8081 is the internal port
+	controlPlaneURL := fmt.Sprintf("http://loom:8081") // Port 8081 is the internal port
 	if host := os.Getenv("CONTROL_PLANE_HOST"); host != "" {
 		controlPlaneURL = fmt.Sprintf("http://%s:8081", host)
 	}
@@ -396,6 +398,10 @@ func New(cfg *config.Config) (*Loom, error) {
 	if messageBus != nil {
 		if mb, ok := messageBus.(*messagebus.NatsMessageBus); ok {
 			arb.dispatcher.SetMessageBus(mb)
+			// Also configure container orchestrator with message bus
+			if containerOrch != nil {
+				containerOrch.SetMessageBus(mb)
+			}
 		}
 	}
 

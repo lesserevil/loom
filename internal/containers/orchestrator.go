@@ -24,11 +24,12 @@ type AgentClient interface {
 
 // Orchestrator manages project container lifecycle
 type Orchestrator struct {
-	projectsRoot   string
-	composeFile    string
-	projectAgents  map[string]*ProjectAgentClient
-	mu             sync.RWMutex
+	projectsRoot    string
+	composeFile     string
+	projectAgents   map[string]*ProjectAgentClient
+	mu              sync.RWMutex
 	controlPlaneURL string
+	messageBus      MessageBus // NATS message bus for async task publishing
 }
 
 // NewOrchestrator creates a new container orchestrator
@@ -41,6 +42,14 @@ func NewOrchestrator(projectsRoot, controlPlaneURL string) (*Orchestrator, error
 		projectAgents:   make(map[string]*ProjectAgentClient),
 		controlPlaneURL: controlPlaneURL,
 	}, nil
+}
+
+// SetMessageBus sets the NATS message bus for async task publishing
+func (o *Orchestrator) SetMessageBus(mb MessageBus) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.messageBus = mb
+	log.Printf("[Orchestrator] Message bus configured for container orchestration")
 }
 
 // EnsureProjectContainer ensures a project container is running
@@ -78,6 +87,13 @@ func (o *Orchestrator) EnsureProjectContainer(ctx context.Context, project *mode
 	// Create agent client
 	agentURL := fmt.Sprintf("http://loom-project-%s:8090", project.ID)
 	agent := NewProjectAgentClient(agentURL, project.ID)
+
+	// Inject message bus if available
+	if o.messageBus != nil {
+		agent.SetMessageBus(o.messageBus)
+		log.Printf("[Containers] Project %s agent configured with NATS message bus", project.ID)
+	}
+
 	o.projectAgents[project.ID] = agent
 
 	log.Printf("[Containers] Project %s container started and healthy", project.ID)
