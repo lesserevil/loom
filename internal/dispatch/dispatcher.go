@@ -405,6 +405,18 @@ func (d *Dispatcher) DispatchOnce(ctx context.Context, projectID string) (*Dispa
 		}
 	}
 
+	// Build map of ALL agents (not just idle) to detect dead agent assignments
+	allAgents := d.agents.ListAgentsByProject(projectID)
+	if len(allAgents) == 0 {
+		allAgents = d.agents.ListAgents()
+	}
+	allAgentsByID := make(map[string]*models.Agent, len(allAgents))
+	for _, a := range allAgents {
+		if a != nil {
+			allAgentsByID[a.ID] = a
+		}
+	}
+
 	var candidate *models.Bead
 	var ag *models.Agent
 	skippedReasons := make(map[string]int)
@@ -575,14 +587,35 @@ func (d *Dispatcher) DispatchOnce(ctx context.Context, projectID string) (*Dispa
 
 		// If bead is assigned to an agent, only dispatch to that agent.
 		if b.AssignedTo != "" {
-			assigned, ok := idleByID[b.AssignedTo]
-			if !ok {
-				skippedReasons["assigned_agent_not_idle"]++
-				continue
+			// First check if the agent still exists (not a dead agent from before restart)
+			_, agentExists := allAgentsByID[b.AssignedTo]
+			if !agentExists {
+				// Agent no longer exists - clear assignment so bead can be reassigned
+				log.Printf("[Dispatcher] Bead %s assigned to dead agent %s, clearing assignment", b.ID, b.AssignedTo)
+				updates := map[string]interface{}{
+					"assigned_to": "",
+					"status":      models.BeadStatusOpen,
+				}
+				if err := d.beads.UpdateBead(b.ID, updates); err != nil {
+					log.Printf("[Dispatcher] Failed to clear dead agent assignment for bead %s: %v", b.ID, err)
+				} else {
+					// Bead is now unassigned, continue to normal dispatch logic below
+					b.AssignedTo = ""
+					skippedReasons["dead_agent_cleared"]++
+				}
+				// Don't continue - let this bead be considered for dispatch this cycle
+			} else {
+				// Agent exists - check if it's idle
+				assigned, ok := idleByID[b.AssignedTo]
+				if !ok {
+					// Agent exists but is busy
+					skippedReasons["assigned_agent_not_idle"]++
+					continue
+				}
+				ag = assigned
+				candidate = b
+				break
 			}
-			ag = assigned
-			candidate = b
-			break
 		}
 
 		// Check if bead has a workflow and needs specific role
