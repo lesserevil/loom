@@ -32,11 +32,15 @@ type Manager struct {
 	projectPrefixes map[string]string // Project ID -> bead prefix (e.g., "loom-self" -> "ac")
 	projectNextIDs  map[string]int    // Per-project next ID counter
 
-	// Git-centric storage fields
-	projectID       string      // Project ID for this manager
-	worktreeManager interface{} // GitWorktreeManager interface (to avoid import cycle)
-	useGitStorage   bool        // Enable git commit/push for beads
-	beadsBranch     string      // Branch name for beads (e.g., "beads-sync")
+	// Git-centric storage fields (per-project)
+	gitConfigs map[string]*GitConfig // Project ID -> git configuration
+}
+
+// GitConfig stores git storage configuration for a project
+type GitConfig struct {
+	WorktreeManager interface{} // GitWorktreeManager interface
+	BeadsBranch     string      // Branch name for beads (e.g., "beads-sync")
+	UseGitStorage   bool        // Enable git commit/push for beads
 }
 
 // NewManager creates a new beads manager
@@ -55,6 +59,19 @@ func NewManager(bdPath string) *Manager {
 		nextID:          1,
 		projectPrefixes: make(map[string]string),
 		projectNextIDs:  make(map[string]int),
+		gitConfigs:      make(map[string]*GitConfig),
+	}
+}
+
+// SetGitStorage configures git-centric bead storage for a project
+func (m *Manager) SetGitStorage(projectID string, worktreeManager interface{}, beadsBranch string, enabled bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.gitConfigs[projectID] = &GitConfig{
+		WorktreeManager: worktreeManager,
+		BeadsBranch:     beadsBranch,
+		UseGitStorage:   enabled,
 	}
 }
 
@@ -903,17 +920,14 @@ func (m *Manager) SaveBeadToFilesystem(bead *models.Bead, beadsPath string) erro
 	return nil
 }
 
-// SetGitStorage configures git-centric storage for this manager
-func (m *Manager) SetGitStorage(projectID string, worktreeManager interface{}, beadsBranch string, useGitStorage bool) {
-	m.projectID = projectID
-	m.worktreeManager = worktreeManager
-	m.beadsBranch = beadsBranch
-	m.useGitStorage = useGitStorage
-}
-
 // LoadBeadsFromGit syncs beads branch from git and loads YAMLs
 func (m *Manager) LoadBeadsFromGit(ctx context.Context, projectID, beadsPath string) error {
-	if !m.useGitStorage || m.worktreeManager == nil {
+	// Get git configuration for this project
+	m.mu.RLock()
+	gitConfig, ok := m.gitConfigs[projectID]
+	m.mu.RUnlock()
+
+	if !ok || gitConfig == nil || !gitConfig.UseGitStorage || gitConfig.WorktreeManager == nil {
 		// Fallback to filesystem-only loading
 		return m.LoadBeadsFromFilesystem(projectID, beadsPath)
 	}
@@ -923,7 +937,7 @@ func (m *Manager) LoadBeadsFromGit(ctx context.Context, projectID, beadsPath str
 	type syncer interface {
 		SyncBeadsBranch(string) error
 	}
-	if wt, ok := m.worktreeManager.(syncer); ok {
+	if wt, ok := gitConfig.WorktreeManager.(syncer); ok {
 		if err := wt.SyncBeadsBranch(projectID); err != nil {
 			log.Printf("Warning: git pull failed for project %s, using local beads: %v", projectID, err)
 		}
@@ -940,8 +954,13 @@ func (m *Manager) SaveBeadToGit(ctx context.Context, bead *models.Bead, beadsPat
 		return fmt.Errorf("failed to save bead YAML: %w", err)
 	}
 
-	if !m.useGitStorage || m.worktreeManager == nil {
-		return nil // No git operations if disabled
+	// Get git configuration for this bead's project
+	m.mu.RLock()
+	gitConfig, ok := m.gitConfigs[bead.ProjectID]
+	m.mu.RUnlock()
+
+	if !ok || gitConfig == nil || !gitConfig.UseGitStorage || gitConfig.WorktreeManager == nil {
+		return nil // No git operations if disabled or not configured for this project
 	}
 
 	// Get beads worktree path
@@ -949,8 +968,8 @@ func (m *Manager) SaveBeadToGit(ctx context.Context, bead *models.Bead, beadsPat
 		GetWorktreePath(string, string) string
 	}
 	var beadsWorktree string
-	if wt, ok := m.worktreeManager.(pathGetter); ok {
-		beadsWorktree = wt.GetWorktreePath(m.projectID, "beads")
+	if wt, ok := gitConfig.WorktreeManager.(pathGetter); ok {
+		beadsWorktree = wt.GetWorktreePath(bead.ProjectID, "beads")
 	} else {
 		return fmt.Errorf("worktree manager does not support GetWorktreePath")
 	}
