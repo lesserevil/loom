@@ -37,7 +37,7 @@ services:
       timeout: 5s
       retries: 5
     ports:
-      - "5432:5432"  # Expose for development/debugging
+      - "5433:5432"  # Expose for development/debugging (5433 to avoid conflicts)
 
   # Temporal server with auto-setup
   temporal:
@@ -117,6 +117,7 @@ services:
       dockerfile: Dockerfile
       args:
         GITHUB_TOKEN: ${GITHUB_TOKEN}
+        DOCKER_GID: ${DOCKER_GID}
     image: loom:latest
     container_name: loom
     restart: unless-stopped

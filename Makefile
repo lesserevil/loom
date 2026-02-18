@@ -8,6 +8,7 @@ VERSION?=dev
 LDFLAGS=-ldflags "-X main.version=$(VERSION)"
 GO_REQUIRED := $(shell awk '/^go /{print $$2}' go.mod)
 GO_TOOLCHAIN_VERSION ?= $(GO_REQUIRED).0
+export DOCKER_GID ?= $(shell stat -c '%g' /var/run/docker.sock 2>/dev/null || echo 999)
 
 all: build
 
@@ -78,28 +79,38 @@ prune:
 logs:
 	docker compose logs -f loom
 
-# Show status of all containers and loom health
+# Show status of all containers and loom health (exits non-zero if anything is unhealthy)
 status:
-	@docker compose ps -a --format '{{.Name}}\t{{.State}}\t{{.Status}}\t{{.Health}}' 2>/dev/null | \
-	while IFS='	' read -r name state status health; do \
+	@failed=0; \
+	output=$$(docker compose ps -a --format '{{.Name}}\t{{.State}}\t{{.Status}}\t{{.Health}}' 2>/dev/null); \
+	if [ -z "$$output" ]; then \
+		echo " ✗ No containers found. Run 'make start' to launch loom."; \
+		exit 1; \
+	fi; \
+	echo "$$output" | while IFS='	' read -r name state status health; do \
 		[ -z "$$name" ] && continue; \
 		label="$$status"; \
 		[ -n "$$health" ] && label="$$health"; \
 		if [ "$$state" = "running" ]; then sym="✔"; else sym="✗"; fi; \
 		printf " %s %-35s %s\n" "$$sym" "$$name" "$$label"; \
-	done || echo " ✗ No containers found. Run 'make start' to launch loom."
-	@echo ""
-	@health=$$(curl -s --connect-timeout 2 --max-time 5 http://localhost:8080/health 2>/dev/null); \
+	done; \
+	not_running=$$(echo "$$output" | grep -v 'loom-test' | grep -cv '	running	' || true); \
+	if [ "$$not_running" -gt 0 ]; then failed=1; fi; \
+	echo ""; \
+	health=$$(curl -s --connect-timeout 2 --max-time 5 http://localhost:8080/health 2>/dev/null); \
 	if [ -n "$$health" ]; then \
-		status=$$(echo "$$health" | python3 -c "import sys,json; print(json.load(sys.stdin).get('status','unknown'))" 2>/dev/null || echo "unknown"); \
-		if [ "$$status" = "healthy" ]; then \
+		api_status=$$(echo "$$health" | python3 -c "import sys,json; print(json.load(sys.stdin).get('status','unknown'))" 2>/dev/null || echo "unknown"); \
+		if [ "$$api_status" = "healthy" ]; then \
 			echo " ✔ Loom API                         healthy"; \
 		else \
-			echo " ✗ Loom API                         $$status"; \
+			echo " ✗ Loom API                         $$api_status"; \
+			failed=1; \
 		fi; \
 	else \
 		echo " ✗ Loom API                         not responding"; \
-	fi
+		failed=1; \
+	fi; \
+	exit $$failed
 
 # Run tests locally
 test:

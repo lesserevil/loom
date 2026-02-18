@@ -39,12 +39,14 @@ COPY . .
 
 # Build the main application with CGO enabled for sqlite3
 RUN CGO_ENABLED=1 GOOS=linux go build \
+    -buildvcs=false \
     -ldflags="-w -s" \
     -o loom \
     ./cmd/loom
 
 # Build the project agent for per-project containers
 RUN CGO_ENABLED=0 GOOS=linux go build \
+    -buildvcs=false \
     -ldflags="-w -s" \
     -o loom-project-agent \
     ./cmd/loom-project-agent
@@ -55,9 +57,14 @@ FROM alpine:latest
 # Install runtime dependencies including git, openssh, wget, Docker CLI, and C++ libs for bd with CGO
 RUN apk add --no-cache ca-certificates tzdata git openssh-client wget libstdc++ libgcc icu-libs docker-cli docker-compose
 
-# Create non-root user and docker group for Docker socket access
-# Use GID 988 to match host docker socket (may need adjustment on different systems)
-RUN addgroup -g 988 docker && \
+ARG DOCKER_GID=999
+
+# Create non-root user and docker group matching host Docker socket GID
+RUN if getent group ${DOCKER_GID} >/dev/null; then \
+      existing=$(getent group ${DOCKER_GID} | cut -d: -f1); \
+      delgroup "$existing"; \
+    fi && \
+    addgroup -g ${DOCKER_GID} docker && \
     addgroup -g 1000 loom && \
     adduser -D -u 1000 -G loom loom && \
     adduser loom docker
