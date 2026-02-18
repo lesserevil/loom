@@ -48,8 +48,19 @@ func (p *Pool) SpawnWorker(agent *models.Agent, providerID string) (*Worker, err
 	}
 
 	// Check if worker already exists for this agent
-	if _, exists := p.workers[agent.ID]; exists {
-		return nil, fmt.Errorf("worker already exists for agent %s", agent.ID)
+	if existingWorker, exists := p.workers[agent.ID]; exists {
+		// Worker exists - verify it's using the correct provider
+		workerInfo := existingWorker.GetInfo()
+		if workerInfo.ProviderID == providerID {
+			// Worker exists with correct provider - return it (idempotent)
+			log.Printf("Worker already exists for agent %s with provider %s (idempotent)", agent.ID, providerID)
+			return existingWorker, nil
+		}
+
+		// Provider changed - stop old worker and create new one
+		log.Printf("Provider changed for agent %s from %s to %s, respawning worker", agent.ID, workerInfo.ProviderID, providerID)
+		existingWorker.Stop()
+		delete(p.workers, agent.ID)
 	}
 
 	// Get provider from registry
