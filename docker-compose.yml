@@ -71,10 +71,11 @@ services:
     container_name: nats
     restart: unless-stopped
     command:
-      - "--jetstream"
-      - "--store_dir=/data"
-      - "--max_memory_store=1G"
-      - "--max_file_store=10G"
+      - "-js"
+      - "-sd"
+      - "/data"
+      - "-m"
+      - "8222"
     ports:
       - "4222:4222"  # Client connections
       - "8222:8222"  # HTTP management/monitoring
