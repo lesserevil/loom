@@ -1,0 +1,173 @@
+syntax = "proto3";
+
+package connectors;
+
+option go_package = "github.com/jordanhubbard/loom/api/proto/connectors";
+
+// ConnectorsService manages external service integrations
+service ConnectorsService {
+  // ListConnectors returns all registered connectors
+  rpc ListConnectors(ListConnectorsRequest) returns (ListConnectorsResponse);
+
+  // GetConnector retrieves a specific connector by ID
+  rpc GetConnector(GetConnectorRequest) returns (GetConnectorResponse);
+
+  // HealthCheck checks the health of a specific connector
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+
+  // HealthCheckAll checks health of all connectors
+  rpc HealthCheckAll(HealthCheckAllRequest) returns (HealthCheckAllResponse);
+
+  // RegisterConnector adds a new connector (admin operation)
+  rpc RegisterConnector(RegisterConnectorRequest) returns (RegisterConnectorResponse);
+
+  // RemoveConnector removes a connector (admin operation)
+  rpc RemoveConnector(RemoveConnectorRequest) returns (RemoveConnectorResponse);
+}
+
+// ConnectorType represents the type of connector
+enum ConnectorType {
+  CONNECTOR_TYPE_UNSPECIFIED = 0;
+  CONNECTOR_TYPE_OBSERVABILITY = 1; // Prometheus, Grafana, Jaeger
+  CONNECTOR_TYPE_AGENT = 2;         // OpenClaw
+  CONNECTOR_TYPE_STORAGE = 3;       // S3, MinIO, etc.
+  CONNECTOR_TYPE_MESSAGING = 4;     // Slack, Discord, etc.
+  CONNECTOR_TYPE_DATABASE = 5;      // External databases
+  CONNECTOR_TYPE_CUSTOM = 6;        // User-defined
+}
+
+// ConnectionMode indicates whether the connector is local or remote
+enum ConnectionMode {
+  CONNECTION_MODE_UNSPECIFIED = 0;
+  CONNECTION_MODE_LOCAL = 1;  // localhost or docker network
+  CONNECTION_MODE_REMOTE = 2; // External network
+}
+
+// ConnectorStatus represents the health status
+enum ConnectorStatus {
+  CONNECTOR_STATUS_UNSPECIFIED = 0;
+  CONNECTOR_STATUS_HEALTHY = 1;
+  CONNECTOR_STATUS_UNHEALTHY = 2;
+  CONNECTOR_STATUS_UNAVAILABLE = 3;
+  CONNECTOR_STATUS_UNKNOWN = 4;
+}
+
+// ConnectorInfo contains basic information about a connector
+message ConnectorInfo {
+  string id = 1;
+  string name = 2;
+  ConnectorType type = 3;
+  string description = 4;
+  string endpoint = 5;
+  bool enabled = 6;
+  ConnectorStatus status = 7;
+  ConnectionMode mode = 8;
+  map<string, string> metadata = 9;
+  repeated string tags = 10;
+}
+
+// ConnectorConfig contains full configuration for a connector
+message ConnectorConfig {
+  string id = 1;
+  string name = 2;
+  ConnectorType type = 3;
+  ConnectionMode mode = 4;
+  bool enabled = 5;
+  string description = 6;
+
+  // Connection details
+  string host = 7;
+  int32 port = 8;
+  string scheme = 9;
+  string base_path = 10;
+
+  // Authentication
+  AuthConfig auth = 11;
+
+  // Additional metadata
+  map<string, string> metadata = 12;
+  repeated string tags = 13;
+
+  // Health check configuration
+  HealthCheckConfig health_check = 14;
+}
+
+// AuthConfig holds authentication configuration
+message AuthConfig {
+  string type = 1; // none, basic, bearer, api_key, oauth2
+  string username = 2;
+  string password = 3;
+  string token = 4;
+  string api_key = 5;
+  map<string, string> headers = 6;
+}
+
+// HealthCheckConfig configures health check behavior
+message HealthCheckConfig {
+  bool enabled = 1;
+  int64 interval_ms = 2; // Interval in milliseconds
+  int64 timeout_ms = 3;  // Timeout in milliseconds
+  string path = 4;       // Health check endpoint path
+}
+
+// Request/Response messages
+
+message ListConnectorsRequest {
+  // Optional filter by type
+  optional ConnectorType type = 1;
+
+  // Optional filter by enabled status
+  optional bool enabled_only = 2;
+}
+
+message ListConnectorsResponse {
+  repeated ConnectorInfo connectors = 1;
+}
+
+message GetConnectorRequest {
+  string id = 1;
+}
+
+message GetConnectorResponse {
+  ConnectorInfo connector = 1;
+  ConnectorConfig config = 2;
+}
+
+message HealthCheckRequest {
+  string id = 1;
+}
+
+message HealthCheckResponse {
+  string id = 1;
+  ConnectorStatus status = 2;
+  string message = 3;
+  int64 response_time_ms = 4;
+}
+
+message HealthCheckAllRequest {
+  // Optional filter by type
+  optional ConnectorType type = 1;
+}
+
+message HealthCheckAllResponse {
+  map<string, ConnectorStatus> statuses = 1;
+}
+
+message RegisterConnectorRequest {
+  ConnectorConfig config = 1;
+}
+
+message RegisterConnectorResponse {
+  bool success = 1;
+  string message = 2;
+  string connector_id = 3;
+}
+
+message RemoveConnectorRequest {
+  string id = 1;
+}
+
+message RemoveConnectorResponse {
+  bool success = 1;
+  string message = 2;
+}

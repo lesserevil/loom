@@ -252,6 +252,35 @@ services:
     networks:
       - loom-network
 
+  # Loki for log aggregation
+  loki:
+    image: grafana/loki:latest
+    container_name: loki
+    restart: unless-stopped
+    command: -config.file=/etc/loki/local-config.yaml
+    ports:
+      - "3100:3100"  # Loki API
+    networks:
+      - loom-network
+    volumes:
+      - ./config/loki:/etc/loki
+      - loki-data:/loki
+
+  # Promtail for log forwarding
+  promtail:
+    image: grafana/promtail:latest
+    container_name: promtail
+    restart: unless-stopped
+    command: -config.file=/etc/promtail/config.yml
+    volumes:
+      - ./config/promtail:/etc/promtail
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - loom-network
+    depends_on:
+      - loki
+
 networks:
   loom-network:
     driver: bridge
@@ -263,3 +292,4 @@ volumes:
   nats-data:
   prometheus-data:
   grafana-data:
+  loki-data:
