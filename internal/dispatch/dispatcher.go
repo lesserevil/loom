@@ -620,7 +620,19 @@ func (d *Dispatcher) DispatchOnce(ctx context.Context, projectID string) (*Dispa
 
 		// Check if bead has a workflow and needs specific role
 		var workflowRoleRequired string
-		if d.workflowEngine != nil {
+		// TEMPORARY FIX: Only enforce workflows for beads that explicitly opt-in via tags
+		// This prevents auto-created workflows from blocking dispatch due to timeouts
+		enforceWorkflow := false
+		if b.Tags != nil {
+			for _, tag := range b.Tags {
+				if tag == "workflow-required" || tag == "strict-workflow" {
+					enforceWorkflow = true
+					break
+				}
+			}
+		}
+
+		if d.workflowEngine != nil && enforceWorkflow {
 			execution, err := d.ensureBeadHasWorkflow(ctx, b)
 			if err != nil {
 				log.Printf("[Workflow] Error ensuring workflow for bead %s: %v", b.ID, err)
