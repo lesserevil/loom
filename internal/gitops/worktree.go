@@ -45,16 +45,33 @@ func (m *GitWorktreeManager) SetupBeadsWorktree(projectID, mainBranch, beadsBran
 	}
 
 	// Check if worktree already exists
+	worktreeExists := false
 	if _, err := os.Stat(beadsWorktree); !os.IsNotExist(err) {
 		// Worktree exists, verify it's tracking the right branch
-		return nil
+		worktreeExists = true
 	}
 
-	// Create worktree for beads branch
-	worktreeCmd := exec.Command("git", "worktree", "add", beadsWorktree, beadsBranch)
-	worktreeCmd.Dir = mainWorktree
-	if output, err := worktreeCmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("git worktree add failed: %s - %w", output, err)
+	if !worktreeExists {
+		// Create worktree for beads branch
+		worktreeCmd := exec.Command("git", "worktree", "add", beadsWorktree, beadsBranch)
+		worktreeCmd.Dir = mainWorktree
+		if output, err := worktreeCmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("git worktree add failed: %s - %w", output, err)
+		}
+	}
+
+	// Ensure upstream tracking is configured (do this every time to handle restarts)
+	// This allows git push to work without -u flag
+	configRemoteCmd := exec.Command("git", "config", "branch."+beadsBranch+".remote", "origin")
+	configRemoteCmd.Dir = beadsWorktree
+	if err := configRemoteCmd.Run(); err != nil {
+		log.Printf("Warning: failed to set remote config for %s: %v", beadsBranch, err)
+	}
+
+	configMergeCmd := exec.Command("git", "config", "branch."+beadsBranch+".merge", "refs/heads/"+beadsBranch)
+	configMergeCmd.Dir = beadsWorktree
+	if err := configMergeCmd.Run(); err != nil {
+		log.Printf("Warning: failed to set merge config for %s: %v", beadsBranch, err)
 	}
 
 	return nil
@@ -157,11 +174,23 @@ func (m *GitWorktreeManager) CleanupWorktree(projectID, worktree string) error {
 func (m *GitWorktreeManager) SyncBeadsBranch(projectID string) error {
 	beadsWorktree := m.GetWorktreePath(projectID, "beads")
 
-	pullCmd := exec.Command("git", "pull", "--rebase")
-	pullCmd.Dir = beadsWorktree
-	output, err := pullCmd.CombinedOutput()
+	// Use fetch + merge instead of pull --rebase to avoid rebase conflicts
+	// Fetch updates from remote
+	fetchCmd := exec.Command("git", "fetch", "origin")
+	fetchCmd.Dir = beadsWorktree
+	if output, err := fetchCmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("git fetch failed: %s - %w", output, err)
+	}
+
+	// Merge with prefer-ours strategy for automatic conflict resolution
+	// This ensures local changes take precedence during conflicts
+	mergeCmd := exec.Command("git", "merge", "origin/beads-sync", "-X", "ours", "--no-edit")
+	mergeCmd.Dir = beadsWorktree
+	output, err := mergeCmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("git pull failed: %s - %w", output, err)
+		log.Printf("Warning: git merge failed, will retry next sync: %s", output)
+		// Don't return error - allow system to continue with local state
+		return nil
 	}
 
 	return nil
