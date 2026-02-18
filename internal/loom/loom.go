@@ -63,43 +63,43 @@ type projectReadinessState struct {
 
 // Loom is the main orchestrator
 type Loom struct {
-	config              *config.Config
-	agentManager        *agent.WorkerManager
-	actionRouter        *actions.Router
-	projectManager      *project.Manager
-	personaManager      *persona.Manager
-	beadsManager        *beads.Manager
-	decisionManager     *decision.Manager
-	fileLockManager     *FileLockManager
-	orgChartManager     *orgchart.Manager
-	providerRegistry    *provider.Registry
-	database            *database.Database
-	dispatcher          *dispatch.Dispatcher
-	eventBus            *eventbus.EventBus
-	temporalManager     *temporal.Manager
-	modelCatalog        *modelcatalog.Catalog
-	gitopsManager       *gitops.Manager
-	shellExecutor       *executor.ShellExecutor
-	logManager          *logging.Manager
-	activityManager     *activity.Manager
-	notificationManager *notifications.Manager
-	commentsManager     *comments.Manager
-	motivationRegistry  *motivation.Registry
-	motivationEngine    *motivation.Engine
-	idleDetector        *motivation.IdleDetector
-	workflowEngine      *workflow.Engine
-	patternManager      *patterns.Manager
-	metrics             *metrics.Metrics
-	keyManager          *keymanager.KeyManager
-	doltCoordinator     *beads.DoltCoordinator
-	openclawClient      *openclaw.Client
-	openclawBridge      *openclaw.Bridge
+	config                *config.Config
+	agentManager          *agent.WorkerManager
+	actionRouter          *actions.Router
+	projectManager        *project.Manager
+	personaManager        *persona.Manager
+	beadsManager          *beads.Manager
+	decisionManager       *decision.Manager
+	fileLockManager       *FileLockManager
+	orgChartManager       *orgchart.Manager
+	providerRegistry      *provider.Registry
+	database              *database.Database
+	dispatcher            *dispatch.Dispatcher
+	eventBus              *eventbus.EventBus
+	temporalManager       *temporal.Manager
+	modelCatalog          *modelcatalog.Catalog
+	gitopsManager         *gitops.Manager
+	shellExecutor         *executor.ShellExecutor
+	logManager            *logging.Manager
+	activityManager       *activity.Manager
+	notificationManager   *notifications.Manager
+	commentsManager       *comments.Manager
+	motivationRegistry    *motivation.Registry
+	motivationEngine      *motivation.Engine
+	idleDetector          *motivation.IdleDetector
+	workflowEngine        *workflow.Engine
+	patternManager        *patterns.Manager
+	metrics               *metrics.Metrics
+	keyManager            *keymanager.KeyManager
+	doltCoordinator       *beads.DoltCoordinator
+	openclawClient        *openclaw.Client
+	openclawBridge        *openclaw.Bridge
 	containerOrchestrator *containers.Orchestrator
-	connectorManager    *connectors.Manager
-	messageBus          interface{} // messagebus.NatsMessageBus interface (to avoid import cycle)
-	readinessMu         sync.Mutex
-	readinessCache      map[string]projectReadinessState
-	readinessFailures   map[string]time.Time
+	connectorManager      *connectors.Manager
+	messageBus            interface{} // messagebus.NatsMessageBus interface (to avoid import cycle)
+	readinessMu           sync.Mutex
+	readinessCache        map[string]projectReadinessState
+	readinessFailures     map[string]time.Time
 }
 
 // New creates a new Loom instance
@@ -299,7 +299,7 @@ func New(cfg *config.Config) (*Loom, error) {
 	// Initialize container orchestrator for per-project containers
 	// Control plane URL for project agents to communicate back
 	// Use container name "loom" as hostname (Docker network DNS resolution)
-	controlPlaneURL := fmt.Sprintf("http://loom:8081")  // Port 8081 is the internal port
+	controlPlaneURL := fmt.Sprintf("http://loom:8081") // Port 8081 is the internal port
 	if host := os.Getenv("CONTROL_PLANE_HOST"); host != "" {
 		controlPlaneURL = fmt.Sprintf("http://%s:8081", host)
 	}
@@ -321,30 +321,30 @@ func New(cfg *config.Config) (*Loom, error) {
 	beadsMgr.SetBackend(cfg.Beads.Backend)
 
 	arb := &Loom{
-		config:              cfg,
-		agentManager:        agentMgr,
-		projectManager:      project.NewManager(),
-		personaManager:      persona.NewManager(personaPath),
-		beadsManager:        beadsMgr,
-		decisionManager:     decision.NewManager(),
-		fileLockManager:     NewFileLockManager(cfg.Agents.FileLockTimeout),
-		orgChartManager:     orgchart.NewManager(),
-		providerRegistry:    providerRegistry,
-		database:            db,
-		eventBus:            eb,
-		temporalManager:     temporalMgr,
-		modelCatalog:        modelCatalog,
-		gitopsManager:       gitopsMgr,
-		shellExecutor:       shellExec,
-		logManager:          logMgr,
-		activityManager:     activityMgr,
-		notificationManager: notificationMgr,
-		commentsManager:     commentsMgr,
-		motivationRegistry:  motivationRegistry,
-		idleDetector:        idleDetector,
-		workflowEngine:      workflowEngine,
-		patternManager:      patternMgr,
-		metrics:             metrics.NewMetrics(),
+		config:                cfg,
+		agentManager:          agentMgr,
+		projectManager:        project.NewManager(),
+		personaManager:        persona.NewManager(personaPath),
+		beadsManager:          beadsMgr,
+		decisionManager:       decision.NewManager(),
+		fileLockManager:       NewFileLockManager(cfg.Agents.FileLockTimeout),
+		orgChartManager:       orgchart.NewManager(),
+		providerRegistry:      providerRegistry,
+		database:              db,
+		eventBus:              eb,
+		temporalManager:       temporalMgr,
+		modelCatalog:          modelCatalog,
+		gitopsManager:         gitopsMgr,
+		shellExecutor:         shellExec,
+		logManager:            logMgr,
+		activityManager:       activityMgr,
+		notificationManager:   notificationMgr,
+		commentsManager:       commentsMgr,
+		motivationRegistry:    motivationRegistry,
+		idleDetector:          idleDetector,
+		workflowEngine:        workflowEngine,
+		patternManager:        patternMgr,
+		metrics:               metrics.NewMetrics(),
 		doltCoordinator:       doltCoord,
 		openclawClient:        ocClient,
 		openclawBridge:        ocBridge,

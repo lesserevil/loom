@@ -1,13 +1,20 @@
 package database
 
-// Migration to add dynamic scoring columns to providers table
 func (d *Database) migrateProviderScoring() error {
-	// Skip migrations for PostgreSQL (schema is complete in initSchemaPostgres)
 	if d.dbType == "postgres" {
+		stmts := []string{
+			"ALTER TABLE providers ADD COLUMN IF NOT EXISTS model_params_b REAL",
+			"ALTER TABLE providers ADD COLUMN IF NOT EXISTS capability_score REAL",
+			"ALTER TABLE providers ADD COLUMN IF NOT EXISTS avg_latency_ms REAL",
+		}
+		for _, stmt := range stmts {
+			if _, err := d.db.Exec(stmt); err != nil {
+				return err
+			}
+		}
 		return nil
 	}
 
-	// Check if columns already exist
 	var hasModelParams, hasCapabilityScore, hasAvgLatency bool
 
 	rows, err := d.db.Query("PRAGMA table_info(providers)")
@@ -36,7 +43,6 @@ func (d *Database) migrateProviderScoring() error {
 		}
 	}
 
-	// Add columns if they don't exist
 	if !hasModelParams {
 		if _, err := d.db.Exec("ALTER TABLE providers ADD COLUMN model_params_b REAL"); err != nil {
 			return err

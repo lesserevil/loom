@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -68,7 +69,7 @@ func (m *Manager) initSchema() error {
 	_, err := m.db.Exec(`
 		CREATE TABLE IF NOT EXISTS logs (
 			id TEXT PRIMARY KEY,
-			timestamp DATETIME NOT NULL,
+			timestamp TIMESTAMP NOT NULL,
 			level TEXT NOT NULL,
 			source TEXT NOT NULL,
 			message TEXT NOT NULL,
@@ -76,11 +77,7 @@ func (m *Manager) initSchema() error {
 			agent_id TEXT,
 			bead_id TEXT,
 			project_id TEXT,
-			provider_id TEXT,
-			FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE SET NULL,
-			FOREIGN KEY (bead_id) REFERENCES beads(id) ON DELETE SET NULL,
-			FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL,
-			FOREIGN KEY (provider_id) REFERENCES providers(id) ON DELETE SET NULL
+			provider_id TEXT
 		)
 	`)
 	if err != nil {
@@ -164,11 +161,12 @@ func (m *Manager) persistLog(entry LogEntry) {
 
 	_, err := m.db.Exec(`
 		INSERT INTO logs (id, timestamp, level, source, message, metadata_json, agent_id, bead_id, project_id, provider_id)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		ON CONFLICT (id) DO NOTHING
 	`, entry.ID, entry.Timestamp, entry.Level, entry.Source, entry.Message, metadataJSON, agentID, beadID, projectID, providerID)
 
 	if err != nil {
-		log.Printf("Failed to persist log entry: %v", err)
+		fmt.Fprintf(os.Stderr, "Failed to persist log entry: %v\n", err)
 	}
 }
 
@@ -353,7 +351,10 @@ type logInterceptWriter struct {
 
 // Write implements io.Writer. It parses "[Component] message" format from
 // standard log.Printf calls and routes them into the structured log system.
+// It also tees output to stderr so log.Fatalf messages are not silently lost.
 func (w *logInterceptWriter) Write(p []byte) (n int, err error) {
+	// Always tee to stderr so fatal/error messages are visible in container logs.
+	os.Stderr.Write(p)
 	msg := strings.TrimSpace(string(p))
 	// Strip the default log prefix (date/time) if present
 	// Standard log format: "2006/01/02 15:04:05 message"

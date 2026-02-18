@@ -43,6 +43,11 @@ func NewPostgres(dsn string) (*Database, error) {
 		return nil, fmt.Errorf("failed to migrate provider routing: %w", err)
 	}
 
+	if err := d.migrateProviderScoring(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to migrate provider scoring: %w", err)
+	}
+
 	return d, nil
 }
 
@@ -107,6 +112,9 @@ func (d *Database) initSchemaPostgres() error {
 		supports_function BOOLEAN DEFAULT false,
 		supports_vision BOOLEAN DEFAULT false,
 		supports_streaming BOOLEAN DEFAULT false,
+		model_params_b REAL,
+		capability_score REAL,
+		avg_latency_ms REAL,
 		tags TEXT[]
 	);
 
