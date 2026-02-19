@@ -109,10 +109,29 @@ func New(config Config) (*Agent, error) {
 
 // Start begins the agent's background tasks (heartbeat, result reporter, NATS subscription)
 func (a *Agent) Start(ctx context.Context) error {
-	// Send initial registration
-	if err := a.register(ctx); err != nil {
-		log.Printf("Warning: Failed to register with control plane: %v", err)
-	}
+	// Register with control plane, retrying until successful or context cancelled.
+	// The control plane (loom) may still be initializing when the container starts,
+	// so we retry with backoff rather than giving up on the first attempt.
+	go func() {
+		backoff := 2 * time.Second
+		const maxBackoff = 30 * time.Second
+		for {
+			if err := a.register(ctx); err == nil {
+				return
+			} else {
+				log.Printf("Warning: Failed to register with control plane: %v (retrying in %s)", err, backoff)
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(backoff):
+				backoff *= 2
+				if backoff > maxBackoff {
+					backoff = maxBackoff
+				}
+			}
+		}
+	}()
 
 	// Subscribe to NATS tasks if message bus is available
 	if a.messageBus != nil {

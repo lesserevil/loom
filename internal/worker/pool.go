@@ -42,11 +42,6 @@ func (p *Pool) SpawnWorker(agent *models.Agent, providerID string) (*Worker, err
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	// Check if max workers reached
-	if len(p.workers) >= p.maxWorkers {
-		return nil, fmt.Errorf("maximum number of workers (%d) reached", p.maxWorkers)
-	}
-
 	// Check if worker already exists for this agent
 	if existingWorker, exists := p.workers[agent.ID]; exists {
 		// Worker exists - verify it's using the correct provider
