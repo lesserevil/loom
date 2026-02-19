@@ -152,7 +152,11 @@ func (s *Server) handleProvider(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := s.app.DeleteProvider(context.Background(), providerID); err != nil {
-			s.respondError(w, http.StatusInternalServerError, err.Error())
+			if strings.Contains(err.Error(), "not found") {
+				s.respondError(w, http.StatusNotFound, err.Error())
+			} else {
+				s.respondError(w, http.StatusInternalServerError, err.Error())
+			}
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
