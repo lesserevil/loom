@@ -388,7 +388,11 @@ func (s *Server) handleProject(w http.ResponseWriter, r *http.Request) {
 
 	case http.MethodDelete:
 		if err := s.app.DeleteProject(id); err != nil {
-			s.respondError(w, http.StatusInternalServerError, err.Error())
+			if strings.Contains(err.Error(), "not found") {
+				s.respondError(w, http.StatusNotFound, err.Error())
+			} else {
+				s.respondError(w, http.StatusInternalServerError, err.Error())
+			}
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
