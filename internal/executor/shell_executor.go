@@ -299,7 +299,7 @@ func (e *ShellExecutor) ExecuteCommand(ctx context.Context, req ExecuteCommandRe
 	return result, nil
 }
 
-// executeInContainer routes command execution to a project container
+// executeInContainer routes command execution to a project container synchronously.
 func (e *ShellExecutor) executeInContainer(ctx context.Context, req ExecuteCommandRequest) (*ExecuteCommandResult, error) {
 	// Get container agent client for this project
 	agentInterface, err := e.containerOrch.GetAgent(req.ProjectID)
@@ -320,68 +320,49 @@ func (e *ShellExecutor) executeInContainer(ctx context.Context, req ExecuteComma
 		workingDir = "/workspace" // Container workspace
 	}
 
-	// Prepare task request for container
 	taskID := fmt.Sprintf("cmd-%s", uuid.New().String()[:8])
-	taskReq := map[string]interface{}{
-		"task_id":    taskID,
-		"bead_id":    req.BeadID,
-		"action":     "bash",
-		"project_id": req.ProjectID,
-		"params": map[string]interface{}{
-			"command":     req.Command,
-			"working_dir": workingDir,
-			"timeout":     timeout,
-		},
-	}
-
 	startTime := time.Now()
-	log.Printf("[ShellExecutor] Sending command to container for project %s: %s", req.ProjectID, req.Command)
+	log.Printf("[ShellExecutor] Executing command in container for project %s: %s", req.ProjectID, req.Command)
 
-	// Execute in container
-	err = agentInterface.ExecuteTask(ctx, taskReq)
+	// Use ExecSync for synchronous execution with full output capture
+	execResult, execErr := agentInterface.ExecSync(ctx, req.Command, workingDir, timeout)
 	endTime := time.Now()
 	duration := endTime.Sub(startTime).Milliseconds()
 
-	if err != nil {
-		// Container execution failed
+	if execErr != nil {
 		result := &ExecuteCommandResult{
 			ID:          taskID,
 			Command:     req.Command,
 			ExitCode:    -1,
 			Stdout:      "",
-			Stderr:      err.Error(),
+			Stderr:      execErr.Error(),
 			Duration:    duration,
 			StartedAt:   startTime,
 			CompletedAt: endTime,
 			Success:     false,
-			Error:       err.Error(),
+			Error:       execErr.Error(),
 		}
-
-		// Still log to database for audit trail
 		e.logCommandToDB(req, result)
-
-		return result, fmt.Errorf("container execution failed: %w", err)
+		return result, fmt.Errorf("container execution failed: %w", execErr)
 	}
 
-	// Success - container command executed
-	// NOTE: For now we don't get detailed output back from container in async mode
-	// TODO: Implement result polling or webhook for full output
 	result := &ExecuteCommandResult{
 		ID:          taskID,
 		Command:     req.Command,
-		ExitCode:    0,
-		Stdout:      "(executed in container - see container logs for output)",
-		Stderr:      "",
+		ExitCode:    execResult.ExitCode,
+		Stdout:      execResult.Stdout,
+		Stderr:      execResult.Stderr,
 		Duration:    duration,
 		StartedAt:   startTime,
 		CompletedAt: endTime,
-		Success:     true,
+		Success:     execResult.ExitCode == 0,
+	}
+	if execResult.ExitCode != 0 {
+		result.Error = fmt.Sprintf("exit code %d", execResult.ExitCode)
 	}
 
-	// Log to database
 	e.logCommandToDB(req, result)
-
-	log.Printf("[ShellExecutor] Container command completed: duration=%dms", duration)
+	log.Printf("[ShellExecutor] Container command exit=%d duration=%dms", execResult.ExitCode, duration)
 	return result, nil
 }
 

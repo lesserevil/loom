@@ -1341,6 +1341,11 @@ func (a *Loom) GetOpenClawBridge() *openclaw.Bridge {
 	return a.openclawBridge
 }
 
+// GetContainerOrchestrator returns the container orchestrator.
+func (a *Loom) GetContainerOrchestrator() *containers.Orchestrator {
+	return a.containerOrchestrator
+}
+
 // AdvanceWorkflowWithCondition advances a bead's workflow with a specific condition
 func (a *Loom) AdvanceWorkflowWithCondition(beadID, agentID string, condition string, resultData map[string]string) error {
 	if a.workflowEngine == nil {

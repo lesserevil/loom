@@ -350,6 +350,10 @@ func (s *Server) SetupRoutes() http.Handler {
 	mux.HandleFunc("/api/v1/export", s.handleExport)
 	mux.HandleFunc("/api/v1/import", s.handleImport)
 
+	// Project agent registration (called by containers on startup)
+	mux.HandleFunc("/api/v1/project-agents/", s.handleContainerAgents)
+	mux.HandleFunc("/api/v1/project-agents/register", s.handleContainerAgents)
+
 	// Apply middleware
 	handler := s.loggingMiddleware(mux)
 	handler = s.corsMiddleware(handler)
@@ -581,6 +585,7 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 			r.URL.Path == "/api/v1/chat/completions" ||
 			r.URL.Path == "/api/v1/pair" ||
 			r.URL.Path == "/api/v1/webhooks/openclaw" ||
+			strings.HasPrefix(r.URL.Path, "/api/v1/project-agents/") ||
 			strings.HasPrefix(r.URL.Path, "/static/") {
 			next.ServeHTTP(w, r)
 			return

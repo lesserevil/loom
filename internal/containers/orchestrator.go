@@ -15,9 +15,18 @@ import (
 	"github.com/jordanhubbard/loom/pkg/models"
 )
 
+// ExecResult holds the result of a synchronous command execution in a container.
+type ExecResult struct {
+	Stdout     string
+	Stderr     string
+	ExitCode   int
+	DurationMs int64
+}
+
 // AgentClient interface for executing tasks in project containers
 type AgentClient interface {
 	ExecuteTask(ctx context.Context, req interface{}) error
+	ExecSync(ctx context.Context, command, workingDir string, timeout int) (*ExecResult, error)
 	Health(ctx context.Context) error
 	Status(ctx context.Context) (*AgentStatus, error)
 }
@@ -330,6 +339,20 @@ func (o *Orchestrator) ListRunningContainers(ctx context.Context) ([]string, err
 	}
 
 	return containers, nil
+}
+
+// RegisterAgent registers a project agent that has announced itself.
+// Called by the API handler when a container agent POSTs to /api/v1/project-agents/register.
+func (o *Orchestrator) RegisterAgent(projectID, agentURL string) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+
+	agent := NewProjectAgentClient(agentURL, projectID)
+	if o.messageBus != nil {
+		agent.SetMessageBus(o.messageBus)
+	}
+	o.projectAgents[projectID] = agent
+	log.Printf("[Orchestrator] Agent registered for project %s at %s", projectID, agentURL)
 }
 
 // StopAll stops all project containers

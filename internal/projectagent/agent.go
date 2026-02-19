@@ -1,6 +1,7 @@
 package projectagent
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -155,7 +156,74 @@ func (a *Agent) Start(ctx context.Context) error {
 func (a *Agent) RegisterHandlers(mux *http.ServeMux) {
 	mux.HandleFunc("/health", a.handleHealth)
 	mux.HandleFunc("/task", a.handleTask)
+	mux.HandleFunc("/exec", a.handleExec) // Synchronous execution endpoint
 	mux.HandleFunc("/status", a.handleStatus)
+}
+
+// handleExec executes a command synchronously and returns stdout/stderr/exit-code inline.
+func (a *Agent) handleExec(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		Command    string `json:"command"`
+		WorkingDir string `json:"working_dir"`
+		Timeout    int    `json:"timeout"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+	if req.Command == "" {
+		http.Error(w, "command is required", http.StatusBadRequest)
+		return
+	}
+
+	timeout := req.Timeout
+	if timeout <= 0 {
+		timeout = 300
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), time.Duration(timeout)*time.Second)
+	defer cancel()
+
+	workDir := req.WorkingDir
+	if workDir == "" {
+		workDir = a.config.WorkDir
+	}
+
+	cmd := exec.CommandContext(ctx, "bash", "-c", req.Command)
+	cmd.Dir = workDir
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	startTime := time.Now()
+	runErr := cmd.Run()
+	durationMs := time.Since(startTime).Milliseconds()
+
+	exitCode := 0
+	if runErr != nil {
+		if exitErr, ok := runErr.(*exec.ExitError); ok {
+			exitCode = exitErr.ExitCode()
+		} else {
+			exitCode = -1
+		}
+	}
+
+	log.Printf("[exec] command=%q exit=%d dur=%dms", req.Command, exitCode, durationMs)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"stdout":      stdout.String(),
+		"stderr":      stderr.String(),
+		"exit_code":   exitCode,
+		"duration_ms": durationMs,
+		"success":     exitCode == 0,
+	})
 }
 
 // handleHealth returns agent health status
@@ -413,7 +481,7 @@ func (a *Agent) register(ctx context.Context) error {
 	payload := map[string]interface{}{
 		"project_id": a.config.ProjectID,
 		"work_dir":   a.config.WorkDir,
-		"agent_url":  fmt.Sprintf("http://%s:8090", a.config.ProjectID), // Container name as hostname
+		"agent_url":  fmt.Sprintf("http://loom-project-%s:8090", a.config.ProjectID), // Container name on Docker network
 	}
 
 	body, err := json.Marshal(payload)

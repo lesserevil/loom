@@ -223,6 +223,58 @@ func (c *ProjectAgentClient) ExecuteTask(ctx context.Context, req interface{}) e
 	return nil
 }
 
+// ExecSync executes a command synchronously in the container via the /exec endpoint
+// and returns stdout, stderr, exit code, and duration directly.
+func (c *ProjectAgentClient) ExecSync(ctx context.Context, command, workingDir string, timeout int) (*ExecResult, error) {
+	payload := map[string]interface{}{
+		"command":     command,
+		"working_dir": workingDir,
+		"timeout":     timeout,
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/exec", bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	// Use a longer timeout for the HTTP client since the command may take a while
+	client := &http.Client{Timeout: time.Duration(timeout+30) * time.Second}
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("exec request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("exec failed with status %d: %s", resp.StatusCode, respBody)
+	}
+
+	var result struct {
+		Stdout     string `json:"stdout"`
+		Stderr     string `json:"stderr"`
+		ExitCode   int    `json:"exit_code"`
+		DurationMs int64  `json:"duration_ms"`
+		Success    bool   `json:"success"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to decode exec response: %w", err)
+	}
+
+	return &ExecResult{
+		Stdout:     result.Stdout,
+		Stderr:     result.Stderr,
+		ExitCode:   result.ExitCode,
+		DurationMs: result.DurationMs,
+	}, nil
+}
+
 // ExecuteTaskSync sends a task and waits for the result (blocking)
 // This is a convenience method - in production, use ExecuteTask + result webhook
 func (c *ProjectAgentClient) ExecuteTaskSync(ctx context.Context, req *TaskRequest, timeout time.Duration) (*TaskResult, error) {
