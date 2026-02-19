@@ -60,6 +60,7 @@ func NewPostgreSQL() (*Database, error) {
 		host, port, user, password, dbname, sslmode)
 
 	db, err := sql.Open("postgres", connStr)
+defer db.Close()
 	if err != nil {
 		return nil, fmt.Errorf("failed to open PostgreSQL database: %w", err)
 	}
