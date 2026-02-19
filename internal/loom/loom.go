@@ -3361,6 +3361,13 @@ func (a *Loom) resetInconsistentAgents() int {
 				log.Printf("[DispatchLoop] Agent %s stuck on closed/missing bead %q", agent.ID, agent.CurrentBead)
 			}
 		}
+		if !shouldReset {
+			// Also reset agents whose last_active is stale (worker goroutine died on restart)
+			if staleness := time.Since(agent.LastActive); staleness > 10*time.Minute {
+				shouldReset = true
+				log.Printf("[DispatchLoop] Agent %s stale (last_active %v ago, bead=%q)", agent.ID, staleness.Round(time.Second), agent.CurrentBead)
+			}
+		}
 		if shouldReset {
 			prevBead := agent.CurrentBead
 			agent.Status = "idle"

@@ -382,10 +382,7 @@ func (m *WorkerManager) RestoreAgentWorker(ctx context.Context, agent *models.Ag
 		return existing, nil
 	}
 
-	// Agent doesn't exist - create new one
-	if len(m.agents) >= m.maxAgents {
-		return nil, fmt.Errorf("maximum number of agents (%d) reached", m.maxAgents)
-	}
+	// Agent doesn't exist - restore from DB (no artificial cap, same as CreateAgent)
 
 	// Ensure required fields.
 	if agent.Status == "" {
