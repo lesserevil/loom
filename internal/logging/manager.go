@@ -59,6 +59,21 @@ func NewManager(db *sql.DB) *Manager {
 	return m
 }
 
+// rebindQuery converts ? placeholders to $N for PostgreSQL.
+func rebindQuery(query string) string {
+	n := 1
+	var out strings.Builder
+	for _, ch := range query {
+		if ch == '?' {
+			fmt.Fprintf(&out, "$%d", n)
+			n++
+		} else {
+			out.WriteRune(ch)
+		}
+	}
+	return out.String()
+}
+
 // initSchema creates the logs table if it doesn't exist
 func (m *Manager) initSchema() error {
 	if m.db == nil {
@@ -68,7 +83,7 @@ func (m *Manager) initSchema() error {
 	_, err := m.db.Exec(`
 		CREATE TABLE IF NOT EXISTS logs (
 			id TEXT PRIMARY KEY,
-			timestamp DATETIME NOT NULL,
+			timestamp TIMESTAMP NOT NULL,
 			level TEXT NOT NULL,
 			source TEXT NOT NULL,
 			message TEXT NOT NULL,
@@ -162,10 +177,10 @@ func (m *Manager) persistLog(entry LogEntry) {
 		}
 	}
 
-	_, err := m.db.Exec(`
+	_, err := m.db.Exec(rebindQuery(`
 		INSERT INTO logs (id, timestamp, level, source, message, metadata_json, agent_id, bead_id, project_id, provider_id)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, entry.ID, entry.Timestamp, entry.Level, entry.Source, entry.Message, metadataJSON, agentID, beadID, projectID, providerID)
+	`), entry.ID, entry.Timestamp, entry.Level, entry.Source, entry.Message, metadataJSON, agentID, beadID, projectID, providerID)
 
 	if err != nil {
 		log.Printf("Failed to persist log entry: %v", err)
@@ -280,7 +295,7 @@ func (m *Manager) Query(limit int, levelFilter, sourceFilter, agentID, beadID, p
 		args = append(args, limit)
 	}
 
-	rows, err := m.db.Query(query, args...)
+	rows, err := m.db.Query(rebindQuery(query), args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query logs: %w", err)
 	}

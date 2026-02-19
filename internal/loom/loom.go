@@ -240,9 +240,7 @@ func New(cfg *config.Config) (*Loom, error) {
 	var logMgr *logging.Manager
 	if db != nil {
 		logMgr = logging.NewManager(db.DB())
-		// FIXME: InstallLogInterceptor() is blocking loom.New() from returning
-		// Temporarily disabled to allow HTTP server to start
-		// logMgr.InstallLogInterceptor()
+		logMgr.InstallLogInterceptor()
 	}
 
 	// Initialize motivation system
