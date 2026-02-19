@@ -270,6 +270,53 @@ func (d *Database) SupportsHA() bool {
 	return d.supportsHA
 }
 
+// rewriteQuery converts SQLite ? placeholders to PostgreSQL $1, $2, ... format
+// For PostgreSQL, rewrites ? to $1, $2, etc. For SQLite, returns query unchanged.
+// Idempotent: skips already-numbered placeholders to avoid double-conversion.
+func (d *Database) rewriteQuery(query string) string {
+	if d.dbType != "postgres" {
+		return query
+	}
+
+	// Check if query already uses PostgreSQL placeholders ($1, $2, etc)
+	// If so, return unchanged (idempotent)
+	if strings.Contains(query, "$") {
+		return query
+	}
+
+	var result strings.Builder
+	paramIndex := 1
+
+	for i := 0; i < len(query); i++ {
+		if query[i] == '?' {
+			result.WriteString(fmt.Sprintf("$%d", paramIndex))
+			paramIndex++
+		} else {
+			result.WriteByte(query[i])
+		}
+	}
+
+	return result.String()
+}
+
+// exec is a wrapper around d.db.Exec that rewrites placeholders for PostgreSQL
+func (d *Database) exec(query string, args ...interface{}) (sql.Result, error) {
+	query = d.rewriteQuery(query)
+	return d.db.Exec(query, args...)
+}
+
+// queryRow is a wrapper around d.db.QueryRow that rewrites placeholders for PostgreSQL
+func (d *Database) queryRow(query string, args ...interface{}) *sql.Row {
+	query = d.rewriteQuery(query)
+	return d.db.QueryRow(query, args...)
+}
+
+// query is a wrapper around d.db.Query that rewrites placeholders for PostgreSQL
+func (d *Database) query(query string, args ...interface{}) (*sql.Rows, error) {
+	query = d.rewriteQuery(query)
+	return d.db.Query(query, args...)
+}
+
 // initSchema creates the database tables
 func (d *Database) initSchema() error {
 	schema := `
@@ -475,7 +522,7 @@ func (d *Database) SetConfigValue(key string, value string) error {
 		VALUES (?, ?, ?)
 		ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
 	`
-	_, err := d.db.Exec(query, key, value, time.Now())
+	_, err := d.exec(query, key, value, time.Now())
 	if err != nil {
 		return fmt.Errorf("failed to set config value: %w", err)
 	}
@@ -485,7 +532,7 @@ func (d *Database) SetConfigValue(key string, value string) error {
 func (d *Database) GetConfigValue(key string) (string, bool, error) {
 	query := `SELECT value FROM config_kv WHERE key = ?`
 	var value string
-	err := d.db.QueryRow(query, key).Scan(&value)
+	err := d.queryRow(query, key).Scan(&value)
 	if err == sql.ErrNoRows {
 		return "", false, nil
 	}
@@ -543,7 +590,7 @@ func (d *Database) UpsertProject(project *models.Project) error {
 			updated_at = excluded.updated_at
 	`
 
-	_, err := d.db.Exec(query,
+	_, err := d.exec(query,
 		project.ID,
 		project.Name,
 		project.GitRepo,
@@ -632,7 +679,7 @@ func (d *Database) ListProjects() ([]*models.Project, error) {
 
 func (d *Database) DeleteProject(id string) error {
 	query := `DELETE FROM projects WHERE id = ?`
-	result, err := d.db.Exec(query, id)
+	result, err := d.exec(query, id)
 	if err != nil {
 		return fmt.Errorf("failed to delete project: %w", err)
 	}
@@ -685,7 +732,7 @@ func (d *Database) UpsertAgent(agent *models.Agent) error {
 		projectID = agent.ProjectID
 	}
 
-	_, err := d.db.Exec(query,
+	_, err := d.exec(query,
 		agent.ID,
 		agent.Name,
 		agent.Role,
@@ -751,7 +798,7 @@ func (d *Database) ListAgents() ([]*models.Agent, error) {
 
 func (d *Database) DeleteAgent(id string) error {
 	query := `DELETE FROM agents WHERE id = ?`
-	result, err := d.db.Exec(query, id)
+	result, err := d.exec(query, id)
 	if err != nil {
 		return fmt.Errorf("failed to delete agent: %w", err)
 	}
@@ -775,7 +822,7 @@ func (d *Database) CreateProvider(provider *internalmodels.Provider) error {
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
-	_, err := d.db.Exec(query,
+	_, err := d.exec(query,
 		provider.ID,
 		provider.Name,
 		provider.Type,
@@ -838,7 +885,7 @@ func (d *Database) UpsertProvider(provider *internalmodels.Provider) error {
 			updated_at = excluded.updated_at
 	`
 
-	_, err := d.db.Exec(query,
+	_, err := d.exec(query,
 		provider.ID,
 		provider.Name,
 		provider.Type,
@@ -873,7 +920,7 @@ func (d *Database) UpsertProvider(provider *internalmodels.Provider) error {
 }
 
 func (d *Database) DeleteAllProviders() error {
-	_, err := d.db.Exec(`DELETE FROM providers`)
+	_, err := d.exec(`DELETE FROM providers`)
 	if err != nil {
 		return fmt.Errorf("failed to delete all providers: %w", err)
 	}
@@ -881,7 +928,7 @@ func (d *Database) DeleteAllProviders() error {
 }
 
 func (d *Database) DeleteAllProjects() error {
-	_, err := d.db.Exec(`DELETE FROM projects`)
+	_, err := d.exec(`DELETE FROM projects`)
 	if err != nil {
 		return fmt.Errorf("failed to delete all projects: %w", err)
 	}
@@ -889,7 +936,7 @@ func (d *Database) DeleteAllProjects() error {
 }
 
 func (d *Database) DeleteAllAgents() error {
-	_, err := d.db.Exec(`DELETE FROM agents`)
+	_, err := d.exec(`DELETE FROM agents`)
 	if err != nil {
 		return fmt.Errorf("failed to delete all agents: %w", err)
 	}
@@ -906,7 +953,7 @@ func (d *Database) GetProvider(id string) (*internalmodels.Provider, error) {
 
 	provider := &internalmodels.Provider{}
 	var modelParamsB, capabilityScore, avgLatencyMs sql.NullFloat64
-	err := d.db.QueryRow(query, id).Scan(
+	err := d.queryRow(query, id).Scan(
 		&provider.ID,
 		&provider.Name,
 		&provider.Type,
@@ -1033,7 +1080,7 @@ func (d *Database) ListProvidersForUser(userID string) ([]*internalmodels.Provid
 		ORDER BY created_at DESC
 	`
 
-	rows, err := d.db.Query(query, userID)
+	rows, err := d.query(query, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list providers for user: %w", err)
 	}
@@ -1096,7 +1143,7 @@ func (d *Database) UpdateProvider(provider *internalmodels.Provider) error {
 		WHERE id = ?
 	`
 
-	result, err := d.db.Exec(query,
+	result, err := d.exec(query,
 		provider.Name,
 		provider.Type,
 		provider.Endpoint,
@@ -1129,7 +1176,7 @@ func (d *Database) UpdateProvider(provider *internalmodels.Provider) error {
 func (d *Database) DeleteProvider(id string) error {
 	query := `DELETE FROM providers WHERE id = ?`
 
-	result, err := d.db.Exec(query, id)
+	result, err := d.exec(query, id)
 	if err != nil {
 		return fmt.Errorf("failed to delete provider: %w", err)
 	}
