@@ -13,14 +13,20 @@ import (
 	"syscall"
 	"time"
 
+	"net"
+
 	"github.com/jordanhubbard/loom/internal/api"
 	"github.com/jordanhubbard/loom/internal/auth"
+	internalconnectors "github.com/jordanhubbard/loom/internal/connectors"
 	"github.com/jordanhubbard/loom/internal/hotreload"
 	"github.com/jordanhubbard/loom/internal/keymanager"
 	"github.com/jordanhubbard/loom/internal/loom"
 	"github.com/jordanhubbard/loom/internal/telemetry"
 	"github.com/jordanhubbard/loom/pkg/config"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"google.golang.org/grpc"
+
+	pb "github.com/jordanhubbard/loom/api/proto/connectors"
 )
 
 const version = "0.1.0"
@@ -160,6 +166,26 @@ func main() {
 			log.Fatalf("http server error: %v", err)
 		}
 	}()
+
+	// Start gRPC ConnectorsService
+	grpcPort := cfg.Server.GRPCPort
+	if grpcPort == 0 {
+		grpcPort = 9090
+	}
+	grpcListener, err := net.Listen("tcp", fmt.Sprintf(":%d", grpcPort))
+	if err != nil {
+		log.Printf("Warning: failed to start gRPC listener on :%d: %v", grpcPort, err)
+	} else {
+		grpcSrv := grpc.NewServer()
+		pb.RegisterConnectorsServiceServer(grpcSrv, internalconnectors.NewGRPCServer(arb.GetConnectorManager()))
+		log.Printf("gRPC ConnectorsService listening on :%d", grpcPort)
+		go func() {
+			if err := grpcSrv.Serve(grpcListener); err != nil {
+				log.Printf("gRPC server stopped: %v", err)
+			}
+		}()
+		defer grpcSrv.GracefulStop()
+	}
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)

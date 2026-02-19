@@ -55,6 +55,7 @@ type Config struct {
 type ServerConfig struct {
 	HTTPPort     int           `yaml:"http_port"`
 	HTTPSPort    int           `yaml:"https_port"`
+	GRPCPort     int           `yaml:"grpc_port"`
 	EnableHTTP   bool          `yaml:"enable_http"`
 	EnableHTTPS  bool          `yaml:"enable_https"`
 	TLSCertFile  string        `yaml:"tls_cert_file"`
@@ -276,6 +277,7 @@ func DefaultConfig() *Config {
 		Server: ServerConfig{
 			HTTPPort:     8080,
 			HTTPSPort:    8443,
+			GRPCPort:     9090,
 			EnableHTTP:   true,
 			EnableHTTPS:  false,
 			ReadTimeout:  30 * time.Second,
