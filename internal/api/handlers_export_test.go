@@ -160,6 +160,9 @@ func TestImportMergeStrategy(t *testing.T) {
 
 	// Insert test data
 	db := app.GetDatabase()
+if db == nil {
+	t.Fatal("Database is not initialized")
+}
 	_, err := db.DB().Exec(`INSERT INTO config_kv (key, value, updated_at) VALUES ($1, $2, $3)
 		ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at`,
 		"test_key", "original_value", time.Now().Format(time.RFC3339))

@@ -10,7 +10,7 @@ description: will be claimed
 status: open
 priority: 2
 projectid: proj-11
-assignedto: agent-1771545497-Engineering Manager (Default)
+assignedto: agent-1771545542-Engineering Manager (Default)
 blockedby: []
 blocks: []
 relatedto: []
@@ -21,6 +21,6 @@ context: {}
 duedate: null
 milestoneid: ""
 estimatedtime: 0
-createdat: 2026-02-19T23:58:17.188485725Z
-updatedat: 2026-02-19T23:58:17.188658417Z
+createdat: 2026-02-19T23:59:02.528997714Z
+updatedat: 2026-02-19T23:59:02.529208438Z
 closedat: null
