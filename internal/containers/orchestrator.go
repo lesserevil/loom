@@ -227,10 +227,17 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Go (common for many projects)
-RUN wget https://go.dev/dl/go1.22.0.linux-amd64.tar.gz && \
-    tar -C /usr/local -xzf go1.22.0.linux-amd64.tar.gz && \
-    rm go1.22.0.linux-amd64.tar.gz
+# Install Go (common for many projects) - detect architecture at build time
+RUN ARCH=$(uname -m) && \
+    case "$ARCH" in \
+        x86_64) GOARCH=amd64 ;; \
+        aarch64|arm64) GOARCH=arm64 ;; \
+        armv7l) GOARCH=armv6l ;; \
+        *) echo "Unsupported arch: $ARCH" && exit 1 ;; \
+    esac && \
+    wget https://go.dev/dl/go1.25.7.linux-${GOARCH}.tar.gz && \
+    tar -C /usr/local -xzf go1.25.7.linux-${GOARCH}.tar.gz && \
+    rm go1.25.7.linux-${GOARCH}.tar.gz
 
 ENV PATH="/usr/local/go/bin:${PATH}"
 ENV GOPATH="/root/go"

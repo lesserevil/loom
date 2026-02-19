@@ -472,6 +472,19 @@ func (a *Loom) Initialize(ctx context.Context) error {
 		}
 		if len(storedProjects) > 0 {
 			projects = storedProjects
+			// Apply config overrides for fields not stored in the DB schema (e.g. UseContainer).
+			cfgByID := make(map[string]struct{ UseContainer bool })
+			for _, cp := range a.config.Projects {
+				cfgByID[cp.ID] = struct{ UseContainer bool }{UseContainer: cp.UseContainer}
+			}
+			for _, sp := range projects {
+				if sp == nil {
+					continue
+				}
+				if cfg, ok := cfgByID[sp.ID]; ok {
+					sp.UseContainer = cfg.UseContainer
+				}
+			}
 			known := map[string]struct{}{}
 			for _, project := range storedProjects {
 				if project == nil {

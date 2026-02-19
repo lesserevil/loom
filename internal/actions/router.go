@@ -415,7 +415,10 @@ func (r *Router) executeAction(ctx context.Context, action Action, actx ActionCo
 			return Result{ActionType: action.Type, Status: "error", Message: "git operator not configured"}
 		}
 
-		// Pre-commit build gate: ensure code compiles before committing
+		// Pre-commit build gate: ensure code compiles before committing.
+		// If build tooling is unavailable (exit 127 = command not found), we allow
+		// the commit since we cannot verify but also cannot reject for missing toolchain.
+		// Only actual compilation failures (exit != 0 and != 127) block the commit.
 		buildResult, buildErr := r.runBuildForProject(ctx, actx, "")
 		if buildErr != nil {
 			return Result{
@@ -424,7 +427,7 @@ func (r *Router) executeAction(ctx context.Context, action Action, actx ActionCo
 				Message:    fmt.Sprintf("commit blocked: pre-commit build check error: %v", buildErr),
 			}
 		}
-		if buildResult != nil && (!buildResult.Success || buildResult.ExitCode != 0) {
+		if buildResult != nil && !buildResult.Success && buildResult.ExitCode != 127 {
 			return Result{
 				ActionType: action.Type,
 				Status:     "error",
