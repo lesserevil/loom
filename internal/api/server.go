@@ -365,7 +365,11 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	s.respondJSON(w, http.StatusOK, map[string]interface{}{
+		"status":         "ok",
+		"version":        getVersion(),
+		"uptime_seconds": int64(time.Since(startTime).Seconds()),
+	})
 }
 
 // Middleware
