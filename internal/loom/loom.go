@@ -269,7 +269,9 @@ func New(cfg *config.Config) (*Loom, error) {
 	var patternMgr *patterns.Manager
 	if db != nil {
 		analyticsStorage, err := analytics.NewDatabaseStorage(db.DB())
-		if err == nil && analyticsStorage != nil {
+		if err != nil {
+			log.Printf("Warning: failed to initialize analytics storage: %v", err)
+		} else if analyticsStorage != nil {
 			patternMgr = patterns.NewManager(analyticsStorage, nil)
 			// Wire analytics logger to WorkerManager so LLM completions are logged
 			agentMgr.SetAnalyticsLogger(analytics.NewLogger(analyticsStorage, analytics.DefaultPrivacyConfig()))
