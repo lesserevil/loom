@@ -1,0 +1,29 @@
+# ─── Loom control plane service ──────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "loom.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "loom.labels" . | nindent 4 }}
+    app.kubernetes.io/component: control-plane
+spec:
+  type: {{ .Values.loom.service.type }}
+  selector:
+    {{- include "loom.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: control-plane
+  ports:
+    - name: http
+      port: {{ .Values.loom.service.httpPort }}
+      targetPort: http
+      protocol: TCP
+      {{- if eq .Values.loom.service.type "NodePort" }}
+      nodePort: {{ .Values.loom.service.httpNodePort }}
+      {{- end }}
+    - name: grpc
+      port: {{ .Values.loom.service.grpcPort }}
+      targetPort: grpc
+      protocol: TCP
+      {{- if eq .Values.loom.service.type "NodePort" }}
+      nodePort: {{ .Values.loom.service.grpcNodePort }}
+      {{- end }}

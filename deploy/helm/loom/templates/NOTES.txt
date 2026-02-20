@@ -1,0 +1,56 @@
+╔══════════════════════════════════════════════════════════════════════╗
+║              Loom — AI Agent Orchestration Platform                  ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+Release "{{ .Release.Name }}" has been deployed to namespace "{{ .Release.Namespace }}".
+
+━━━ Accessing the UI ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+{{- if .Values.loom.ingress.enabled }}
+{{- range .Values.loom.ingress.hosts }}
+  http{{ if $.Values.loom.ingress.tls }}s{{ end }}://{{ .host }}/
+{{- end }}
+
+{{- else if eq .Values.loom.service.type "NodePort" }}
+  export NODE_IP=$(kubectl get nodes --namespace {{ .Release.Namespace }} -o jsonpath="{.items[0].status.addresses[0].address}")
+  open http://$NODE_IP:{{ .Values.loom.service.httpNodePort }}
+
+{{- else }}
+  # Port-forward to access Loom locally:
+  kubectl port-forward --namespace {{ .Release.Namespace }} svc/{{ include "loom.fullname" . }} 8080:{{ .Values.loom.config.httpPort }}
+  open http://localhost:8080
+
+{{- end }}
+
+━━━ System State (LLM-friendly) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  curl http://localhost:8080/api/v1/system/state | jq .
+
+━━━ Checking pod health ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  kubectl get pods --namespace {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+━━━ Logs ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  kubectl logs --namespace {{ .Release.Namespace }} -l app=loom -f
+
+━━━ Enabled components ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Control plane :  loom ({{ .Values.loom.replicaCount }} replica{{ if gt (int .Values.loom.replicaCount) 1 }}s{{ end }})
+  Connectors    :  {{ if .Values.connectorsService.enabled }}enabled{{ else }}disabled{{ end }}
+  PostgreSQL    :  {{ if .Values.postgresql.enabled }}managed (bitnami/postgresql){{ else }}external{{ end }}
+  pgBouncer     :  {{ if .Values.pgbouncer.enabled }}enabled{{ else }}disabled{{ end }}
+  NATS          :  {{ if .Values.nats.enabled }}managed (nats/nats){{ else }}external{{ end }}
+  Temporal      :  {{ if .Values.temporal.enabled }}managed (temporal/temporal){{ else }}external{{ end }}
+  Agents        :  {{ if .Values.agents.enabled }}enabled (coder/reviewer/qa pools){{ else }}disabled{{ end }}
+
+━━━ Upgrading ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  helm upgrade {{ .Release.Name }} ./deploy/helm/loom \
+    --namespace {{ .Release.Namespace }} \
+    --values values.yaml
+
+━━━ Uninstalling ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  helm uninstall {{ .Release.Name }} --namespace {{ .Release.Namespace }}
+  # Note: PVCs are NOT deleted automatically. Delete manually if desired.

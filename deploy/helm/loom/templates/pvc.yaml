@@ -1,0 +1,73 @@
+{{- if .Values.loom.persistence.enabled }}
+# Loom data PVC — project workspaces, git data, personas
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "loom.fullname" . }}-data
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "loom.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  accessModes:
+    - {{ .Values.loom.persistence.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.loom.persistence.size }}
+  {{- $sc := .Values.loom.persistence.storageClass | default .Values.global.storageClass }}
+  {{- if $sc }}
+  storageClassName: {{ $sc }}
+  {{- end }}
+{{- end }}
+
+---
+# NATS JetStream data PVC (only when nats subchart is disabled and we manage it)
+{{- if not .Values.nats.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "loom.fullname" . }}-nats-data
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "loom.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  {{- $sc := .Values.global.storageClass }}
+  {{- if $sc }}
+  storageClassName: {{ $sc }}
+  {{- end }}
+{{- end }}
+
+---
+{{- range $role, $cfg := .Values.agents.roles }}
+{{- if and $.Values.agents.enabled $cfg.enabled $cfg.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "loom.fullname" $ }}-agent-{{ $role }}-workspace
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "loom.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: agent-{{ $role }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ $cfg.persistence.size }}
+  {{- $sc := $cfg.persistence.storageClass | default $.Values.global.storageClass }}
+  {{- if $sc }}
+  storageClassName: {{ $sc }}
+  {{- end }}
+---
+{{- end }}
+{{- end }}

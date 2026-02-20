@@ -1,0 +1,76 @@
+{{- if .Values.connectorsService.enabled }}
+# ─── Connectors service deployment ───────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "loom.fullname" . }}-connectors
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "loom.labels" . | nindent 4 }}
+    app.kubernetes.io/component: connectors-service
+spec:
+  replicas: {{ .Values.connectorsService.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "loom.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: connectors-service
+  template:
+    metadata:
+      labels:
+        {{- include "loom.labels" . | nindent 8 }}
+        app.kubernetes.io/component: connectors-service
+        app: connectors-service
+      annotations:
+        {{- with .Values.connectorsService.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      containers:
+        - name: connectors-service
+          image: {{ include "loom.connectorsImage" . }}
+          imagePullPolicy: {{ .Values.connectorsService.image.pullPolicy | default .Values.global.imagePullPolicy }}
+          ports:
+            - name: grpc
+              containerPort: 50051
+              protocol: TCP
+          env:
+            - name: NATS_URL
+              value: {{ include "loom.natsURL" . | quote }}
+            - name: SERVICE_ID
+              value: connectors-service
+            - name: INSTANCE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          readinessProbe:
+            grpc:
+              port: 50051
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          livenessProbe:
+            grpc:
+              port: 50051
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          resources:
+            {{- toYaml .Values.connectorsService.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "loom.fullname" . }}-connectors
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "loom.labels" . | nindent 4 }}
+    app.kubernetes.io/component: connectors-service
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "loom.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: connectors-service
+  ports:
+    - name: grpc
+      port: {{ .Values.connectorsService.service.port }}
+      targetPort: grpc
+      protocol: TCP
+{{- end }}

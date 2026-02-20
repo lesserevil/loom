@@ -1,0 +1,152 @@
+# ─── Loom control plane deployment ───────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "loom.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "loom.labels" . | nindent 4 }}
+    app.kubernetes.io/component: control-plane
+spec:
+  replicas: {{ .Values.loom.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "loom.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: control-plane
+  template:
+    metadata:
+      labels:
+        {{- include "loom.labels" . | nindent 8 }}
+        app.kubernetes.io/component: control-plane
+        app: loom
+      annotations:
+        # Force pod restart on config change
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.loom.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "loom.serviceAccountName" . }}
+
+      # ── Wait for dependencies ────────────────────────────────────────────
+      initContainers:
+        - name: wait-for-db
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z {{ include "loom.dbHost" . }} 5432; do
+                echo "Waiting for PostgreSQL/pgBouncer..."; sleep 3
+              done
+        - name: wait-for-nats
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z {{ .Release.Name }}-nats 4222; do
+                echo "Waiting for NATS..."; sleep 3
+              done
+        - name: wait-for-temporal
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z {{ include "loom.temporalHost" . | replace ":7233" "" | trimAll ":" }} 7233; do
+                echo "Waiting for Temporal..."; sleep 3
+              done
+
+      containers:
+        - name: loom
+          image: {{ include "loom.image" . }}
+          imagePullPolicy: {{ .Values.loom.image.pullPolicy | default .Values.global.imagePullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.loom.config.httpPort }}
+              protocol: TCP
+            - name: grpc
+              containerPort: {{ .Values.loom.config.grpcPort }}
+              protocol: TCP
+
+          env:
+            - name: LOOM_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "loom.secretName" . }}
+                  key: password
+            - name: POSTGRES_HOST
+              value: {{ include "loom.dbHost" . | quote }}
+            - name: POSTGRES_PORT
+              value: "5432"
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "loom.postgresqlSecretName" . }}
+                  key: username
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "loom.postgresqlSecretName" . }}
+                  key: password
+            - name: POSTGRES_DB
+              value: {{ .Values.postgresql.auth.database | quote }}
+            - name: DB_TYPE
+              value: postgres
+            - name: NATS_URL
+              value: {{ include "loom.natsURL" . | quote }}
+            - name: TEMPORAL_HOST
+              value: {{ include "loom.temporalHost" . | quote }}
+            - name: TEMPORAL_NAMESPACE
+              value: {{ .Values.loom.config.temporalNamespace | quote }}
+            - name: CONNECTORS_SERVICE_ADDR
+              value: {{ include "loom.fullname" . }}-connectors:50051
+            - name: CONFIG_PATH
+              value: /app/config.yaml
+            - name: LOOM_SERVICE_ID
+              value: loom-control-plane
+            - name: LOOM_INSTANCE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+
+          volumeMounts:
+            - name: config
+              mountPath: /app/config.yaml
+              subPath: config.yaml
+            {{- if .Values.loom.persistence.enabled }}
+            - name: data
+              mountPath: /app/data
+            {{- end }}
+
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            failureThreshold: 3
+            timeoutSeconds: 5
+
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            failureThreshold: 5
+            timeoutSeconds: 5
+
+          resources:
+            {{- toYaml .Values.loom.resources | nindent 12 }}
+
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "loom.fullname" . }}-config
+        {{- if .Values.loom.persistence.enabled }}
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "loom.fullname" . }}-data
+        {{- end }}

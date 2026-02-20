@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "loom.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "loom.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    server:
+      http_port: {{ .Values.loom.config.httpPort }}
+      grpc_port: {{ .Values.loom.config.grpcPort }}
+    database:
+      type: postgres
+    temporal:
+      host: {{ include "loom.temporalHost" . }}
+      namespace: {{ .Values.loom.config.temporalNamespace }}
+      task_queue: {{ .Values.loom.config.temporalTaskQueue }}
+      workflow_execution_timeout: {{ .Values.loom.config.workflowExecutionTimeout }}
+      workflow_task_timeout: {{ .Values.loom.config.workflowTaskTimeout }}
+    agents:
+      max_concurrent: {{ .Values.loom.config.maxConcurrentAgents }}
+      default_persona_path: {{ .Values.loom.config.personaBasePath }}
+      heartbeat_interval: {{ .Values.loom.config.heartbeatInterval }}
+      file_lock_timeout: {{ .Values.loom.config.fileLockTimeout }}
+    readiness:
+      mode: block
+    dispatch:
+      max_hops: {{ .Values.loom.config.dispatchMaxHops }}
+    git:
+      project_key_dir: {{ .Values.loom.config.projectKeyDir }}
+    web_ui:
+      enabled: {{ .Values.loom.config.webUIEnabled }}
+      static_path: {{ .Values.loom.config.webUIStaticPath }}
+      refresh_interval: {{ .Values.loom.config.webUIRefreshInterval }}

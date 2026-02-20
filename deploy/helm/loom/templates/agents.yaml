@@ -1,0 +1,94 @@
+{{- if .Values.agents.enabled }}
+# ─── Agent pool deployments (one Deployment per enabled role) ─────────────────
+{{- range $role, $cfg := .Values.agents.roles }}
+{{- if $cfg.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "loom.fullname" $ }}-agent-{{ $role }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "loom.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: agent-{{ $role }}
+spec:
+  replicas: {{ $cfg.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "loom.selectorLabels" $ | nindent 6 }}
+      app.kubernetes.io/component: agent-{{ $role }}
+  template:
+    metadata:
+      labels:
+        {{- include "loom.labels" $ | nindent 8 }}
+        app.kubernetes.io/component: agent-{{ $role }}
+        app: loom-agent-{{ $role }}
+      annotations:
+        linkerd.io/inject: enabled
+    spec:
+      initContainers:
+        - name: wait-for-loom
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z {{ include "loom.fullname" $ }} {{ $.Values.loom.config.httpPort }}; do
+                echo "Waiting for loom control plane..."; sleep 3
+              done
+      containers:
+        - name: agent-{{ $role }}
+          image: {{ include "loom.agentImage" $ }}
+          imagePullPolicy: {{ $.Values.agents.image.pullPolicy | default $.Values.global.imagePullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8090
+          env:
+            - name: AGENT_ROLE
+              value: {{ $role | quote }}
+            - name: CONTROL_PLANE_URL
+              value: "http://{{ include "loom.fullname" $ }}:{{ $.Values.loom.config.httpPort }}"
+            - name: NATS_URL
+              value: {{ include "loom.natsURL" $ | quote }}
+            - name: WORK_DIR
+              value: /workspace
+            - name: SERVICE_ID
+              value: "agent-{{ $role }}"
+            - name: INSTANCE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            {{- range $key, $val := $.Values.agents.env }}
+            {{- if not (has $key (list "CONTROL_PLANE_URL" "NATS_URL" "WORK_DIR")) }}
+            - name: {{ $key }}
+              value: {{ $val | quote }}
+            {{- end }}
+            {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          resources:
+            {{- toYaml $cfg.resources | nindent 12 }}
+          volumeMounts:
+            - name: workspace
+              mountPath: /workspace
+      volumes:
+        - name: workspace
+          {{- if $cfg.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "loom.fullname" $ }}-agent-{{ $role }}-workspace
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

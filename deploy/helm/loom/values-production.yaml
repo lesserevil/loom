@@ -1,0 +1,110 @@
+# ============================================================
+# Loom — Production values example
+# Usage: helm upgrade loom ./deploy/helm/loom -f values-production.yaml
+# ============================================================
+
+global:
+  imageRegistry: "your-registry.example.com"
+  imagePullPolicy: Always
+
+loom:
+  replicaCount: 2
+
+  image:
+    tag: "1.0.0"  # pin to specific version in production
+
+  ingress:
+    enabled: true
+    className: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+      nginx.ingress.kubernetes.io/proxy-body-size: "64m"
+    hosts:
+      - host: loom.your-company.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: loom-tls
+        hosts:
+          - loom.your-company.com
+
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+
+  persistence:
+    size: 100Gi
+    storageClass: fast-ssd
+
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: "4"
+      memory: 4Gi
+
+  # Use an externally managed secret (e.g., from Vault or external-secrets-operator)
+  existingSecret: loom-production-secret
+
+connectorsService:
+  replicaCount: 2
+  image:
+    tag: "1.0.0"
+
+agents:
+  enabled: true
+  image:
+    tag: "1.0.0"
+  roles:
+    coder:
+      replicaCount: 3
+      persistence:
+        enabled: true
+        size: 20Gi
+        storageClass: fast-ssd
+    reviewer:
+      replicaCount: 2
+    qa:
+      replicaCount: 2
+    pm:
+      enabled: true
+      replicaCount: 1
+    architect:
+      enabled: true
+      replicaCount: 1
+
+postgresql:
+  enabled: false  # Use external managed PostgreSQL in production
+
+pgbouncer:
+  enabled: true
+  poolSize: 50
+  maxClientConn: 500
+  database:
+    # Point at your external PostgreSQL
+    host: "your-pg-host.example.com"
+    port: 5432
+    name: loom
+
+nats:
+  enabled: true
+  cluster:
+    enabled: true
+    replicas: 3
+  nats:
+    jetstream:
+      fileStorage:
+        size: 50Gi
+        storageClass: fast-ssd
+
+temporal:
+  enabled: true
+  server:
+    replicaCount: 3
+
+namespace:
+  create: false  # Namespace pre-created with RBAC in production

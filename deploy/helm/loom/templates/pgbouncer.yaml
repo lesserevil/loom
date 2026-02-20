@@ -1,0 +1,128 @@
+{{- if .Values.pgbouncer.enabled }}
+# ─── pgBouncer connection pooler ─────────────────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "loom.fullname" . }}-pgbouncer-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "loom.labels" . | nindent 4 }}
+data:
+  pgbouncer.ini: |
+    [databases]
+    loom = host={{ .Values.pgbouncer.database.host | replace "{{ .Release.Name }}" .Release.Name }} port={{ .Values.pgbouncer.database.port }} dbname={{ .Values.pgbouncer.database.name }}
+
+    [pgbouncer]
+    listen_addr = 0.0.0.0
+    listen_port = 5432
+    auth_type = md5
+    auth_file = /etc/pgbouncer/userlist.txt
+    pool_mode = transaction
+    max_client_conn = {{ .Values.pgbouncer.maxClientConn }}
+    default_pool_size = {{ .Values.pgbouncer.poolSize }}
+    log_connections = 0
+    log_disconnections = 0
+    log_pooler_errors = 1
+    server_tls_sslmode = prefer
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "loom.fullname" . }}-pgbouncer
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "loom.labels" . | nindent 4 }}
+    app.kubernetes.io/component: pgbouncer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "loom.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: pgbouncer
+  template:
+    metadata:
+      labels:
+        {{- include "loom.labels" . | nindent 8 }}
+        app.kubernetes.io/component: pgbouncer
+      annotations:
+        config.linkerd.io/opaque-ports: "5432"
+    spec:
+      initContainers:
+        - name: wait-for-postgresql
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z {{ .Release.Name }}-postgresql 5432; do
+                echo "Waiting for PostgreSQL..."; sleep 3
+              done
+        - name: write-userlist
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              echo "\"$PG_USER\" \"$PG_PASSWORD\"" > /etc/pgbouncer/userlist.txt
+          env:
+            - name: PG_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "loom.postgresqlSecretName" . }}
+                  key: username
+            - name: PG_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "loom.postgresqlSecretName" . }}
+                  key: password
+          volumeMounts:
+            - name: userlist
+              mountPath: /etc/pgbouncer
+      containers:
+        - name: pgbouncer
+          image: {{ .Values.pgbouncer.image.repository }}:{{ .Values.pgbouncer.image.tag }}
+          imagePullPolicy: {{ .Values.pgbouncer.image.pullPolicy }}
+          ports:
+            - name: postgres
+              containerPort: 5432
+          readinessProbe:
+            tcpSocket:
+              port: postgres
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.pgbouncer.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/pgbouncer/pgbouncer.ini
+              subPath: pgbouncer.ini
+            - name: userlist
+              mountPath: /etc/pgbouncer/userlist.txt
+              subPath: userlist.txt
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "loom.fullname" . }}-pgbouncer-config
+        - name: userlist
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "loom.fullname" . }}-pgbouncer
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "loom.labels" . | nindent 4 }}
+    app.kubernetes.io/component: pgbouncer
+  annotations:
+    config.linkerd.io/opaque-ports: "5432"
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "loom.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: pgbouncer
+  ports:
+    - name: postgres
+      port: {{ .Values.pgbouncer.service.port }}
+      targetPort: postgres
+{{- end }}

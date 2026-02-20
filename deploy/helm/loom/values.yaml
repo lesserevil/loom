@@ -1,0 +1,349 @@
+# ============================================================
+# Loom Helm Chart — Default Values
+# ============================================================
+# Override any value with:
+#   helm install loom ./deploy/helm/loom -f my-values.yaml
+# or:
+#   helm install loom ./deploy/helm/loom --set loom.replicaCount=2
+# ============================================================
+
+# ── Global ────────────────────────────────────────────────
+global:
+  # Docker image pull policy applied to all Loom images
+  imagePullPolicy: IfNotPresent
+  # Optional: override storageClass for all PVCs
+  storageClass: ""
+  # Optional: image registry prefix (e.g. "my-registry.example.com/")
+  imageRegistry: ""
+
+# ── Loom control plane ────────────────────────────────────
+loom:
+  replicaCount: 1
+
+  image:
+    repository: loom
+    tag: latest
+    # Overrides global.imagePullPolicy for this component only
+    pullPolicy: ""
+
+  # Loom server configuration (written into a ConfigMap → /app/config.yaml)
+  config:
+    httpPort: 8081
+    grpcPort: 9090
+    temporalHost: temporal:7233
+    temporalNamespace: default
+    temporalTaskQueue: loom-tasks
+    workflowExecutionTimeout: 24h
+    workflowTaskTimeout: 10s
+    maxConcurrentAgents: 10
+    personaBasePath: ./personas
+    heartbeatInterval: 30s
+    fileLockTimeout: 10m
+    dispatchMaxHops: 20
+    projectKeyDir: /app/data/projects
+    webUIEnabled: true
+    webUIStaticPath: ./web/static
+    webUIRefreshInterval: 5
+
+  # Service configuration
+  service:
+    type: ClusterIP
+    httpPort: 8081
+    grpcPort: 9090
+    # NodePort values (used only when type=NodePort)
+    httpNodePort: 30081
+    grpcNodePort: 30090
+
+  # Ingress (disabled by default — enable for production)
+  ingress:
+    enabled: false
+    className: ""
+    annotations: {}
+    #   kubernetes.io/ingress.class: nginx
+    #   cert-manager.io/cluster-issuer: letsencrypt-prod
+    hosts:
+      - host: loom.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls: []
+    #  - secretName: loom-tls
+    #    hosts:
+    #      - loom.example.com
+
+  # Horizontal pod autoscaling
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+  # Persistent storage for project workspaces + git data
+  persistence:
+    enabled: true
+    size: 20Gi
+    storageClass: ""
+    accessMode: ReadWriteOnce
+
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+
+  # Pod annotations (Linkerd injection, etc.)
+  podAnnotations:
+    linkerd.io/inject: enabled
+    config.linkerd.io/opaque-ports: "5432,4222"
+
+  serviceAccount:
+    create: true
+    name: ""
+    annotations: {}
+
+  # Secret name containing:
+  #   password: loom admin password
+  # Created by `make helm-secrets` or supply your own.
+  existingSecret: ""
+
+# ── Connectors service ────────────────────────────────────
+connectorsService:
+  enabled: true
+  replicaCount: 1
+
+  image:
+    repository: connectors-service
+    tag: latest
+    pullPolicy: ""
+
+  service:
+    type: ClusterIP
+    port: 50051
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+
+  podAnnotations:
+    linkerd.io/inject: enabled
+
+# ── Agent pool ────────────────────────────────────────────
+# Standalone NATS-driven agent containers (not project-specific agents).
+# These are equivalent to the loom-agent-coder/reviewer/qa services in
+# docker-compose.yml and pull tasks from NATS by role.
+agents:
+  enabled: true
+
+  image:
+    repository: loom-project-agent
+    tag: latest
+    pullPolicy: ""
+
+  # Base environment variables added to all agent pods
+  env:
+    CONTROL_PLANE_URL: "http://loom:8081"
+    NATS_URL: "nats://nats:4222"
+    WORK_DIR: /workspace
+
+  roles:
+    coder:
+      enabled: true
+      replicaCount: 1
+      resources:
+        requests:
+          cpu: 200m
+          memory: 256Mi
+        limits:
+          cpu: "2"
+          memory: 1Gi
+      persistence:
+        enabled: true
+        size: 5Gi
+        storageClass: ""
+
+    reviewer:
+      enabled: true
+      replicaCount: 1
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: "1"
+          memory: 512Mi
+      persistence:
+        enabled: false
+
+    qa:
+      enabled: true
+      replicaCount: 1
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: "1"
+          memory: 512Mi
+      persistence:
+        enabled: false
+
+    pm:
+      enabled: false
+      replicaCount: 1
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: "1"
+          memory: 256Mi
+      persistence:
+        enabled: false
+
+    architect:
+      enabled: false
+      replicaCount: 1
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: "1"
+          memory: 256Mi
+      persistence:
+        enabled: false
+
+# ── pgBouncer (connection pooler) ────────────────────────
+pgbouncer:
+  enabled: true
+
+  image:
+    repository: bitnami/pgbouncer
+    tag: "1.22.1"
+    pullPolicy: IfNotPresent
+
+  poolSize: 20
+  maxClientConn: 100
+
+  # Points at the postgresql service; override if using external postgres.
+  database:
+    host: "{{ .Release.Name }}-postgresql"
+    port: 5432
+    name: loom
+
+  service:
+    port: 5432
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: "0.5"
+      memory: 128Mi
+
+# ── PostgreSQL (bitnami subchart) ─────────────────────────
+postgresql:
+  enabled: true
+
+  auth:
+    database: loom
+    username: loom
+    # Override in production with an existingSecret.
+    password: loom
+    existingSecret: ""
+    secretKeys:
+      userPasswordKey: password
+
+  primary:
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClass: ""
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi
+    podAnnotations:
+      config.linkerd.io/opaque-ports: "5432"
+
+# ── NATS (nats subchart) ──────────────────────────────────
+nats:
+  enabled: true
+
+  nats:
+    jetstream:
+      enabled: true
+      memStorage:
+        enabled: true
+        size: 1Gi
+      fileStorage:
+        enabled: true
+        size: 5Gi
+        storageClass: ""
+
+  cluster:
+    enabled: false  # Enable for HA (3 replicas)
+    replicas: 3
+
+  podAnnotations:
+    config.linkerd.io/opaque-ports: "4222,6222"
+
+# ── Temporal (temporal subchart) ─────────────────────────
+temporal:
+  enabled: true
+
+  server:
+    replicaCount: 1
+
+  admintools:
+    enabled: true
+
+  web:
+    enabled: true
+    replicaCount: 1
+
+  # Temporal requires its own postgresql instance
+  # (separate from Loom's postgresql above)
+  postgresql:
+    enabled: true
+    auth:
+      username: temporal
+      password: temporal
+      database: temporal
+
+# ── Observability ─────────────────────────────────────────
+# Optional: enable Prometheus + Grafana stack. Requires kube-prometheus-stack
+# or standalone prometheus/grafana deployments in the cluster.
+observability:
+  enabled: false
+
+  prometheus:
+    # ServiceMonitor for Prometheus scraping (requires prometheus-operator CRD)
+    serviceMonitor:
+      enabled: false
+      interval: 30s
+      path: /metrics
+      port: http
+
+  grafana:
+    # ConfigMap with Loom dashboard JSON
+    dashboards:
+      enabled: false
+
+# ── Namespace ─────────────────────────────────────────────
+namespace:
+  # If false, the chart assumes the namespace already exists.
+  create: true
+  labels: {}
+  annotations: {}

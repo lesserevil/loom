@@ -1,0 +1,36 @@
+{{- if .Values.loom.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "loom.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "loom.labels" . | nindent 4 }}
+  {{- with .Values.loom.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.loom.ingress.className }}
+  ingressClassName: {{ .Values.loom.ingress.className }}
+  {{- end }}
+  {{- if .Values.loom.ingress.tls }}
+  tls:
+    {{- toYaml .Values.loom.ingress.tls | nindent 4 }}
+  {{- end }}
+  rules:
+    {{- range .Values.loom.ingress.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- range .paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType | default "Prefix" }}
+            backend:
+              service:
+                name: {{ include "loom.fullname" $ }}
+                port:
+                  name: http
+          {{- end }}
+    {{- end }}
+{{- end }}

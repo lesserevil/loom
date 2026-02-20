@@ -1,4 +1,4 @@
-.PHONY: all build build-all start stop restart prune bootstrap test test-docker test-api coverage test-coverage fmt vet lint lint-install lint-go lint-js lint-yaml lint-docs lint-api deps deps-go deps-macos deps-linux deps-wsl deps-linux-apt deps-linux-dnf deps-linux-pacman clean distclean install config dev-setup help release release-major release-minor release-patch k8s-apply k8s-delete linkerd-setup linkerd-check linkerd-dashboard linkerd-tap proto-gen agents scale-coders scale-reviewers scale-qa scale-agents logs-agents stop-agents docs docs-serve docs-deploy
+.PHONY: all build build-all start stop restart prune bootstrap run test test-docker test-api coverage test-coverage fmt vet lint lint-install lint-go lint-js lint-yaml lint-docs lint-api deps deps-go deps-macos deps-linux deps-wsl deps-linux-apt deps-linux-dnf deps-linux-pacman clean distclean install config dev-setup help release release-major release-minor release-patch k8s-apply k8s-delete linkerd-setup linkerd-check linkerd-dashboard linkerd-tap proto-gen agents scale-coders scale-reviewers scale-qa scale-agents logs-agents stop-agents docs docs-serve docs-deploy helm-install helm-upgrade helm-uninstall helm-deps helm-lint helm-template helm-package helm-secrets
 
 # Build variables
 BINARY_NAME=loom
@@ -11,7 +11,7 @@ GO_TOOLCHAIN_VERSION ?= $(GO_REQUIRED).0
 
 all: build
 
-# Build all Go binaries
+# Build all Go binaries and documentation
 build:
 	@mkdir -p $(BIN_DIR)
 	@echo "Building loom server..."
@@ -23,6 +23,15 @@ build:
 	@echo "Building connectors-service..."
 	go build $(LDFLAGS) -o $(BIN_DIR)/connectors-service ./cmd/connectors-service
 	@echo "Build complete: bin/loom, bin/loomctl, bin/loom-project-agent, bin/connectors-service"
+	@echo ""
+	@echo "=== Building Documentation ==="
+	@if command -v mkdocs >/dev/null 2>&1; then \
+		mkdocs build --quiet && echo "Docs built → site/"; \
+	elif pip install --quiet mkdocs-material 2>/dev/null; then \
+		mkdocs build --quiet && echo "Docs built → site/"; \
+	else \
+		echo "  (docs skipped — pip install mkdocs-material to enable)"; \
+	fi
 
 # Build for multiple platforms
 build-all: lint-yaml
@@ -36,6 +45,18 @@ build-all: lint-yaml
 	GOOS=linux GOARCH=arm64 go build $(LDFLAGS) -o $(BIN_DIR)/loom-project-agent-linux-arm64 ./cmd/loom-project-agent
 	GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o $(BIN_DIR)/connectors-service-linux-amd64 ./cmd/connectors-service
 	GOOS=linux GOARCH=arm64 go build $(LDFLAGS) -o $(BIN_DIR)/connectors-service-linux-arm64 ./cmd/connectors-service
+
+# Build + launch full stack (Docker Compose) + wait for health + bootstrap
+run: build
+	@echo "=== Starting full Loom stack ==="
+	docker compose up -d --build
+	@$(MAKE) -s bootstrap
+	@echo ""
+	@echo "Loom is running:"
+	@echo "  UI:    http://localhost:8080"
+	@echo "  API:   http://localhost:8080/api/v1/system/state"
+	@echo "  Logs:  make logs"
+	@echo "  Stop:  make stop"
 
 # Start loom (build binaries + container + start full stack in background)
 start: build
@@ -86,9 +107,17 @@ prune:
 logs:
 	docker compose logs -f loom
 
-# Run tests locally
-test:
-	go test -v ./...
+# Run tests: build binaries first, then run full test suite with PostgreSQL env
+# Set DB vars explicitly so tests can find the local postgres (docker compose must be up)
+test: build
+	@echo "=== Running tests ==="
+	@echo "  Ensure 'docker compose up -d loom-postgresql' is running before this target"
+	POSTGRES_HOST=localhost \
+	POSTGRES_PORT=5432 \
+	POSTGRES_USER=loom \
+	POSTGRES_PASSWORD=loom \
+	POSTGRES_DB=loom \
+	go test ./... -count=1 -timeout 600s
 
 # Run tests in Docker (with Temporal)
 test-docker:
@@ -339,15 +368,38 @@ dev-setup: deps config
 	@echo "Development environment setup complete"
 	@echo "Run 'make start' to start loom"
 
-# Release automation
-release:
+# ── Release targets ──────────────────────────────────────────────────────
+# Full release pipeline: lint → test → build all platforms → Docker images →
+# documentation → git tag + GitHub release.
+#
+# Usage:
+#   make release              # patch bump (x.y.Z+1)
+#   make release-minor        # minor bump (x.Y+1.0)
+#   make release-major        # major bump (X+1.0.0)
+#   VERSION=1.2.3 make release-patch  # explicit version
+#
+# Pre-requisites: ./scripts/release.sh must exist and handle git tagging.
+
+release: _release-preflight
 	@BATCH=$(BATCH) ./scripts/release.sh patch
 
-release-minor:
+release-patch: _release-preflight
+	@BATCH=$(BATCH) ./scripts/release.sh patch
+
+release-minor: _release-preflight
 	@BATCH=$(BATCH) ./scripts/release.sh minor
 
-release-major:
+release-major: _release-preflight
 	@BATCH=$(BATCH) ./scripts/release.sh major
+
+# Internal: shared preflight checks before any release
+_release-preflight: lint-go lint-yaml build-all docs
+	@echo ""
+	@echo "=== Release preflight complete ==="
+	@echo "  All binaries compiled for all platforms"
+	@echo "  Linters passed"
+	@echo "  Documentation built"
+	@echo ""
 
 # ── Agent Swarm targets ───────────────────────────────────────────────────
 
@@ -424,6 +476,66 @@ proto-gen:
 	  api/proto/connectors/connectors.proto
 	@echo "Proto generation complete."
 
+# ── Helm targets ─────────────────────────────────────────────────────────
+HELM_RELEASE  ?= loom
+HELM_NAMESPACE ?= loom
+HELM_CHART     = deploy/helm/loom
+HELM_VALUES   ?= $(HELM_CHART)/values.yaml
+
+# Update Helm chart dependencies (postgresql, nats, temporal)
+helm-deps:
+	helm dependency update $(HELM_CHART)
+
+# Install Loom into k8s cluster for the first time
+helm-install: helm-deps
+	helm install $(HELM_RELEASE) $(HELM_CHART) \
+		--namespace $(HELM_NAMESPACE) \
+		--create-namespace \
+		--values $(HELM_VALUES)
+
+# Upgrade (or install) an existing Helm release
+helm-upgrade: helm-deps
+	helm upgrade $(HELM_RELEASE) $(HELM_CHART) \
+		--namespace $(HELM_NAMESPACE) \
+		--create-namespace \
+		--install \
+		--values $(HELM_VALUES)
+
+# Uninstall Loom from Kubernetes (preserves PVCs by default)
+helm-uninstall:
+	helm uninstall $(HELM_RELEASE) --namespace $(HELM_NAMESPACE)
+
+# Lint the Helm chart templates
+helm-lint:
+	helm lint $(HELM_CHART) --values $(HELM_VALUES)
+
+# Render templates without deploying (dry-run review)
+helm-template:
+	helm template $(HELM_RELEASE) $(HELM_CHART) \
+		--namespace $(HELM_NAMESPACE) \
+		--values $(HELM_VALUES)
+
+# Package the chart into a .tgz for distribution
+helm-package: helm-deps
+	@mkdir -p $(BIN_DIR)
+	helm package $(HELM_CHART) --destination $(BIN_DIR)
+
+# Generate/rotate secrets for the Helm release
+# Usage: make helm-secrets HELM_NAMESPACE=loom
+helm-secrets:
+	@echo "Creating Loom secrets in namespace $(HELM_NAMESPACE)..."
+	@kubectl create namespace $(HELM_NAMESPACE) --dry-run=client -o yaml | kubectl apply -f -
+	@kubectl create secret generic loom-postgresql-secret \
+		--namespace $(HELM_NAMESPACE) \
+		--from-literal=username=loom \
+		--from-literal=password=$$(openssl rand -base64 24) \
+		--dry-run=client -o yaml | kubectl apply -f -
+	@kubectl create secret generic loom-secret \
+		--namespace $(HELM_NAMESPACE) \
+		--from-literal=password=$$(openssl rand -base64 24) \
+		--dry-run=client -o yaml | kubectl apply -f -
+	@echo "Secrets created. Run 'make helm-install' to deploy."
+
 # Documentation (mkdocs)
 docs:
 	@echo ""
@@ -446,59 +558,78 @@ docs-deploy:
 help:
 	@echo "Loom - Makefile Commands"
 	@echo ""
-	@echo "Service:"
-	@echo "  make start        - Build and start loom (Docker, background) + bootstrap"
-	@echo "  make stop         - Stop loom (completely shut down all containers)"
-	@echo "  make restart      - Rebuild and restart loom + bootstrap"
+	@echo "Quickstart:"
+	@echo "  make run          - Build everything + start full stack (Docker) + bootstrap"
+	@echo "  make test         - Build binaries + run full test suite (needs docker compose up)"
+	@echo "  make build        - Build all binaries + documentation"
+	@echo ""
+	@echo "Service (Docker Compose):"
+	@echo "  make run          - Build and launch full stack: containers, bootstrap"
+	@echo "  make start        - Alias for run"
+	@echo "  make stop         - Stop all containers"
+	@echo "  make restart      - Rebuild and restart + bootstrap"
 	@echo "  make prune        - Remove stale Docker images (preserves volumes/databases)"
 	@echo "  make bootstrap    - Run bootstrap.local if present (registers providers)"
 	@echo "  make logs         - Follow loom container logs"
 	@echo ""
 	@echo "Development:"
-	@echo "  make build        - Build both binaries (loom server + loomctl CLI)"
+	@echo "  make build        - Build all 4 binaries + documentation (mkdocs)"
 	@echo "  make build-all    - Cross-compile for linux/darwin/windows"
-	@echo "  make test         - Run tests locally"
+	@echo "  make test         - Build binaries + run test suite with PostgreSQL env"
 	@echo "  make test-docker  - Run tests in Docker (with Temporal)"
-	@echo "  make test-api     - Run post-flight API tests"
-	@echo "  make coverage     - Run tests with coverage report"
-	@echo "  make lint         - Run all linters (Go, JS, YAML, docs, API validation)"
+	@echo "  make test-api     - Run post-flight API tests against running stack"
+	@echo "  make coverage     - Run tests with HTML coverage report"
+	@echo "  make lint         - Run all linters (Go, JS, YAML, docs, API)"
 	@echo "  make lint-install - Install linting tools (golangci-lint, eslint)"
-	@echo "  make lint-go      - Run Go linters only"
-	@echo "  make lint-js      - Run JavaScript linters only"
-	@echo "  make lint-api     - Run API/frontend validation only"
-	@echo "  make deps         - Install system dependencies + go module dependencies"
-	@echo "  make clean        - Clean build artifacts (preserves databases)"
-	@echo "  make distclean    - Deep clean (DELETES DATABASES, removes all Docker volumes)"
-	@echo "  make install      - Install binary to GOPATH/bin"
+	@echo "  make lint-go      - Go linters only"
+	@echo "  make lint-js      - JavaScript linters only"
+	@echo "  make lint-api     - API/frontend validation"
+	@echo "  make fmt          - Format Go code"
+	@echo "  make vet          - Run go vet"
+	@echo "  make deps         - Install system + Go module dependencies"
+	@echo "  make clean        - Remove build artifacts (preserves databases)"
+	@echo "  make distclean    - Deep clean: stops containers, DELETES DATABASES"
+	@echo "  make install      - Install loom + loomctl to ~/.local/bin"
 	@echo "  make config       - Create config.yaml from example"
-	@echo "  make dev-setup    - Set up development environment"
+	@echo "  make dev-setup    - Full dev environment setup"
 	@echo ""
 	@echo "Documentation:"
-	@echo "  make docs         - Build documentation site (mkdocs)"
-	@echo "  make docs-serve   - Serve docs locally (http://localhost:8000)"
+	@echo "  make docs         - Build documentation site (mkdocs → site/)"
+	@echo "  make docs-serve   - Serve docs locally at http://localhost:8000"
 	@echo "  make docs-deploy  - Deploy to GitHub Pages"
 	@echo ""
+	@echo "Helm / Kubernetes:"
+	@echo "  make helm-deps                  - Update chart dependencies"
+	@echo "  make helm-install               - Install Loom into k8s cluster"
+	@echo "  make helm-upgrade               - Upgrade (or install) existing release"
+	@echo "  make helm-uninstall             - Remove Loom from k8s"
+	@echo "  make helm-lint                  - Lint the Helm chart"
+	@echo "  make helm-template              - Render templates (dry run)"
+	@echo "  make helm-package               - Package chart to bin/*.tgz"
+	@echo "  make helm-secrets               - Create k8s secrets for Loom"
+	@echo "  Options: HELM_RELEASE=loom HELM_NAMESPACE=loom HELM_VALUES=path/to/vals.yaml"
+	@echo ""
 	@echo "Agent Swarm:"
-	@echo "  make agents           - Start all agent service containers"
-	@echo "  make scale-coders N=3 - Scale coder agents to N replicas"
-	@echo "  make scale-reviewers N=2 - Scale reviewer agents"
-	@echo "  make scale-qa N=2     - Scale QA agents"
-	@echo "  make scale-agents CODERS=3 REVIEWERS=2 QA=2 - Scale all agent types"
-	@echo "  make logs-agents      - Follow agent container logs"
-	@echo "  make stop-agents      - Stop only agent containers"
+	@echo "  make agents               - Start all agent service containers"
+	@echo "  make scale-coders N=3     - Scale coder agents to N replicas"
+	@echo "  make scale-reviewers N=2  - Scale reviewer agents"
+	@echo "  make scale-qa N=2         - Scale QA agents"
+	@echo "  make scale-agents CODERS=3 REVIEWERS=2 QA=2"
+	@echo "  make logs-agents          - Follow agent container logs"
+	@echo "  make stop-agents          - Stop agent containers only"
 	@echo ""
-	@echo "Kubernetes / Linkerd:"
-	@echo "  make linkerd-setup    - Create k3d cluster, install Linkerd, deploy loom"
-	@echo "  make k8s-apply        - Apply K8s manifests (overlays/local)"
-	@echo "  make k8s-delete       - Delete K8s resources"
-	@echo "  make linkerd-check    - Check Linkerd proxy health in loom namespace"
-	@echo "  make linkerd-dashboard - Open Linkerd viz dashboard"
-	@echo "  make linkerd-tap      - Live traffic tap for loom deployment"
+	@echo "Kustomize / Linkerd:"
+	@echo "  make linkerd-setup        - Create k3d cluster, install Linkerd, deploy"
+	@echo "  make k8s-apply            - Apply K8s manifests (overlays/local)"
+	@echo "  make k8s-delete           - Delete K8s resources"
+	@echo "  make linkerd-check        - Check Linkerd proxy health"
+	@echo "  make linkerd-dashboard    - Open Linkerd viz dashboard"
+	@echo "  make linkerd-tap          - Live traffic tap"
 	@echo ""
-	@echo "Code generation:"
-	@echo "  make proto-gen        - Regenerate protobuf Go bindings"
+	@echo "Code Generation:"
+	@echo "  make proto-gen            - Regenerate protobuf Go bindings"
 	@echo ""
 	@echo "Release:"
-	@echo "  make release       - Patch release (x.y.Z)"
-	@echo "  make release-minor - Minor release (x.Y.0)"
-	@echo "  make release-major - Major release (X.0.0)"
+	@echo "  make release              - Patch release: lint+build-all+docs → x.y.Z+1"
+	@echo "  make release-minor        - Minor release → x.Y+1.0"
+	@echo "  make release-major        - Major release → X+1.0.0"
