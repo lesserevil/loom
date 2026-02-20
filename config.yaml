@@ -210,6 +210,7 @@ projects:
     beads_path: ".beads"
     beads_branch: "beads-sync"
     use_worktrees: true
+    use_container: true  # Enable per-project container for hermetic execution
     git_auth_method: token  # Use token authentication (GITHUB_TOKEN or GITLAB_TOKEN env var)
     git_strategy: direct
     is_perpetual: true

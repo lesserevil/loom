@@ -265,12 +265,14 @@ func (m *GitWorktreeManager) ListAgentWorktrees(projectID string) ([]string, err
 func (m *GitWorktreeManager) SyncBeadsBranch(projectID string) error {
 	beadsWorktree := m.GetWorktreePath(projectID, "beads")
 
-	// Use fetch + merge instead of pull --rebase to avoid rebase conflicts
-	// Fetch updates from remote
-	fetchCmd := exec.Command("git", "fetch", "origin")
+	// Explicitly fetch the beads-sync branch (single-branch clones only track main
+	// by default, so "git fetch origin" alone won't update origin/beads-sync).
+	fetchCmd := exec.Command("git", "fetch", "origin", "beads-sync:refs/remotes/origin/beads-sync")
 	fetchCmd.Dir = beadsWorktree
 	if output, err := fetchCmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("git fetch failed: %s - %w", output, err)
+		// Fetch failure is non-fatal; continue with local state
+		log.Printf("Warning: git fetch beads-sync failed, using local state: %s", output)
+		return nil
 	}
 
 	// Merge with prefer-ours strategy for automatic conflict resolution

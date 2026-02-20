@@ -126,7 +126,7 @@ func NewOpenAIProvider(endpoint, apiKey string) *OpenAIProvider {
 		endpoint: strings.TrimSuffix(endpoint, "/"),
 		apiKey:   apiKey,
 		client: &http.Client{
-			Timeout: 15 * time.Minute, // Increased for action loops with 25 iterations
+			Timeout: 5 * time.Minute, // Per-request timeout; action loops make many short requests
 		},
 		// Streaming client has no timeout — relies on context cancellation.
 		// This prevents mid-stream timeouts for slow models.

@@ -498,7 +498,10 @@ func (w *Worker) responseFormat() *provider.ResponseFormat {
 	if strings.Contains(ep, "localhost") ||
 		strings.Contains(ep, "127.0.0.1") ||
 		strings.Contains(ep, ".local") ||
-		strings.Contains(ep, ".local:") {
+		strings.Contains(ep, ".local:") ||
+		strings.HasPrefix(ep, "http://172.") || // Docker bridge gateway IPs
+		strings.HasPrefix(ep, "http://10.") ||  // Private network ranges
+		strings.HasPrefix(ep, "http://192.168.") {
 		return &provider.ResponseFormat{Type: "json_object"}
 	}
 	// Cloud providers (NVIDIA NIM, OpenAI, Anthropic proxies) — don't force
@@ -584,6 +587,9 @@ type LoopConfig struct {
 	LessonsProvider LessonsProvider
 	DB              *database.Database
 	TextMode        bool // Use simple text-based actions (~10 commands) instead of JSON (60+)
+	// OnProgress is called after each successful iteration so the caller can
+	// update heartbeat timestamps and prevent stuck-agent timeouts on long tasks.
+	OnProgress func()
 }
 
 // LoopResult contains the result of a multi-turn action loop.
@@ -749,10 +755,17 @@ func (w *Worker) ExecuteTaskWithLoop(ctx context.Context, task *Task, config *Lo
 		// Handle token limits
 		trimmedMessages := w.handleTokenLimits(messages)
 
+		// Cap max tokens: text mode produces a single compact JSON action,
+		// full mode may produce tool calls with reasoning — 4096 is plenty.
+		maxTokens := 4096
+		if config.TextMode {
+			maxTokens = 2048
+		}
 		req := &provider.ChatCompletionRequest{
 			Model:          w.provider.Config.Model,
 			Messages:       trimmedMessages,
 			Temperature:    0.1,
+			MaxTokens:      maxTokens,
 			ResponseFormat: w.responseFormat(),
 		}
 
@@ -952,6 +965,11 @@ func (w *Worker) ExecuteTaskWithLoop(ctx context.Context, task *Task, config *Lo
 			Results:   results,
 			Timestamp: time.Now(),
 		})
+
+		// Notify caller that progress was made so heartbeat timestamps can be updated.
+		if config.OnProgress != nil {
+			config.OnProgress()
+		}
 
 		// Check for terminal actions
 		termReason := checkTerminalCondition(env, results)

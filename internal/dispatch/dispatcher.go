@@ -501,6 +501,17 @@ func (d *Dispatcher) DispatchOnce(ctx context.Context, projectID string) (*Dispa
 		return &DispatchResult{Dispatched: false, ProjectID: selectedProjectID, AgentID: ag.ID}, nil
 	}
 
+	// Apply the selected provider to the agent so the worker uses the correct endpoint.
+	// The dispatcher selects the best provider each dispatch, but the agent/worker
+	// retains the provider from spawn time unless explicitly updated here.
+	if ag.ProviderID != providerID {
+		if err := d.agents.UpdateAgentProvider(ag.ID, providerID); err != nil {
+			log.Printf("[Dispatcher] Warning: failed to switch agent %s to provider %s: %v", ag.ID, providerID, err)
+		} else {
+			ag.ProviderID = providerID // keep local pointer in sync
+		}
+	}
+
 	if err := d.claimAndAssign(candidate, ag, selectedProjectID); err != nil {
 		d.setStatus(StatusParked, "failed to claim bead")
 		return &DispatchResult{Dispatched: false, ProjectID: projectID}, nil
@@ -539,11 +550,29 @@ func (d *Dispatcher) DispatchOnce(ctx context.Context, projectID string) (*Dispa
 		return dispatchResult, nil
 	}
 
-	// If a swarm member is registered for this project, prefer routing to the
-	// remote container agent via NATS task publish rather than the in-process worker pool.
+	// Prevent duplicate in-flight execution of the same bead.
+	// This check must come BEFORE swarm routing so that NATS-dispatched tasks
+	// are also protected — otherwise the 1-minute stuck-agent reset can trigger
+	// a new NATS publish while the previous goroutine is still running, causing
+	// goroutine leaks and cascading LLM requests.
+	d.inflightMu.Lock()
+	if _, running := d.inflight[candidate.ID]; running {
+		d.inflightMu.Unlock()
+		log.Printf("[Dispatcher] Bead %s already in-flight, skipping duplicate dispatch", candidate.ID)
+		return &DispatchResult{Dispatched: false, ProjectID: selectedProjectID}, nil
+	}
+	d.inflight[candidate.ID] = struct{}{}
+	d.inflightMu.Unlock()
+
+	// If a remote agent swarm member is registered for this project, prefer routing
+	// via NATS task publish. Skip control-plane members — they handle routing but
+	// don't subscribe to agent task NATS subjects.
 	if d.swarmMgr != nil && d.messageBus != nil {
 		members := d.swarmMgr.GetMembersByProject(selectedProjectID)
 		for _, m := range members {
+			if m.ServiceType == "control-plane" {
+				continue // control-plane doesn't process agent tasks via NATS
+			}
 			if m.Status == "online" || m.Status == "" {
 				// Build memory context summary for injection into agent prompt.
 				var memCtx string
@@ -573,22 +602,18 @@ func (d *Dispatcher) DispatchOnce(ctx context.Context, projectID string) (*Dispa
 					log.Printf("[Dispatcher] Swarm-based NATS dispatch failed for bead %s: %v; falling through to in-process", candidate.ID, err)
 				} else {
 					log.Printf("[Dispatcher] Routed bead %s to swarm member %s (role=%s)", candidate.ID, m.ServiceID, ag.Role)
+					// NATS publish succeeded. The remote container handles execution.
+					// Release the inflight entry so the next dispatch cycle can
+					// re-dispatch if the container doesn't process it.
+					d.inflightMu.Lock()
+					delete(d.inflight, candidate.ID)
+					d.inflightMu.Unlock()
 					return dispatchResult, nil
 				}
 				break
 			}
 		}
 	}
-
-	// Prevent duplicate in-flight execution of the same bead
-	d.inflightMu.Lock()
-	if _, running := d.inflight[candidate.ID]; running {
-		d.inflightMu.Unlock()
-		log.Printf("[Dispatcher] Bead %s already in-flight, skipping duplicate dispatch", candidate.ID)
-		return &DispatchResult{Dispatched: false, ProjectID: selectedProjectID}, nil
-	}
-	d.inflight[candidate.ID] = struct{}{}
-	d.inflightMu.Unlock()
 
 	go func() {
 		defer func() {

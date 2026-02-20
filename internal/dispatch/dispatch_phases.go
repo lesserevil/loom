@@ -475,6 +475,27 @@ func (d *Dispatcher) claimAndAssign(candidate *models.Bead, ag *models.Agent, se
 			"bead_id":    candidate.ID,
 			"project_id": candidate.ProjectID,
 		})
+	} else if candidate.AssignedTo != ag.ID {
+		// Bead is already assigned to a different agent and in_progress.
+		// Only re-assign if that original agent is no longer "working" on it
+		// (i.e. it's gone idle or the bead was orphaned).
+		originalAgentWorking := false
+		if workerAgent, err := d.agents.GetAgent(candidate.AssignedTo); err == nil && workerAgent != nil {
+			if workerAgent.Status == "working" && workerAgent.CurrentBead == candidate.ID {
+				originalAgentWorking = true
+			}
+		}
+		if originalAgentWorking {
+			log.Printf("[Dispatcher] Bead %s already in progress by agent %s — skipping re-dispatch to %s",
+				candidate.ID, candidate.AssignedTo, ag.ID)
+			return fmt.Errorf("bead already in progress by %s", candidate.AssignedTo)
+		}
+		// Original agent is gone — re-claim for the new agent.
+		if err := d.beads.ClaimBead(candidate.ID, ag.ID); err != nil {
+			return fmt.Errorf("re-claim bead: %w", err)
+		}
+		log.Printf("[Dispatcher] Re-claimed bead %s from stale agent %s → %s",
+			candidate.ID, candidate.AssignedTo, ag.ID)
 	}
 
 	dispatchCount := dispatchCountForBead(candidate) + 1
@@ -652,6 +673,10 @@ func (d *Dispatcher) processTaskSuccess(candidate *models.Bead, ag *models.Agent
 		updates["status"] = models.BeadStatusOpen
 		updates["assigned_to"] = triageAgent
 		log.Printf("[Dispatcher] Task failure loop for bead %s, reassigning to triage agent %s", candidate.ID, triageAgent)
+	} else if result.LoopTerminalReason == "completed" {
+		// Agent signaled "done" — close the bead so it won't be re-dispatched.
+		updates["status"] = models.BeadStatusClosed
+		log.Printf("[Dispatcher] Bead %s completed (agent signaled done), closing", candidate.ID)
 	}
 	if err := d.beads.UpdateBead(candidate.ID, updates); err != nil {
 		log.Printf("[Dispatcher] CRITICAL: Failed to update bead %s after task: %v", candidate.ID, err)
@@ -661,6 +686,8 @@ func (d *Dispatcher) processTaskSuccess(candidate *models.Bead, ag *models.Agent
 		status := string(models.BeadStatusInProgress)
 		if loopDetected {
 			status = string(models.BeadStatusOpen)
+		} else if result.LoopTerminalReason == "completed" {
+			status = string(models.BeadStatusClosed)
 		}
 		_ = d.eventBus.PublishBeadEvent("bead.status_change", candidate.ID, selectedProjectID,
 			map[string]interface{}{"status": status})

@@ -36,6 +36,9 @@ type WorkerManager struct {
 	db                *database.Database
 	mu                sync.RWMutex
 	maxAgents         int
+	// activeCancels maps agentID -> cancel func for the currently running task.
+	// Calling the func cancels the running LLM HTTP request.
+	activeCancels map[string]context.CancelFunc
 }
 
 // NewWorkerManager creates a new agent manager with worker pool
@@ -46,6 +49,7 @@ func NewWorkerManager(maxAgents int, providerRegistry *provider.Registry, eventB
 		providerRegistry: providerRegistry,
 		eventBus:         eventBus,
 		maxAgents:        maxAgents,
+		activeCancels:    make(map[string]context.CancelFunc),
 	}
 }
 
@@ -219,6 +223,36 @@ func (m *WorkerManager) UpdateAgentProject(id, projectID string) error {
 	agent.LastActive = time.Now()
 	m.persistAgent(agent)
 
+	return nil
+}
+
+// UpdateAgentProvider switches the agent to a new provider and respawns its worker
+// so that the next task uses the correct LLM endpoint.
+func (m *WorkerManager) UpdateAgentProvider(id, providerID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	agent, ok := m.agents[id]
+	if !ok {
+		return fmt.Errorf("agent not found: %s", id)
+	}
+	if agent.ProviderID == providerID {
+		return nil // nothing to do
+	}
+
+	// Stop the existing worker so the next SpawnWorker call creates a fresh one
+	// bound to the new provider. Ignore stop errors (worker may not exist yet).
+	_ = m.workerPool.StopWorker(id)
+
+	agent.ProviderID = providerID
+	agent.LastActive = time.Now()
+
+	// Spawn a fresh worker for the new provider.
+	if _, err := m.workerPool.SpawnWorker(agent, providerID); err != nil {
+		return fmt.Errorf("failed to respawn worker with provider %s: %w", providerID, err)
+	}
+	m.persistAgent(agent)
+	log.Printf("[WorkerManager] Switched agent %s to provider %s", id, providerID)
 	return nil
 }
 
@@ -431,6 +465,22 @@ func (m *WorkerManager) GetIdleAgentsByProject(projectID string) []*models.Agent
 
 // ExecuteTask assigns a task to an agent's worker
 func (m *WorkerManager) ExecuteTask(ctx context.Context, agentID string, task *worker.Task) (*worker.TaskResult, error) {
+	// Wrap context with cancellation so ResetStuckAgents can kill the LLM call.
+	ctx, cancel := context.WithCancel(ctx)
+	m.mu.Lock()
+	// Cancel any previously registered task for this agent (defensive).
+	if prev, ok := m.activeCancels[agentID]; ok {
+		prev()
+	}
+	m.activeCancels[agentID] = cancel
+	m.mu.Unlock()
+	defer func() {
+		m.mu.Lock()
+		delete(m.activeCancels, agentID)
+		m.mu.Unlock()
+		cancel()
+	}()
+
 	// Create tracing span for agent execution
 	ctx, span := telemetry.Tracer.Start(ctx, "agent.ExecuteTask")
 	defer span.End()
@@ -561,6 +611,15 @@ func (m *WorkerManager) ExecuteTask(ctx context.Context, agentID string, task *w
 			LessonsProvider: m.lessonsProvider,
 			DB:              m.db,
 			TextMode:        textMode,
+			// Update LastActive after each iteration so the stuck-agent timer
+			// doesn't prematurely reset an agent that is making slow progress.
+			OnProgress: func() {
+				m.mu.Lock()
+				if a, ok := m.agents[agentID]; ok {
+					a.LastActive = time.Now()
+				}
+				m.mu.Unlock()
+			},
 		}
 
 		loopResult, loopErr := workerInstance.ExecuteTaskWithLoop(ctx, task, loopConfig)
@@ -973,6 +1032,13 @@ func (m *WorkerManager) ResetStuckAgents(maxWorkingDuration time.Duration) int {
 			elapsed := now.Sub(agent.LastActive)
 			if elapsed > maxWorkingDuration {
 				log.Printf("[WorkerManager] Resetting stuck agent %s (working for %v)", agent.ID, elapsed)
+
+				// Cancel the running LLM HTTP request so the goroutine unblocks.
+				if cancelFn, ok := m.activeCancels[agent.ID]; ok {
+					cancelFn()
+					delete(m.activeCancels, agent.ID)
+				}
+
 				agent.Status = "idle"
 				agent.CurrentBead = ""
 

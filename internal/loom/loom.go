@@ -993,6 +993,13 @@ func (a *Loom) Initialize(ctx context.Context) error {
 		_ = a.ensureDefaultAgents(ctx, p.ID)
 	}
 
+	// After restoring agents from DB, reset any that were left in "working" state.
+	// They have no running goroutine after restart, so clearing their status allows
+	// the dispatch loop to re-assign their beads on the first tick.
+	if resetCount := a.agentManager.ResetStuckAgents(0); resetCount > 0 {
+		log.Printf("[Loom] Reset %d agent(s) left in 'working' state from previous run", resetCount)
+	}
+
 	// Attach healthy providers to any paused agents after creating default agents
 	// Small delay to ensure agents are persisted to database
 	time.Sleep(500 * time.Millisecond)
@@ -3804,12 +3811,13 @@ func (a *Loom) StartDispatchLoop(ctx context.Context, interval time.Duration) {
 			os.WriteFile("/tmp/dispatch-loop-tick.txt", []byte(fmt.Sprintf("TICK at %s\n", time.Now())), 0644)
 
 			// Phase 1: Reset agents stuck in "working" state (similar to Ralph Loop)
-			// Using 1 minute timeout to quickly recover from stuck states
+			// Using 10 minute timeout — context cancellation handles premature kills;
+			// this is a last-resort safety net for truly deadlocked goroutines.
 			if a.agentManager != nil {
 				// First reset agents with inconsistent state (working but no bead)
 				inconsistentReset := a.resetInconsistentAgents()
 				// Then reset agents stuck for too long
-				timeoutReset := a.agentManager.ResetStuckAgents(1 * time.Minute)
+				timeoutReset := a.agentManager.ResetStuckAgents(10 * time.Minute)
 				totalReset := inconsistentReset + timeoutReset
 				os.WriteFile("/tmp/dispatch-agents-reset.txt", []byte(fmt.Sprintf("reset=%d (inconsistent=%d timeout=%d)\n", totalReset, inconsistentReset, timeoutReset)), 0644)
 				if totalReset > 0 {
