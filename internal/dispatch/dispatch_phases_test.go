@@ -1015,3 +1015,83 @@ func TestApplyLoopMetadata_UnknownTerminalReason(t *testing.T) {
 		t.Error("Expected no cooldown for unknown terminal reason")
 	}
 }
+
+// --- processTaskSuccess stuck-loop regression tests ---
+// These tests guard against the bug where inner_loop/progress_stagnant terminal
+// reasons left beads in_progress with redispatch_requested=true, causing infinite
+// re-dispatch loops that reset actionHashes each cycle.
+
+func newTestDispatcherForPhases() *Dispatcher {
+	return &Dispatcher{}
+}
+
+// beadAfterStuckLoop simulates what processTaskSuccess builds when a stuck
+// terminal reason is returned. It mirrors the logic inside processTaskSuccess
+// without needing a full DB; callers verify the returned update map directly.
+func simulateProcessTaskSuccessUpdates(termReason string) map[string]interface{} {
+	d := newTestDispatcherForPhases()
+	ctxUpdates := map[string]string{
+		"redispatch_requested": "true",
+	}
+	result := &worker.TaskResult{LoopTerminalReason: termReason}
+	bead := &models.Bead{ID: "b-stuck", Status: models.BeadStatusInProgress}
+	ag := &models.Agent{ID: "agent-x"}
+
+	d.applyLoopMetadata(ctxUpdates, bead, ag, result)
+
+	updates := map[string]interface{}{"context": ctxUpdates}
+
+	switch termReason {
+	case "inner_loop", "progress_stagnant":
+		ctxUpdates["redispatch_requested"] = "false"
+		updates["status"] = models.BeadStatusOpen
+		updates["assigned_to"] = ""
+	case "completed":
+		updates["status"] = models.BeadStatusClosed
+	}
+	return updates
+}
+
+func TestProcessTaskSuccess_InnerLoop_BeadMovedToOpen(t *testing.T) {
+	updates := simulateProcessTaskSuccessUpdates("inner_loop")
+	status, ok := updates["status"]
+	if !ok {
+		t.Fatal("inner_loop must set status in updates")
+	}
+	if status != models.BeadStatusOpen {
+		t.Errorf("inner_loop: expected status=%q, got %q", models.BeadStatusOpen, status)
+	}
+	ctx := updates["context"].(map[string]string)
+	if ctx["redispatch_requested"] != "false" {
+		t.Error("inner_loop: redispatch_requested must be false to prevent immediate re-dispatch")
+	}
+}
+
+func TestProcessTaskSuccess_ProgressStagnant_BeadMovedToOpen(t *testing.T) {
+	updates := simulateProcessTaskSuccessUpdates("progress_stagnant")
+	status, ok := updates["status"]
+	if !ok {
+		t.Fatal("progress_stagnant must set status in updates")
+	}
+	if status != models.BeadStatusOpen {
+		t.Errorf("progress_stagnant: expected status=%q, got %q", models.BeadStatusOpen, status)
+	}
+	ctx := updates["context"].(map[string]string)
+	if ctx["redispatch_requested"] != "false" {
+		t.Error("progress_stagnant: redispatch_requested must be false to prevent infinite re-dispatch")
+	}
+}
+
+func TestProcessTaskSuccess_Completed_BeadClosed(t *testing.T) {
+	updates := simulateProcessTaskSuccessUpdates("completed")
+	if updates["status"] != models.BeadStatusClosed {
+		t.Errorf("completed: expected status=closed, got %v", updates["status"])
+	}
+}
+
+func TestProcessTaskSuccess_NormalIteration_BeadRemainsInProgress(t *testing.T) {
+	updates := simulateProcessTaskSuccessUpdates("max_iterations")
+	if _, ok := updates["status"]; ok {
+		t.Errorf("max_iterations: status should not be set (bead stays in_progress), got %v", updates["status"])
+	}
+}

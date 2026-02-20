@@ -409,20 +409,25 @@ func (ld *LoopDetector) updateProgressMetrics(bead *models.Bead, action ActionRe
 		_ = json.Unmarshal([]byte(metricsJSON), &metrics)
 	}
 
-	// Update metrics based on action type
+	// Update metrics based on action type.
+	// Only mutations and completions count as real progress.
+	// Read-only exploration actions (read_file, glob, grep) do NOT advance
+	// LastProgress — repeating them endlessly is the definition of being stuck.
 	progressMade := false
 	switch action.ActionType {
-	case "read_file", "glob", "grep":
+	case "read_file", "glob", "grep", "search_text", "read_tree":
+		// Read-only: track for stats but do NOT update LastProgress
 		metrics.FilesRead++
-		progressMade = true
-	case "edit_file", "write_file":
+	case "edit_file", "write_file", "create_file":
 		metrics.FilesModified++
 		progressMade = true
 	case "run_tests", "test":
 		metrics.TestsRun++
 		progressMade = true
-	case "bash", "execute":
+	case "bash", "execute", "run_command":
 		metrics.CommandsExecuted++
+		progressMade = true
+	case "git_commit", "git_push", "done", "close_bead":
 		progressMade = true
 	}
 

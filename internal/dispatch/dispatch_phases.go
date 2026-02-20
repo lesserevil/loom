@@ -677,6 +677,17 @@ func (d *Dispatcher) processTaskSuccess(candidate *models.Bead, ag *models.Agent
 		// Agent signaled "done" — close the bead so it won't be re-dispatched.
 		updates["status"] = models.BeadStatusClosed
 		log.Printf("[Dispatcher] Bead %s completed (agent signaled done), closing", candidate.ID)
+	} else if result.LoopTerminalReason == "inner_loop" || result.LoopTerminalReason == "progress_stagnant" {
+		// Agent is stuck — move bead back to open so it is not immediately re-dispatched.
+		// A remediation bead has already been created by applyLoopMetadata; the original
+		// bead must be cleared from in_progress to prevent the dispatcher from spinning on
+		// it again before the remediation is addressed.
+		ctxUpdates["redispatch_requested"] = "false"
+		ctxUpdates["stuck_at"] = time.Now().UTC().Format(time.RFC3339)
+		updates["status"] = models.BeadStatusOpen
+		updates["assigned_to"] = ""
+		log.Printf("[Dispatcher] Bead %s stuck (%s), opening for re-triage (remediation bead created)",
+			candidate.ID, result.LoopTerminalReason)
 	}
 	if err := d.beads.UpdateBead(candidate.ID, updates); err != nil {
 		log.Printf("[Dispatcher] CRITICAL: Failed to update bead %s after task: %v", candidate.ID, err)
@@ -688,6 +699,8 @@ func (d *Dispatcher) processTaskSuccess(candidate *models.Bead, ag *models.Agent
 			status = string(models.BeadStatusOpen)
 		} else if result.LoopTerminalReason == "completed" {
 			status = string(models.BeadStatusClosed)
+		} else if result.LoopTerminalReason == "inner_loop" || result.LoopTerminalReason == "progress_stagnant" {
+			status = string(models.BeadStatusOpen)
 		}
 		_ = d.eventBus.PublishBeadEvent("bead.status_change", candidate.ID, selectedProjectID,
 			map[string]interface{}{"status": status})
