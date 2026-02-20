@@ -12,6 +12,6 @@
 - Agent Explosion Fix
 
 ## Verification
-All tests pass.
+All tests pass
 
 Bead: bd-035
