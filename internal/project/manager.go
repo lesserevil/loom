@@ -135,6 +135,12 @@ func (m *Manager) UpdateProject(id string, updates map[string]interface{}) error
 	if useContainer, ok := updates["use_container"].(bool); ok {
 		project.UseContainer = useContainer
 	}
+	if githubRepo, ok := updates["github_repo"].(string); ok {
+		project.GitHubRepo = githubRepo
+	}
+	if defaultBranch, ok := updates["default_branch"].(string); ok {
+		project.DefaultBranch = defaultBranch
+	}
 
 	project.UpdatedAt = time.Now()
 

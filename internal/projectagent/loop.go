@@ -163,6 +163,12 @@ func (a *Agent) buildSystemPrompt(cfg ActionLoopConfig) string {
 - {"type": "create_bead", "params": {"title": "...", "description": "...", "type": "decision", "priority": 0, "tags": [...]}} - Create a bead (e.g. approval request)
 - {"type": "close_bead", "params": {"bead_id": "...", "reason": "..."}} - Close a bead
 - {"type": "verify", "params": {"command": "...", "timeout": 120}} - Run tests to verify a fix (auto-detects test framework)
+- {"type": "github_list_issues", "params": {"state": "open"}} - List GitHub issues
+- {"type": "github_create_issue", "params": {"title": "...", "body": "...", "labels": [...]}} - Create a GitHub issue
+- {"type": "github_comment_issue", "params": {"number": 42, "body": "..."}} - Comment on a GitHub issue
+- {"type": "github_close_issue", "params": {"number": 42, "comment": "..."}} - Close a GitHub issue
+- {"type": "github_list_prs", "params": {"state": "open"}} - List pull requests
+- {"type": "github_workflow_status", "params": {"workflow": "ci.yml"}} - Get workflow run status
 - {"type": "done", "params": {"message": "..."}} - Signal completion
 
 You are running inside an isolated container as root. If a command fails with "command not found"
@@ -260,6 +266,8 @@ func (a *Agent) executeAction(ctx context.Context, action LLMAction) ActionResul
 		if err != nil {
 			return ActionResult{Type: "git_push", Success: false, Error: err.Error(), Output: output}
 		}
+		// Auto-detect GitHub repo URL after successful push and notify control plane.
+		go a.reportGitHubRepoURL(context.Background())
 		return ActionResult{Type: "git_push", Success: true, Output: output}
 
 	case "search_text":
@@ -282,6 +290,48 @@ func (a *Agent) executeAction(ctx context.Context, action LLMAction) ActionResul
 			return ActionResult{Type: "create_pr", Success: false, Error: err.Error(), Output: output}
 		}
 		return ActionResult{Type: "create_pr", Success: true, Output: output}
+
+	case "github_list_issues":
+		output, err := a.executeGitHubListIssues(ctx, action.Params)
+		if err != nil {
+			return ActionResult{Type: "github_list_issues", Success: false, Error: err.Error()}
+		}
+		return ActionResult{Type: "github_list_issues", Success: true, Output: output}
+
+	case "github_create_issue":
+		output, err := a.executeGitHubCreateIssue(ctx, action.Params)
+		if err != nil {
+			return ActionResult{Type: "github_create_issue", Success: false, Error: err.Error()}
+		}
+		return ActionResult{Type: "github_create_issue", Success: true, Output: output}
+
+	case "github_comment_issue":
+		output, err := a.executeGitHubCommentIssue(ctx, action.Params)
+		if err != nil {
+			return ActionResult{Type: "github_comment_issue", Success: false, Error: err.Error()}
+		}
+		return ActionResult{Type: "github_comment_issue", Success: true, Output: output}
+
+	case "github_close_issue":
+		output, err := a.executeGitHubCloseIssue(ctx, action.Params)
+		if err != nil {
+			return ActionResult{Type: "github_close_issue", Success: false, Error: err.Error()}
+		}
+		return ActionResult{Type: "github_close_issue", Success: true, Output: output}
+
+	case "github_list_prs":
+		output, err := a.executeGitHubListPRs(ctx, action.Params)
+		if err != nil {
+			return ActionResult{Type: "github_list_prs", Success: false, Error: err.Error()}
+		}
+		return ActionResult{Type: "github_list_prs", Success: true, Output: output}
+
+	case "github_workflow_status":
+		output, err := a.executeGitHubWorkflowStatus(ctx, action.Params)
+		if err != nil {
+			return ActionResult{Type: "github_workflow_status", Success: false, Error: err.Error()}
+		}
+		return ActionResult{Type: "github_workflow_status", Success: true, Output: output}
 
 	case "create_bead":
 		output, err := a.executeCreateBead(ctx, action.Params)

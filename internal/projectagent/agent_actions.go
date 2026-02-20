@@ -9,6 +9,8 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/jordanhubbard/loom/internal/github"
 )
 
 // executeCreatePR creates a pull request via the gh CLI tool.
@@ -220,4 +222,152 @@ func (a *Agent) executeCloseBead(ctx context.Context, params map[string]interfac
 	}
 
 	return fmt.Sprintf("Bead %s closed: %s", beadID, reason), nil
+}
+
+// reportGitHubRepoURL auto-detects the git remote origin URL and PUTs it to
+// the control plane as the project's github_repo. Safe to call in a goroutine;
+// errors are logged but not fatal.
+func (a *Agent) reportGitHubRepoURL(ctx context.Context) {
+	ghc := github.NewClient(a.config.WorkDir, "")
+	remoteURL, err := ghc.DetectRepoURL(ctx)
+	if err != nil || remoteURL == "" {
+		return
+	}
+	// Convert SSH remote (git@github.com:owner/repo.git) to owner/repo slug.
+	slug := remoteURL
+	if strings.Contains(slug, "github.com") {
+		slug = strings.TrimSuffix(slug, ".git")
+		if idx := strings.LastIndex(slug, "github.com"); idx >= 0 {
+			slug = slug[idx+len("github.com"):]
+			slug = strings.TrimPrefix(slug, "/")
+			slug = strings.TrimPrefix(slug, ":")
+		}
+	}
+	if slug == "" {
+		return
+	}
+	payload, _ := json.Marshal(map[string]string{"github_repo": slug})
+	url := fmt.Sprintf("%s/api/v1/projects/%s/github", a.config.ControlPlaneURL, a.config.ProjectID)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, bytes.NewReader(payload))
+	if err != nil {
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := a.httpClient.Do(req)
+	if err != nil {
+		return
+	}
+	resp.Body.Close()
+}
+
+// ghClient returns a GitHub client for the agent's workspace.
+func (a *Agent) ghClient() *github.Client {
+	token := "" // gh CLI uses stored OAuth credentials by default
+	return github.NewClient(a.config.WorkDir, token)
+}
+
+// executeGitHubListIssues lists open GitHub issues.
+// Params: state (optional: "open", "closed", "all")
+func (a *Agent) executeGitHubListIssues(ctx context.Context, params map[string]interface{}) (string, error) {
+	state, _ := params["state"].(string)
+	issues, err := a.ghClient().ListIssues(ctx, state)
+	if err != nil {
+		return "", err
+	}
+	out, _ := json.MarshalIndent(issues, "", "  ")
+	return string(out), nil
+}
+
+// executeGitHubCreateIssue creates a GitHub issue.
+// Params: title (required), body, labels ([]string)
+func (a *Agent) executeGitHubCreateIssue(ctx context.Context, params map[string]interface{}) (string, error) {
+	title, _ := params["title"].(string)
+	if title == "" {
+		return "", fmt.Errorf("title parameter required")
+	}
+	body, _ := params["body"].(string)
+	var labels []string
+	if l, ok := params["labels"].([]interface{}); ok {
+		for _, v := range l {
+			if s, ok := v.(string); ok {
+				labels = append(labels, s)
+			}
+		}
+	}
+	issue, err := a.ghClient().CreateIssue(ctx, github.CreateIssueRequest{
+		Title:  title,
+		Body:   body,
+		Labels: labels,
+	})
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("Created issue #%d: %s\n%s", issue.Number, issue.Title, issue.URL), nil
+}
+
+// executeGitHubCommentIssue adds a comment to a GitHub issue.
+// Params: number (required, int), body (required)
+func (a *Agent) executeGitHubCommentIssue(ctx context.Context, params map[string]interface{}) (string, error) {
+	number := 0
+	switch v := params["number"].(type) {
+	case float64:
+		number = int(v)
+	case int:
+		number = v
+	}
+	if number == 0 {
+		return "", fmt.Errorf("number parameter required")
+	}
+	body, _ := params["body"].(string)
+	if body == "" {
+		return "", fmt.Errorf("body parameter required")
+	}
+	if err := a.ghClient().CommentOnIssue(ctx, number, body); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("Commented on issue #%d", number), nil
+}
+
+// executeGitHubCloseIssue closes a GitHub issue.
+// Params: number (required, int), comment (optional)
+func (a *Agent) executeGitHubCloseIssue(ctx context.Context, params map[string]interface{}) (string, error) {
+	number := 0
+	switch v := params["number"].(type) {
+	case float64:
+		number = int(v)
+	case int:
+		number = v
+	}
+	if number == 0 {
+		return "", fmt.Errorf("number parameter required")
+	}
+	comment, _ := params["comment"].(string)
+	if err := a.ghClient().CloseIssue(ctx, number, comment); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("Closed issue #%d", number), nil
+}
+
+// executeGitHubListPRs lists pull requests.
+// Params: state (optional: "open", "closed", "merged", "all")
+func (a *Agent) executeGitHubListPRs(ctx context.Context, params map[string]interface{}) (string, error) {
+	state, _ := params["state"].(string)
+	prs, err := a.ghClient().ListPRs(ctx, state)
+	if err != nil {
+		return "", err
+	}
+	out, _ := json.MarshalIndent(prs, "", "  ")
+	return string(out), nil
+}
+
+// executeGitHubWorkflowStatus lists recent workflow runs.
+// Params: workflow (optional: filename like "ci.yml")
+func (a *Agent) executeGitHubWorkflowStatus(ctx context.Context, params map[string]interface{}) (string, error) {
+	workflow, _ := params["workflow"].(string)
+	runs, err := a.ghClient().ListWorkflowRuns(ctx, workflow)
+	if err != nil {
+		return "", err
+	}
+	out, _ := json.MarshalIndent(runs, "", "  ")
+	return string(out), nil
 }

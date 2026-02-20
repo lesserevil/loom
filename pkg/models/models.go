@@ -162,6 +162,10 @@ type Project struct {
 	// Container isolation (per-project containers)
 	UseContainer     bool              `json:"use_container"`                // If true, project executes in isolated container
 	UseWorktrees     bool              `json:"use_worktrees"`               // If true, use git worktrees for parallel agent work
+
+	// GitHub integration
+	GitHubRepo    string `json:"github_repo,omitempty"`    // "owner/repo" e.g. "jordanhubbard/loom"
+	DefaultBranch string `json:"default_branch,omitempty"` // default: "main"
 }
 
 // VersionedEntity interface implementation for Project
