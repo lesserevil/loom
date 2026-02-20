@@ -13,6 +13,9 @@ obj/
 /loomctl
 cmd/loomctl/loomctl
 /agenticorp
+/connectors-service
+/loom-project-agent
+.cursor/
 
 # Test binary, built with `go test -c`
 *.test
