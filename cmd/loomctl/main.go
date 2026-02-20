@@ -49,6 +49,7 @@ All output is structured JSON by default (pipe through jq for human-readable for
 	rootCmd.AddCommand(newEventCommand())
 	rootCmd.AddCommand(newExportCommand())
 	rootCmd.AddCommand(newImportCommand())
+	rootCmd.AddCommand(newCreateFileCommand())
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
