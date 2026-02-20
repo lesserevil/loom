@@ -27,6 +27,8 @@ func (s *Server) handleProjectStateEndpoints(w http.ResponseWriter, r *http.Requ
 		s.handleProjectGitKey(w, r, id)
 	case "github":
 		s.handleProjectGitHub(w, r, id)
+	case "memory":
+		s.handleProjectMemory(w, r, id)
 	default:
 		s.respondError(w, http.StatusNotFound, "Unknown action")
 	}

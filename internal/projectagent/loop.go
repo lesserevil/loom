@@ -15,11 +15,12 @@ import (
 
 // ActionLoopConfig configures the multi-turn action loop
 type ActionLoopConfig struct {
-	MaxIterations     int
-	ProviderEndpoint  string
-	ProviderModel     string
-	ProviderAPIKey    string
+	MaxIterations       int
+	ProviderEndpoint    string
+	ProviderModel       string
+	ProviderAPIKey      string
 	PersonaInstructions string
+	MemoryContext       string // pre-built markdown summary from MemoryManager
 }
 
 // ActionResult captures the outcome of a single action
@@ -151,6 +152,12 @@ func (a *Agent) buildSystemPrompt(cfg ActionLoopConfig) string {
 		sb.WriteString("\n\n")
 	}
 
+	if cfg.MemoryContext != "" {
+		sb.WriteString("\n\n")
+		sb.WriteString(cfg.MemoryContext)
+		sb.WriteString("\n\n")
+	}
+
 	sb.WriteString(`Respond with JSON containing an "actions" array. Available action types:
 - {"type": "bash", "params": {"command": "..."}} - Execute a shell command
 - {"type": "read", "params": {"path": "..."}} - Read a file
@@ -230,6 +237,9 @@ func (a *Agent) executeAction(ctx context.Context, action LLMAction) ActionResul
 				}
 			}
 			return ActionResult{Type: "bash", Success: false, Error: errStr, Output: output}
+		}
+		if cmd, _ := action.Params["command"].(string); cmd != "" {
+			go a.learnFromBashSuccess(context.Background(), cmd)
 		}
 		return ActionResult{Type: "bash", Success: true, Output: output}
 

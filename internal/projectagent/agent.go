@@ -828,6 +828,9 @@ func (a *Agent) handleNatsTask(taskMsg *messages.TaskMessage) {
 		action = "action_loop"
 		params["title"] = taskMsg.TaskData.Title
 		params["description"] = taskMsg.TaskData.Description
+		if taskMsg.TaskData.MemoryContext != "" {
+			params["memory_context"] = taskMsg.TaskData.MemoryContext
+		}
 	}
 
 	req := &TaskRequest{
@@ -875,6 +878,7 @@ func (a *Agent) executeTaskWithNats(req *TaskRequest, correlationID string) {
 	case "action_loop":
 		title, _ := req.Params["title"].(string)
 		desc, _ := req.Params["description"].(string)
+		memCtx, _ := req.Params["memory_context"].(string)
 		if title == "" {
 			title = "Task from bead " + req.BeadID
 		}
@@ -884,6 +888,7 @@ func (a *Agent) executeTaskWithNats(req *TaskRequest, correlationID string) {
 			ProviderModel:       a.config.ProviderModel,
 			ProviderAPIKey:      a.config.ProviderAPIKey,
 			PersonaInstructions: a.personaInstructions,
+			MemoryContext:       memCtx,
 		}
 		output, err = a.RunActionLoop(ctx, title, desc, loopCfg)
 	default:

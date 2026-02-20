@@ -224,6 +224,45 @@ func (a *Agent) executeCloseBead(ctx context.Context, params map[string]interfac
 	return fmt.Sprintf("Bead %s closed: %s", beadID, reason), nil
 }
 
+// learnFromBashSuccess inspects a successful bash command and stores any
+// recognized build/test/lint commands as project memory on the control plane.
+func (a *Agent) learnFromBashSuccess(ctx context.Context, command string) {
+	category := ""
+	key := ""
+	switch {
+	case strings.HasPrefix(command, "go build") || strings.HasPrefix(command, "make build"):
+		category = "build_system"
+		key = "build_command"
+	case strings.HasPrefix(command, "go test") || strings.HasPrefix(command, "npm test") ||
+		strings.HasPrefix(command, "pytest") || strings.HasPrefix(command, "make test"):
+		category = "build_system"
+		key = "test_command"
+	case strings.HasPrefix(command, "golangci-lint") || strings.HasPrefix(command, "eslint") ||
+		strings.HasPrefix(command, "make lint"):
+		category = "build_system"
+		key = "lint_command"
+	default:
+		return
+	}
+
+	payload, _ := json.Marshal(map[string]interface{}{
+		"value":      command,
+		"confidence": 0.8,
+	})
+	url := fmt.Sprintf("%s/api/v1/projects/%s/memory/%s/%s",
+		a.config.ControlPlaneURL, a.config.ProjectID, category, key)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, bytes.NewReader(payload))
+	if err != nil {
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := a.httpClient.Do(req)
+	if err != nil {
+		return
+	}
+	resp.Body.Close()
+}
+
 // reportGitHubRepoURL auto-detects the git remote origin URL and PUTs it to
 // the control plane as the project's github_repo. Safe to call in a goroutine;
 // errors are logged but not fatal.

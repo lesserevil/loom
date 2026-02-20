@@ -16,12 +16,13 @@ type TaskMessage struct {
 
 // TaskData contains the actual task information
 type TaskData struct {
-	Title       string                 `json:"title"`
-	Description string                 `json:"description"`
-	Priority    int                    `json:"priority"`
-	Type        string                 `json:"type"` // "task", "bug", "feature", etc.
-	Context     map[string]interface{} `json:"context,omitempty"`
-	WorkDir     string                 `json:"work_dir,omitempty"` // Project working directory
+	Title         string                 `json:"title"`
+	Description   string                 `json:"description"`
+	Priority      int                    `json:"priority"`
+	Type          string                 `json:"type"` // "task", "bug", "feature", etc.
+	Context       map[string]interface{} `json:"context,omitempty"`
+	WorkDir       string                 `json:"work_dir,omitempty"` // Project working directory
+	MemoryContext string                 `json:"memory_context,omitempty"` // Pre-built markdown summary from MemoryManager
 }
 
 // TaskAssigned creates a task.assigned message

@@ -29,6 +29,7 @@ import (
 	"github.com/jordanhubbard/loom/internal/gitops"
 	"github.com/jordanhubbard/loom/internal/keymanager"
 	"github.com/jordanhubbard/loom/internal/logging"
+	"github.com/jordanhubbard/loom/internal/memory"
 	"github.com/jordanhubbard/loom/internal/messagebus"
 	"github.com/jordanhubbard/loom/internal/metrics"
 	"github.com/jordanhubbard/loom/internal/orchestrator"
@@ -98,6 +99,7 @@ type Loom struct {
 	openclawBridge      *openclaw.Bridge
 	containerOrchestrator *containers.Orchestrator
 	connectorManager    *connectors.Manager
+	memoryManager       *memory.MemoryManager
 	messageBus          interface{}
 	bridge              *messagebus.BridgedMessageBus
 	pdaOrchestrator     *orchestrator.PDAOrchestrator
@@ -402,6 +404,7 @@ func New(cfg *config.Config) (*Loom, error) {
 		if lessonsProvider != nil {
 			agentMgr.SetLessonsProvider(lessonsProvider)
 		}
+		arb.memoryManager = memory.NewMemoryManager(db)
 	}
 
 	arb.dispatcher = dispatch.NewDispatcher(arb.beadsManager, arb.projectManager, arb.agentManager, arb.providerRegistry, eb)
@@ -1158,6 +1161,9 @@ func (a *Loom) Initialize(ctx context.Context) error {
 			// Wire swarm manager to dispatcher for dynamic service discovery routing.
 			if a.dispatcher != nil {
 				a.dispatcher.SetSwarmManager(a.swarmManager)
+				if a.memoryManager != nil {
+					a.dispatcher.SetMemoryManager(a.memoryManager)
+				}
 			}
 
 			// Federation with peer NATS instances
@@ -3999,4 +4005,9 @@ func (a *Loom) GetBeadConversation(beadID string) ([]models.ChatMessage, error) 
 	}
 
 	return ctx.Messages, nil
+}
+
+// GetMemoryManager returns the per-project memory manager (nil if no database).
+func (a *Loom) GetMemoryManager() *memory.MemoryManager {
+	return a.memoryManager
 }

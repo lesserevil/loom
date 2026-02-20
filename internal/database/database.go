@@ -152,6 +152,11 @@ func NewPostgreSQL() (*Database, error) {
 		return nil, fmt.Errorf("failed to migrate provider api key: %w", err)
 	}
 
+	if err := d.migrateProjectMemory(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to migrate project memory: %w", err)
+	}
+
 	return d, nil
 }
 

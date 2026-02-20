@@ -17,6 +17,7 @@ import (
 	"github.com/jordanhubbard/loom/internal/containers"
 	"github.com/jordanhubbard/loom/internal/database"
 	"github.com/jordanhubbard/loom/internal/gitops"
+	"github.com/jordanhubbard/loom/internal/memory"
 	"github.com/jordanhubbard/loom/internal/project"
 	"github.com/jordanhubbard/loom/internal/provider"
 	"github.com/jordanhubbard/loom/internal/swarm"
@@ -73,6 +74,7 @@ type Dispatcher struct {
 	containerOrch       *containers.Orchestrator   // Per-project container orchestration
 	worktreeManager     *gitops.GitWorktreeManager // Per-agent worktree isolation
 	swarmMgr            *swarm.Manager             // Dynamic service discovery
+	memoryMgr           *memory.MemoryManager      // Per-project memory for context injection
 	personaMatcher      *PersonaMatcher
 	autoBugRouter       *AutoBugRouter
 	complexityEstimator *provider.ComplexityEstimator
@@ -293,6 +295,13 @@ func (d *Dispatcher) SetSwarmManager(mgr *swarm.Manager) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.swarmMgr = mgr
+}
+
+// SetMemoryManager injects the per-project memory manager used for context enrichment.
+func (d *Dispatcher) SetMemoryManager(mgr *memory.MemoryManager) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.memoryMgr = mgr
 }
 
 // SetWorktreeManager sets the git worktree manager for parallel agent isolation.
@@ -536,15 +545,23 @@ func (d *Dispatcher) DispatchOnce(ctx context.Context, projectID string) (*Dispa
 		members := d.swarmMgr.GetMembersByProject(selectedProjectID)
 		for _, m := range members {
 			if m.Status == "online" || m.Status == "" {
+				// Build memory context summary for injection into agent prompt.
+				var memCtx string
+				if d.memoryMgr != nil {
+					if summary, err := d.memoryMgr.BuildContextSummary(ctx, selectedProjectID); err == nil {
+						memCtx = summary
+					}
+				}
 				// Publish role-targeted task so the correct agent role picks it up.
 				taskMsg := messages.TaskAssigned(
 					selectedProjectID,
 					candidate.ID,
 					ag.ID,
 					messages.TaskData{
-						Title:       candidate.Title,
-						Description: candidate.Description,
-						Type:        "bead",
+						Title:         candidate.Title,
+						Description:   candidate.Description,
+						Type:          "bead",
+						MemoryContext: memCtx,
 						Context: map[string]interface{}{
 							"bead_id": candidate.ID,
 							"role":    ag.Role,
