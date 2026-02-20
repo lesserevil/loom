@@ -29,6 +29,14 @@ scrape_configs:
           service: 'loom'
           source: 'otel'
 
+  # Scrape connectors-service metrics (via OTEL Collector)
+  - job_name: 'connectors-service'
+    static_configs:
+      - targets: ['connectors-service:50051']
+        labels:
+          service: 'connectors-service'
+          component: 'connectors'
+
   # Scrape Prometheus itself
   - job_name: 'prometheus'
     static_configs:

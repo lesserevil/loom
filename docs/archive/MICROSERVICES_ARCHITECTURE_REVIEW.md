@@ -370,27 +370,27 @@ services:
 
 ---
 
-### Phase 4: Connectors Service (Week 4)
+### Phase 4: Connectors Service (Week 4) ✅ COMPLETE
 
 **Tasks:**
-1. Extract connector management to separate service
-2. Define protobuf for connector operations
-3. Implement gRPC Connectors Service
-4. Update control plane to call Connectors Service
-5. Update agents to call Connectors Service
+1. ✅ Extract connector management to separate service (`cmd/connectors-service/`)
+2. ✅ Define protobuf for connector operations (`api/proto/connectors/`)
+3. ✅ Implement gRPC Connectors Service (`internal/connectors/grpc_server.go`)
+4. ✅ Update control plane to call Connectors Service (gRPC client + `ConnectorService` interface)
+5. ✅ Connector service in docker-compose and Kubernetes manifests
 
 **Deliverable:** Connectors as independent microservice
 
 ---
 
-### Phase 5: Service Mesh & Observability (Week 5)
+### Phase 5: Service Mesh & Observability (Week 5) ✅ COMPLETE
 
 **Tasks:**
-1. Add Istio or Linkerd service mesh
-2. Configure mTLS between services
-3. Add distributed tracing (Jaeger)
-4. Add metrics collection (Prometheus)
-5. Add centralized logging (Loki)
+1. ✅ Add Linkerd service mesh (K8s manifests with authorization policies + retry budgets)
+2. ✅ Configure mTLS between services (Linkerd `MeshTLSAuthentication` policies)
+3. ✅ Add distributed tracing (Jaeger + OTel Collector + code instrumentation)
+4. ✅ Add metrics collection (Prometheus + custom `loom.*` metrics)
+5. ✅ Add centralized logging (Loki + Promtail with Docker container log scraping)
 
 **Deliverable:** Full observability and security
 

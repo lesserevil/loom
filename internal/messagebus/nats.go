@@ -23,13 +23,15 @@ type NatsMessageBus struct {
 	subscriptions  map[string]*nats.Subscription
 	streamName     string
 	url            string
+	consumerPrefix string
 }
 
 // Config holds NATS configuration
 type Config struct {
-	URL        string        // NATS server URL (e.g., "nats://nats:4222")
-	StreamName string        // JetStream stream name (default: "LOOM")
-	Timeout    time.Duration // Connection timeout
+	URL            string        // NATS server URL (e.g., "nats://nats:4222")
+	StreamName     string        // JetStream stream name (default: "LOOM")
+	Timeout        time.Duration // Connection timeout
+	ConsumerPrefix string        // Prefix for durable consumer names (for test isolation)
 }
 
 // NewNatsMessageBus creates a new NATS message bus with JetStream
@@ -70,11 +72,12 @@ func NewNatsMessageBus(cfg Config) (*NatsMessageBus, error) {
 	}
 
 	mb := &NatsMessageBus{
-		conn:          nc,
-		js:            js,
-		subscriptions: make(map[string]*nats.Subscription),
-		streamName:    cfg.StreamName,
-		url:           cfg.URL,
+		conn:           nc,
+		js:             js,
+		subscriptions:  make(map[string]*nats.Subscription),
+		streamName:     cfg.StreamName,
+		url:            cfg.URL,
+		consumerPrefix: cfg.ConsumerPrefix,
 	}
 
 	// Create or update the LOOM stream
@@ -87,13 +90,14 @@ func NewNatsMessageBus(cfg Config) (*NatsMessageBus, error) {
 	return mb, nil
 }
 
-// ensureStream creates or updates the JetStream stream
+// ensureStream creates or updates the JetStream stream.
+// Uses LimitsPolicy (not WorkQueue) so that multiple consumers can
+// subscribe to the same subjects—required for results/events fan-out.
 func (mb *NatsMessageBus) ensureStream() error {
-	// Define the stream configuration
 	streamConfig := &nats.StreamConfig{
 		Name:        mb.streamName,
 		Subjects:    []string{"loom.>"},
-		Retention:   nats.WorkQueuePolicy,
+		Retention:   nats.LimitsPolicy,
 		MaxAge:      24 * time.Hour,
 		MaxBytes:    1024 * 1024 * 1024, // 1GB
 		Storage:     nats.FileStorage,
@@ -101,17 +105,25 @@ func (mb *NatsMessageBus) ensureStream() error {
 		Discard:     nats.DiscardOld,
 	}
 
-	// Try to get existing stream info
-	_, err := mb.js.StreamInfo(mb.streamName)
+	info, err := mb.js.StreamInfo(mb.streamName)
 	if err != nil {
-		// Stream doesn't exist, create it
 		_, err = mb.js.AddStream(streamConfig)
 		if err != nil {
 			return fmt.Errorf("failed to create stream: %w", err)
 		}
 		log.Printf("Created JetStream stream: %s", mb.streamName)
+	} else if info.Config.Retention != nats.LimitsPolicy {
+		// Retention policy can't be changed on an existing stream—
+		// delete and recreate if the old stream used WorkQueue.
+		if err := mb.js.DeleteStream(mb.streamName); err != nil {
+			return fmt.Errorf("failed to delete legacy stream: %w", err)
+		}
+		_, err = mb.js.AddStream(streamConfig)
+		if err != nil {
+			return fmt.Errorf("failed to recreate stream: %w", err)
+		}
+		log.Printf("Recreated JetStream stream %s (migrated from WorkQueue to Limits)", mb.streamName)
 	} else {
-		// Stream exists, update it
 		_, err = mb.js.UpdateStream(streamConfig)
 		if err != nil {
 			return fmt.Errorf("failed to update stream: %w", err)
@@ -359,13 +371,21 @@ func (mb *NatsMessageBus) Conn() *nats.Conn {
 	return mb.conn
 }
 
+// prefixConsumer adds the optional consumer prefix for namespace isolation
+func (mb *NatsMessageBus) prefixConsumer(name string) string {
+	if mb.consumerPrefix != "" {
+		return mb.consumerPrefix + "-" + name
+	}
+	return name
+}
+
 // subscribe is the internal method to set up durable subscriptions
 func (mb *NatsMessageBus) subscribe(subject, consumerName string, handler nats.MsgHandler) error {
-	// Create durable consumer
+	prefixed := mb.prefixConsumer(consumerName)
 	sub, err := mb.js.Subscribe(subject, handler,
-		nats.Durable(consumerName),
+		nats.Durable(prefixed),
 		nats.AckExplicit(),
-		nats.MaxDeliver(3), // Retry up to 3 times
+		nats.MaxDeliver(3),
 		nats.AckWait(30*time.Second),
 	)
 	if err != nil {
@@ -373,7 +393,7 @@ func (mb *NatsMessageBus) subscribe(subject, consumerName string, handler nats.M
 	}
 
 	mb.subscriptions[subject] = sub
-	log.Printf("Subscribed to %s with consumer %s", subject, consumerName)
+	log.Printf("Subscribed to %s with consumer %s", subject, prefixed)
 	return nil
 }
 

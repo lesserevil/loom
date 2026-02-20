@@ -254,11 +254,14 @@ go test ./internal/dispatch -v -run TestAutoBugRouter
 - ✅ Route to appropriate agent
 - ✅ Allow P0 auto-filed bugs
 
-### Phase 2 (Planned)
-- ⏳ Agent actually fixes the code
-- ⏳ Agent creates PR with fix
-- ⏳ CEO approval for self-modification
-- ⏳ Hot-reload mechanism
+### Phase 2 (Complete)
+- ✅ Agent investigates and fixes the code via LLM action loop
+- ✅ Agent creates PR with `create_pr` action (`gh pr create`)
+- ✅ CEO approval via decision beads with auto-approval for low-risk fixes
+- ✅ Agent can create approval beads (`create_bead` action)
+- ✅ Agent can close beads (`close_bead` action)
+- ✅ Agent verifies fixes via `verify` action (auto-detects test framework)
+- ✅ Hot-reload mechanism (see hot-reload.md)
 
 ### Phase 3 (Future)
 - 📋 Learning from past fixes

@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/jordanhubbard/loom/internal/provider"
+	"github.com/jordanhubbard/loom/internal/telemetry"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // ActionLoopConfig configures the multi-turn action loop
@@ -43,6 +45,13 @@ type LLMResponse struct {
 // RunActionLoop executes the multi-turn action loop:
 // prompt LLM -> parse actions -> execute -> format feedback -> repeat until done.
 func (a *Agent) RunActionLoop(ctx context.Context, taskTitle, taskDescription string, loopCfg ActionLoopConfig) (string, error) {
+	ctx, span := telemetry.Tracer.Start(ctx, "agent.RunActionLoop")
+	span.SetAttributes(
+		attribute.String("task.title", taskTitle),
+		attribute.Int("loop.max_iterations", loopCfg.MaxIterations),
+	)
+	defer span.End()
+
 	if loopCfg.MaxIterations <= 0 {
 		loopCfg.MaxIterations = 20
 	}
@@ -97,7 +106,7 @@ func (a *Agent) RunActionLoop(ctx context.Context, taskTitle, taskDescription st
 		done := false
 
 		for _, action := range llmResp.Actions {
-			if action.Type == "done" || action.Type == "close_bead" {
+			if action.Type == "done" {
 				done = true
 				if msg, ok := action.Params["message"].(string); ok {
 					lastOutput = msg
@@ -147,13 +156,33 @@ func (a *Agent) buildSystemPrompt(cfg ActionLoopConfig) string {
 - {"type": "read", "params": {"path": "..."}} - Read a file
 - {"type": "write", "params": {"path": "...", "content": "..."}} - Write a file
 - {"type": "install", "params": {"packages": ["pkg1", "pkg2"]}} - Install OS packages (auto-detects apt/apk)
-- {"type": "git_commit", "params": {"message": "..."}} - Commit changes
-- {"type": "git_push", "params": {}} - Push to remote
-- {"type": "search_text", "params": {"pattern": "...", "path": "..."}} - Search files
+- {"type": "git_commit", "params": {"message": "..."}} - Stage all changes and commit
+- {"type": "git_push", "params": {}} - Push commits to remote
+- {"type": "search_text", "params": {"pattern": "...", "path": "..."}} - Search files with grep
+- {"type": "create_pr", "params": {"title": "...", "body": "...", "base": "main"}} - Create a pull request
+- {"type": "create_bead", "params": {"title": "...", "description": "...", "type": "decision", "priority": 0, "tags": [...]}} - Create a bead (e.g. approval request)
+- {"type": "close_bead", "params": {"bead_id": "...", "reason": "..."}} - Close a bead
+- {"type": "verify", "params": {"command": "...", "timeout": 120}} - Run tests to verify a fix (auto-detects test framework)
 - {"type": "done", "params": {"message": "..."}} - Signal completion
 
 You are running inside an isolated container as root. If a command fails with "command not found"
 or a missing tool error, use the "install" action to install the required package, then retry.
+
+## Bug Investigation Workflow
+
+When investigating auto-filed bugs (beads with "[auto-filed]" in the title):
+
+1. EXTRACT: Parse the error message, stack trace, source file, and error type from the bead description.
+2. SEARCH: Use search_text to find the relevant code around the error location.
+3. READ: Read the identified files to understand the context and root cause.
+4. ANALYZE: Identify the specific bug, why it happened, and the correct fix.
+5. FIX: Write the corrected code using the write action.
+6. VERIFY: Run the project's tests to ensure the fix works and causes no regressions.
+7. COMMIT: Commit the fix with a descriptive message referencing the bug.
+8. APPROVE: For non-trivial fixes, create a decision bead with title "[CEO] Code Fix Approval: <description>" containing root cause analysis, proposed fix, risk assessment, and testing results.
+9. DONE: Signal completion with a summary of what was fixed and how.
+
+For low-risk fixes (typos, missing imports, single-file changes), skip the approval step and apply directly.
 Always use the "done" action when finished.`)
 
 	return sb.String()
@@ -178,6 +207,10 @@ func isCommandNotFound(output string) bool {
 }
 
 func (a *Agent) executeAction(ctx context.Context, action LLMAction) ActionResult {
+	ctx, span := telemetry.Tracer.Start(ctx, "agent.executeAction")
+	span.SetAttributes(attribute.String("action.type", action.Type))
+	defer span.End()
+
 	switch action.Type {
 	case "bash":
 		output, err := a.executeBash(ctx, action.Params)
@@ -242,6 +275,34 @@ func (a *Agent) executeAction(ctx context.Context, action LLMAction) ActionResul
 			return ActionResult{Type: "search_text", Success: false, Error: err.Error(), Output: output}
 		}
 		return ActionResult{Type: "search_text", Success: true, Output: output}
+
+	case "create_pr":
+		output, err := a.executeCreatePR(ctx, action.Params)
+		if err != nil {
+			return ActionResult{Type: "create_pr", Success: false, Error: err.Error(), Output: output}
+		}
+		return ActionResult{Type: "create_pr", Success: true, Output: output}
+
+	case "create_bead":
+		output, err := a.executeCreateBead(ctx, action.Params)
+		if err != nil {
+			return ActionResult{Type: "create_bead", Success: false, Error: err.Error()}
+		}
+		return ActionResult{Type: "create_bead", Success: true, Output: output}
+
+	case "close_bead":
+		output, err := a.executeCloseBead(ctx, action.Params)
+		if err != nil {
+			return ActionResult{Type: "close_bead", Success: false, Error: err.Error()}
+		}
+		return ActionResult{Type: "close_bead", Success: true, Output: output}
+
+	case "verify":
+		output, err := a.executeVerify(ctx, action.Params)
+		if err != nil {
+			return ActionResult{Type: "verify", Success: false, Error: err.Error(), Output: output}
+		}
+		return ActionResult{Type: "verify", Success: true, Output: output}
 
 	default:
 		return ActionResult{Type: action.Type, Success: false, Error: fmt.Sprintf("unsupported action type: %s", action.Type)}

@@ -8,3 +8,4 @@ resources:
   - nats.yaml
   - temporal.yaml
   - loom.yaml
+  - connectors-service.yaml

@@ -1,0 +1,144 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: connectors-service
+  namespace: loom
+  labels:
+    app: connectors-service
+    app.kubernetes.io/part-of: loom
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: connectors-config
+  namespace: loom
+data:
+  connectors.yaml: |
+    connectors:
+      - id: prometheus
+        name: Prometheus
+        type: observability
+        mode: local
+        enabled: true
+        description: Metrics collection and monitoring
+        host: prometheus
+        port: 9090
+        scheme: http
+        health_check:
+          enabled: true
+          interval: 30s
+          timeout: 5s
+          path: /-/healthy
+        tags: [observability, metrics, built-in]
+      - id: grafana
+        name: Grafana
+        type: observability
+        mode: local
+        enabled: true
+        description: Metrics visualization and dashboards
+        host: grafana
+        port: 3000
+        scheme: http
+        health_check:
+          enabled: true
+          interval: 30s
+          timeout: 5s
+          path: /api/health
+        tags: [observability, visualization, built-in]
+      - id: jaeger
+        name: Jaeger
+        type: observability
+        mode: local
+        enabled: true
+        description: Distributed tracing
+        host: jaeger
+        port: 16686
+        scheme: http
+        health_check:
+          enabled: true
+          interval: 30s
+          timeout: 5s
+        tags: [observability, tracing, built-in]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: connectors-service
+  namespace: loom
+  labels:
+    app: connectors-service
+    app.kubernetes.io/part-of: loom
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: connectors-service
+  template:
+    metadata:
+      labels:
+        app: connectors-service
+        app.kubernetes.io/part-of: loom
+      annotations:
+        linkerd.io/inject: enabled
+        config.linkerd.io/proxy-cpu-limit: "200m"
+        config.linkerd.io/proxy-memory-limit: "64Mi"
+    spec:
+      serviceAccountName: connectors-service
+      containers:
+        - name: connectors-service
+          image: loom:latest
+          imagePullPolicy: IfNotPresent
+          command: ["/app/connectors-service"]
+          ports:
+            - name: grpc
+              containerPort: 50051
+          env:
+            - name: GRPC_PORT
+              value: "50051"
+            - name: CONFIG_PATH
+              value: /app/config/connectors.yaml
+            - name: HEALTH_INTERVAL
+              value: "30s"
+            - name: OTEL_ENDPOINT
+              value: otel-collector:4317
+          volumeMounts:
+            - name: config
+              mountPath: /app/config/connectors.yaml
+              subPath: connectors.yaml
+          readinessProbe:
+            exec:
+              command: ["/bin/sh", "-c", "true"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["/bin/sh", "-c", "true"]
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+      volumes:
+        - name: config
+          configMap:
+            name: connectors-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: connectors-service
+  namespace: loom
+  labels:
+    app: connectors-service
+spec:
+  selector:
+    app: connectors-service
+  ports:
+    - name: grpc
+      port: 50051
+      targetPort: 50051

@@ -16,14 +16,13 @@ import (
 // TestNATSTaskPublishSubscribe tests the full NATS message flow:
 // dispatcher publishes task → agent subscribes → agent publishes result → dispatcher subscribes
 func TestNATSTaskPublishSubscribe(t *testing.T) {
-	// Skip if NATS_URL not set
 	natsURL := "nats://localhost:4222"
 
-	// Create message bus
 	mb, err := messagebus.NewNatsMessageBus(messagebus.Config{
-		URL:        natsURL,
-		StreamName: "LOOM",
-		Timeout:    10 * time.Second,
+		URL:            natsURL,
+		StreamName:     "LOOM",
+		Timeout:        10 * time.Second,
+		ConsumerPrefix: fmt.Sprintf("tps-%d", time.Now().UnixNano()),
 	})
 	if err != nil {
 		t.Skipf("NATS not available: %v", err)
@@ -240,16 +239,17 @@ func TestNATSMessageOrdering(t *testing.T) {
 	natsURL := "nats://localhost:4222"
 
 	mb, err := messagebus.NewNatsMessageBus(messagebus.Config{
-		URL:        natsURL,
-		StreamName: "LOOM",
-		Timeout:    10 * time.Second,
+		URL:            natsURL,
+		StreamName:     "LOOM",
+		Timeout:        10 * time.Second,
+		ConsumerPrefix: fmt.Sprintf("ord-%d", time.Now().UnixNano()),
 	})
 	if err != nil {
 		t.Skipf("NATS not available: %v", err)
 	}
 	defer mb.Close()
 
-	projectID := "test-ordering"
+	projectID := fmt.Sprintf("test-ordering-%d", time.Now().UnixNano())
 	receivedMessages := make([]int, 0, 10)
 	messageChan := make(chan int, 10)
 

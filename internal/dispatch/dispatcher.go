@@ -193,56 +193,79 @@ func (d *Dispatcher) handleTaskResult(result *messages.ResultMessage) {
 	log.Printf("[Dispatcher] Received NATS result: bead=%s agent=%s status=%s correlation=%s",
 		result.BeadID, result.AgentID, result.Result.Status, result.CorrelationID)
 
-	// Update bead status based on result
-	updates := make(map[string]interface{})
+	if result.Result.Status == "in_progress" {
+		log.Printf("[Dispatcher] Task in progress for bead %s: %s", result.BeadID, result.Result.Output)
+		return
+	}
 
+	// Check if bead has an active workflow — let the workflow engine govern
+	// the lifecycle instead of naively closing the bead.
+	hasWorkflow := false
+	if d.workflowEngine != nil {
+		if exec, err := d.workflowEngine.GetDatabase().GetWorkflowExecutionByBeadID(result.BeadID); err == nil && exec != nil {
+			hasWorkflow = true
+			condition := workflow.EdgeConditionSuccess
+			if result.Result.Status == "failure" {
+				condition = workflow.EdgeConditionFailure
+			}
+			resultData := map[string]string{
+				"agent_id":       result.AgentID,
+				"output":         result.Result.Output,
+				"correlation_id": result.CorrelationID,
+			}
+			if err := d.workflowEngine.AdvanceWorkflow(exec.ID, condition, result.AgentID, resultData); err != nil {
+				log.Printf("[Dispatcher] Failed to advance workflow for bead %s: %v", result.BeadID, err)
+			} else {
+				log.Printf("[Dispatcher] Advanced workflow for bead %s (condition=%s)", result.BeadID, condition)
+			}
+		}
+	}
+
+	updates := make(map[string]interface{})
 	switch result.Result.Status {
 	case "success":
-		updates["status"] = models.BeadStatusClosed
-		if result.Result.Output != "" {
-			// Store output in bead context
+		if hasWorkflow {
+			updates["context"] = map[string]string{
+				"last_output":          result.Result.Output,
+				"completed_at":         time.Now().UTC().Format(time.RFC3339),
+				"correlation_id":       result.CorrelationID,
+				"redispatch_requested": "true",
+			}
+		} else {
+			updates["status"] = models.BeadStatusClosed
 			updates["context"] = map[string]string{
 				"last_output":    result.Result.Output,
 				"completed_at":   time.Now().UTC().Format(time.RFC3339),
 				"correlation_id": result.CorrelationID,
 			}
 		}
-		log.Printf("[Dispatcher] Task completed successfully for bead %s", result.BeadID)
+		log.Printf("[Dispatcher] Task completed for bead %s (workflow=%v)", result.BeadID, hasWorkflow)
 	case "failure":
-		updates["status"] = models.BeadStatusOpen // Reopen for retry
-		if result.Result.Error != "" {
-			updates["context"] = map[string]string{
-				"last_error":     result.Result.Error,
-				"failed_at":      time.Now().UTC().Format(time.RFC3339),
-				"correlation_id": result.CorrelationID,
-			}
+		updates["status"] = models.BeadStatusOpen
+		updates["context"] = map[string]string{
+			"last_error":           result.Result.Error,
+			"failed_at":            time.Now().UTC().Format(time.RFC3339),
+			"correlation_id":       result.CorrelationID,
+			"redispatch_requested": "true",
 		}
 		log.Printf("[Dispatcher] Task failed for bead %s: %s", result.BeadID, result.Result.Error)
-	case "in_progress":
-		// Progress update - just log it
-		log.Printf("[Dispatcher] Task in progress for bead %s: %s", result.BeadID, result.Result.Output)
-		return // Don't update bead status for progress updates
 	}
 
-	// Apply updates to bead
 	if len(updates) > 0 {
 		if err := d.beads.UpdateBead(result.BeadID, updates); err != nil {
 			log.Printf("[Dispatcher] Failed to update bead %s after result: %v", result.BeadID, err)
 		}
 	}
 
-	// Publish event
 	if d.eventBus != nil {
 		eventType := eventbus.EventTypeBeadCompleted
 		if result.Result.Status == "failure" {
-			eventType = eventbus.EventTypeBeadStatusChange // Use status change for failures
+			eventType = eventbus.EventTypeBeadStatusChange
 		}
-		if err := d.eventBus.PublishBeadEvent(eventType, result.BeadID, result.ProjectID, map[string]interface{}{
+		_ = d.eventBus.PublishBeadEvent(eventType, result.BeadID, result.ProjectID, map[string]interface{}{
 			"agent_id": result.AgentID,
 			"duration": result.Result.Duration,
-		}); err != nil {
-			log.Printf("[Dispatcher] Warning: Failed to publish bead event for %s: %v", result.BeadID, err)
-		}
+		})
 	}
 }
 

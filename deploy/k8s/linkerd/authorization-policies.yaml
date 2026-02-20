@@ -108,6 +108,37 @@ spec:
       kind: MeshTLSAuthentication
       group: policy.linkerd.io
 ---
+# ── Connectors Service gRPC (port 50051) ─────────────────────────────────
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: connectors-service-grpc
+  namespace: loom
+  labels:
+    app: connectors-service
+spec:
+  podSelector:
+    matchLabels:
+      app: connectors-service
+  port: 50051
+  proxyProtocol: gRPC
+---
+# Only loom's ServiceAccount may call the Connectors Service.
+apiVersion: policy.linkerd.io/v1beta3
+kind: AuthorizationPolicy
+metadata:
+  name: allow-loom-to-connectors-service
+  namespace: loom
+spec:
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: connectors-service-grpc
+  requiredAuthenticationRefs:
+    - name: loom-sa-authn
+      kind: MeshTLSAuthentication
+      group: policy.linkerd.io
+---
 # ── MeshTLSAuthentication resources ──────────────────────────────────────
 #
 # "loom-namespace-authn" matches any meshed workload in the loom namespace.

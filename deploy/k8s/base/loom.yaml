@@ -142,6 +142,8 @@ spec:
               value: loom
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: otel-collector:4317
+            - name: CONNECTORS_SERVICE_ADDR
+              value: connectors-service:50051
             - name: CONFIG_PATH
               value: /app/config.yaml
           volumeMounts:

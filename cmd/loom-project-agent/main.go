@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/jordanhubbard/loom/internal/projectagent"
+	"github.com/jordanhubbard/loom/internal/telemetry"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 func main() {
@@ -57,6 +59,20 @@ func main() {
 		log.Printf("  NATS: %s", *natsURL)
 	}
 
+	// Initialize OpenTelemetry tracing for agent
+	if otelEndpoint := os.Getenv("OTEL_ENDPOINT"); otelEndpoint != "" {
+		serviceName := fmt.Sprintf("loom-agent-%s", *role)
+		if *role == "" {
+			serviceName = "loom-agent"
+		}
+		shutdown, err := telemetry.InitTelemetry(context.Background(), serviceName, otelEndpoint)
+		if err != nil {
+			log.Printf("Warning: OTel init failed: %v", err)
+		} else {
+			defer shutdown(context.Background())
+		}
+	}
+
 	agent, err := projectagent.New(projectagent.Config{
 		ProjectID:         *projectID,
 		ControlPlaneURL:   *controlPlaneURL,
@@ -80,7 +96,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%s", *port),
-		Handler: mux,
+		Handler: otelhttp.NewHandler(mux, "loom-agent-http"),
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())

@@ -2,6 +2,7 @@ package integration_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -333,8 +334,10 @@ func TestWorkerTaskExecution(t *testing.T) {
 	_ = workerManager.StopAgent(testAgent.ID)
 }
 
-// TestWorkerPoolLimits tests the worker pool limits
-func TestWorkerPoolLimits(t *testing.T) {
+// TestWorkerPoolScaling verifies that the worker pool can spawn multiple agents
+// without artificial limits (the old max-workers cap was removed to support
+// elastic agent swarms).
+func TestWorkerPoolScaling(t *testing.T) {
 	registry := provider.NewRegistry()
 	_ = registry.Register(&provider.ProviderConfig{
 		ID:       "test",
@@ -345,36 +348,22 @@ func TestWorkerPoolLimits(t *testing.T) {
 		Model:    "test",
 	})
 
-	// Create manager with max 2 workers
-	maxWorkers := 2
-	workerManager := agent.NewWorkerManager(maxWorkers, registry, nil)
+	workerManager := agent.NewWorkerManager(10, registry, nil)
 
 	ctx := context.Background()
 	persona := &models.Persona{Name: "test"}
 
-	// Spawn maximum number of workers
-	_, err := workerManager.SpawnAgentWorker(ctx, "agent-1", "test", "project", "test", persona)
-	if err != nil {
-		t.Fatalf("Failed to spawn agent 1: %v", err)
+	for i := 1; i <= 5; i++ {
+		_, err := workerManager.SpawnAgentWorker(ctx, fmt.Sprintf("agent-%d", i), "test", "project", "test", persona)
+		if err != nil {
+			t.Fatalf("Failed to spawn agent %d: %v", i, err)
+		}
 	}
 
-	_, err = workerManager.SpawnAgentWorker(ctx, "agent-2", "test", "project", "test", persona)
-	if err != nil {
-		t.Fatalf("Failed to spawn agent 2: %v", err)
-	}
-
-	// Try to spawn one more (should fail)
-	_, err = workerManager.SpawnAgentWorker(ctx, "agent-3", "test", "project", "test", persona)
-	if err == nil {
-		t.Error("Expected error when exceeding max workers")
-	}
-
-	// Verify we have exactly max workers
 	stats := workerManager.GetPoolStats()
-	if stats.TotalWorkers != maxWorkers {
-		t.Errorf("Expected %d workers, got %d", maxWorkers, stats.TotalWorkers)
+	if stats.TotalWorkers != 5 {
+		t.Errorf("Expected 5 workers, got %d", stats.TotalWorkers)
 	}
 
-	// Clean up
 	workerManager.StopAll()
 }

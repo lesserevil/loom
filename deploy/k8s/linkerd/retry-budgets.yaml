@@ -54,6 +54,47 @@ spec:
       isRetryable: true
       timeout: 10s
 ---
+# Connectors Service gRPC service profile
+apiVersion: linkerd.io/v1alpha2
+kind: ServiceProfile
+metadata:
+  name: connectors-service.loom.svc.cluster.local
+  namespace: loom
+spec:
+  retryBudget:
+    retryRatio: 0.2
+    minRetriesPerSecond: 5
+    ttl: 10s
+  routes:
+    - name: connectors.ConnectorsService/ListConnectors
+      condition:
+        method: POST
+        pathRegex: /connectors.ConnectorsService/ListConnectors
+      isRetryable: true
+      timeout: 10s
+    - name: connectors.ConnectorsService/GetConnector
+      condition:
+        method: POST
+        pathRegex: /connectors.ConnectorsService/GetConnector
+      isRetryable: true
+      timeout: 10s
+    - name: connectors.ConnectorsService/HealthCheck
+      condition:
+        method: POST
+        pathRegex: /connectors.ConnectorsService/HealthCheck
+      isRetryable: true
+      timeout: 15s
+    - name: connectors.ConnectorsService/RegisterConnector
+      condition:
+        method: POST
+        pathRegex: /connectors.ConnectorsService/RegisterConnector
+      isRetryable: false
+    - name: connectors.ConnectorsService/RemoveConnector
+      condition:
+        method: POST
+        pathRegex: /connectors.ConnectorsService/RemoveConnector
+      isRetryable: false
+---
 # Temporal gRPC service profile
 apiVersion: linkerd.io/v1alpha2
 kind: ServiceProfile

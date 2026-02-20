@@ -16,14 +16,16 @@ This document specifies the workflow for agents to investigate auto-filed bugs, 
 - Persona hints added to bead titles
 - Beads dispatched to specialist agents
 
-### Phase 3: Investigation & Fix (🚧 Current)
-- Agent analyzes bug context
-- Agent searches and reads relevant code
+### Phase 3: Investigation & Fix (✅ Complete)
+- Agent analyzes bug context via LLM action loop
+- Agent searches and reads relevant code (search_text, read actions)
 - Agent identifies root cause
-- Agent proposes specific fix
-- Agent creates CEO approval bead
+- Agent proposes and applies fix (write action)
+- Agent verifies fix (verify action - auto-detects test framework)
+- Agent creates CEO approval bead (create_bead action) or auto-approves low-risk fixes
+- Agent commits fix (git_commit), pushes (git_push), and creates PR (create_pr)
 - CEO reviews and approves/rejects
-- Agent applies approved fix
+- System auto-creates apply-fix bead on approval
 
 ## Bug Investigation Workflow
 
@@ -605,11 +607,13 @@ Update metrics
 ## Implementation Status
 
 1. ✅ Design workflow (this document)
-2. ✅ Implement bug investigation instructions for agents
-3. ✅ Implement CEO approval workflow
+2. ✅ Implement bug investigation instructions for agents (system prompt with investigation workflow)
+3. ✅ Implement CEO approval workflow (decision beads + auto-approval for low-risk fixes)
 4. ✅ Add automatic apply-fix bead creation on approval
 5. ✅ Add hot-reload for automatic testing
-6. ⏳ Build metrics dashboard (future enhancement)
+6. ✅ Add agent actions: create_bead, close_bead, create_pr, verify
+7. ✅ Add verify action with auto-detection of test framework
+8. ⏳ Build metrics dashboard (future enhancement)
 
 ## See Also
 

@@ -23,7 +23,7 @@ Understand the current architecture and identify all components that need to be 
 - No message bus for cross-container communication
 
 **Architecture Review Reference:**
-See `docs/MICROSERVICES_ARCHITECTURE_REVIEW.md` for comprehensive analysis of gaps and solutions.
+See `docs/guide/developer/microservices.md` for comprehensive analysis of gaps and solutions.
 
 **Critical Gaps Identified:**
 1. **No External Message Bus**: In-memory EventBus doesn't support cross-container communication
@@ -99,25 +99,28 @@ See `docs/MICROSERVICES_ARCHITECTURE_REVIEW.md` for comprehensive analysis of ga
 
 **Deliverable**: Project agents receive tasks and publish results via NATS
 
-#### **Phase 4: Connectors Service (Follow-up)**
+#### **Phase 4: Connectors Service ✅ COMPLETE**
 **Goal**: Extract connector management to independent service
 
 **Tasks:**
-1. Define protobuf for connector operations
-2. Implement gRPC Connectors Service
-3. Update control plane to call Connectors Service
-4. Update agents to call Connectors Service
+1. ✅ Define protobuf for connector operations
+2. ✅ Implement gRPC Connectors Service
+3. ✅ Create standalone `connectors-service` binary
+4. ✅ Create gRPC client + `ConnectorService` interface for location transparency
+5. ✅ Update control plane to use remote or local connectors service
 
 **Deliverable**: Connectors as independent microservice
 
-#### **Phase 5: Service Mesh & Observability (Follow-up)**
+#### **Phase 5: Service Mesh & Observability ✅ COMPLETE**
 **Goal**: Add service mesh for security and observability
 
 **Tasks:**
-1. Add Linkerd service mesh
-2. Configure mTLS between services
-3. Add distributed tracing (Jaeger)
-4. Add centralized logging (Loki)
+1. ✅ Add Linkerd service mesh (K8s authorization policies, retry budgets, mTLS)
+2. ✅ Configure mTLS between services (MeshTLSAuthentication + opaque port config)
+3. ✅ Add distributed tracing (Jaeger + OTel Collector + code spans)
+4. ✅ Add centralized logging (Loki + Promtail)
+5. ✅ Add metrics collection (Prometheus + custom loom.* metrics)
+6. ✅ Instrument all services with OpenTelemetry (loom, agents, connectors-service)
 
 **Deliverable**: Full observability and security
 

@@ -1,6 +1,7 @@
 package projectagent
 
 import (
+	"context"
 	"testing"
 )
 
@@ -292,5 +293,85 @@ func TestActionLoopConfig_Fields(t *testing.T) {
 	}
 	if cfg.ProviderEndpoint != "http://llm:8000/v1" {
 		t.Errorf("got endpoint %q", cfg.ProviderEndpoint)
+	}
+}
+
+func testCtx() context.Context { return context.Background() }
+
+func TestIsCommandNotFound(t *testing.T) {
+	tests := []struct {
+		output string
+		want   bool
+	}{
+		{"bash: rg: command not found", true},
+		{"No such file or directory", true},
+		{"Unable to locate package foo", true},
+		{"exec format error", true},
+		{"exit status 1", false},
+		{"permission denied", false},
+		{"", false},
+	}
+	for _, tt := range tests {
+		got := isCommandNotFound(tt.output)
+		if got != tt.want {
+			t.Errorf("isCommandNotFound(%q) = %v, want %v", tt.output, got, tt.want)
+		}
+	}
+}
+
+func TestLoop_ExecuteAction_UnknownType(t *testing.T) {
+	agent := &Agent{config: Config{WorkDir: "/tmp"}}
+	result := agent.executeAction(testCtx(), LLMAction{Type: "teleport", Params: map[string]interface{}{}})
+	if result.Success {
+		t.Error("unsupported action should fail")
+	}
+	if !contains(result.Error, "unsupported") {
+		t.Errorf("error should mention unsupported, got: %s", result.Error)
+	}
+}
+
+func TestLoop_ReadMissingPath(t *testing.T) {
+	agent := &Agent{config: Config{WorkDir: "/tmp"}}
+	result := agent.executeAction(testCtx(), LLMAction{Type: "read", Params: map[string]interface{}{}})
+	if result.Success {
+		t.Error("read without path should fail")
+	}
+}
+
+func TestLoop_WriteMissingParams(t *testing.T) {
+	agent := &Agent{config: Config{WorkDir: "/tmp"}}
+	result := agent.executeAction(testCtx(), LLMAction{Type: "write", Params: map[string]interface{}{}})
+	if result.Success {
+		t.Error("write without path should fail")
+	}
+}
+
+func TestLoop_GitCommitMissingMessage(t *testing.T) {
+	agent := &Agent{config: Config{WorkDir: "/tmp"}}
+	result := agent.executeAction(testCtx(), LLMAction{Type: "git_commit", Params: map[string]interface{}{}})
+	if result.Success {
+		t.Error("git_commit without message should fail")
+	}
+}
+
+func TestLoop_SearchTextDefaults(t *testing.T) {
+	agent := &Agent{config: Config{WorkDir: "/tmp"}}
+	result := agent.executeAction(testCtx(), LLMAction{
+		Type:   "search_text",
+		Params: map[string]interface{}{"pattern": "nonexistent_string_xyzzy"},
+	})
+	if result.Type != "search_text" {
+		t.Errorf("expected type search_text, got %s", result.Type)
+	}
+}
+
+func TestLoop_InstallMissingPackages(t *testing.T) {
+	agent := &Agent{config: Config{WorkDir: "/tmp"}}
+	result := agent.executeAction(testCtx(), LLMAction{
+		Type:   "install",
+		Params: map[string]interface{}{},
+	})
+	if result.Success {
+		t.Error("install with no packages should fail")
 	}
 }

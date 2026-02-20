@@ -175,6 +175,8 @@ services:
       - POSTGRES_USER=loom
       - POSTGRES_PASSWORD=loom
       - POSTGRES_DB=loom
+      - CONNECTORS_SERVICE_ADDR=connectors-service:50051
+      - OTEL_ENDPOINT=otel-collector:4317
     networks:
       - loom-network
     extra_hosts:
@@ -194,6 +196,8 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+    labels:
+      linkerd.io/inject: enabled
 
   # Agent Service: Coder -- subscribes to loom.tasks.*.coder
   loom-agent-coder:
@@ -218,11 +222,14 @@ services:
       - ACTION_LOOP_ENABLED=true
       - MAX_LOOP_ITERATIONS=25
       - WORK_DIR=/workspace
+      - OTEL_ENDPOINT=otel-collector:4317
     networks:
       - loom-network
     volumes:
       - agent-coder-workspace:/workspace
     entrypoint: ["/app/loom-project-agent"]
+    labels:
+      linkerd.io/inject: enabled
     deploy:
       replicas: ${CODER_REPLICAS:-1}
 
@@ -249,11 +256,14 @@ services:
       - ACTION_LOOP_ENABLED=true
       - MAX_LOOP_ITERATIONS=15
       - WORK_DIR=/workspace
+      - OTEL_ENDPOINT=otel-collector:4317
     networks:
       - loom-network
     volumes:
       - agent-reviewer-workspace:/workspace
     entrypoint: ["/app/loom-project-agent"]
+    labels:
+      linkerd.io/inject: enabled
     deploy:
       replicas: ${REVIEWER_REPLICAS:-1}
 
@@ -280,13 +290,47 @@ services:
       - ACTION_LOOP_ENABLED=true
       - MAX_LOOP_ITERATIONS=10
       - WORK_DIR=/workspace
+      - OTEL_ENDPOINT=otel-collector:4317
     networks:
       - loom-network
     volumes:
       - agent-qa-workspace:/workspace
     entrypoint: ["/app/loom-project-agent"]
+    labels:
+      linkerd.io/inject: enabled
     deploy:
       replicas: ${QA_REPLICAS:-1}
+
+  # Connectors microservice — manages external service integrations via gRPC
+  connectors-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: loom:latest
+    container_name: connectors-service
+    restart: unless-stopped
+    depends_on:
+      nats:
+        condition: service_healthy
+    environment:
+      - GRPC_PORT=50051
+      - CONFIG_PATH=/app/config/connectors.yaml
+      - HEALTH_INTERVAL=30s
+      - OTEL_ENDPOINT=otel-collector:4317
+    ports:
+      - "50051:50051"  # gRPC
+    networks:
+      - loom-network
+    volumes:
+      - ./config:/app/config
+    entrypoint: ["/app/connectors-service"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:50051 || true"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    labels:
+      linkerd.io/inject: enabled
 
   loom-test:
     build:

@@ -10,24 +10,22 @@ import (
 
 // ConnectorResponse is the API response format for a connector
 type ConnectorResponse struct {
-	ID          string                 `json:"id"`
-	Name        string                 `json:"name"`
-	Type        connectors.ConnectorType `json:"type"`
+	ID          string                    `json:"id"`
+	Name        string                    `json:"name"`
+	Type        connectors.ConnectorType  `json:"type"`
 	Mode        connectors.ConnectionMode `json:"mode"`
-	Enabled     bool                   `json:"enabled"`
-	Description string                 `json:"description"`
-	Endpoint    string                 `json:"endpoint"`
+	Enabled     bool                      `json:"enabled"`
+	Description string                    `json:"description"`
+	Endpoint    string                    `json:"endpoint"`
 	Status      connectors.ConnectorStatus `json:"status"`
-	Tags        []string               `json:"tags"`
-	Metadata    map[string]string      `json:"metadata,omitempty"`
+	Tags        []string                  `json:"tags"`
+	Metadata    map[string]string         `json:"metadata,omitempty"`
 }
 
 // HandleConnectors routes connector requests based on path and method
 func (s *Server) HandleConnectors(w http.ResponseWriter, r *http.Request) {
-	// Extract path after /api/v1/connectors
 	path := strings.TrimPrefix(r.URL.Path, "/api/v1/connectors")
 
-	// Route: /api/v1/connectors or /api/v1/connectors/
 	if path == "" || path == "/" {
 		switch r.Method {
 		case http.MethodGet:
@@ -40,7 +38,6 @@ func (s *Server) HandleConnectors(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Route: /api/v1/connectors/health
 	if path == "/health" {
 		if r.Method == http.MethodGet {
 			s.checkAllHealth(w, r)
@@ -50,7 +47,6 @@ func (s *Server) HandleConnectors(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Route: /api/v1/connectors/{id}* - extract ID
 	parts := strings.Split(strings.TrimPrefix(path, "/"), "/")
 	if len(parts) == 0 || parts[0] == "" {
 		http.Error(w, "Connector ID required", http.StatusBadRequest)
@@ -59,7 +55,6 @@ func (s *Server) HandleConnectors(w http.ResponseWriter, r *http.Request) {
 
 	id := parts[0]
 
-	// Check for sub-paths
 	if len(parts) > 1 {
 		switch parts[1] {
 		case "health":
@@ -80,7 +75,6 @@ func (s *Server) HandleConnectors(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Route: /api/v1/connectors/{id}
 	switch r.Method {
 	case http.MethodGet:
 		s.getConnector(w, r, id)
@@ -93,35 +87,26 @@ func (s *Server) HandleConnectors(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// listConnectors returns all registered connectors
 func (s *Server) listConnectors(w http.ResponseWriter, r *http.Request) {
-	if s.app.GetConnectorManager() == nil {
-		http.Error(w, "Connector manager not initialized", http.StatusInternalServerError)
+	if s.connectorService == nil {
+		http.Error(w, "Connector service not initialized", http.StatusServiceUnavailable)
 		return
 	}
 
-	allConnectors := s.app.GetConnectorManager().ListConnectors()
-	healthStatus := s.app.GetConnectorManager().GetHealthStatus()
-
-	responses := make([]ConnectorResponse, 0, len(allConnectors))
-	for _, c := range allConnectors {
-		cfg := c.GetConfig()
-		status := healthStatus[c.ID()]
-		if status == "" {
-			status = connectors.ConnectorStatusUnknown
-		}
-
+	all := s.connectorService.ListConnectors()
+	responses := make([]ConnectorResponse, 0, len(all))
+	for _, c := range all {
 		responses = append(responses, ConnectorResponse{
-			ID:          c.ID(),
-			Name:        c.Name(),
-			Type:        c.Type(),
-			Mode:        cfg.Mode,
-			Enabled:     cfg.Enabled,
-			Description: c.Description(),
-			Endpoint:    c.GetEndpoint(),
-			Status:      status,
-			Tags:        cfg.Tags,
-			Metadata:    cfg.Metadata,
+			ID:          c.ID,
+			Name:        c.Name,
+			Type:        c.Type,
+			Mode:        c.Mode,
+			Enabled:     c.Enabled,
+			Description: c.Description,
+			Endpoint:    c.Endpoint,
+			Status:      c.Status,
+			Tags:        c.Tags,
+			Metadata:    c.Metadata,
 		})
 	}
 
@@ -132,43 +117,38 @@ func (s *Server) listConnectors(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// getConnector returns a specific connector by ID
 func (s *Server) getConnector(w http.ResponseWriter, r *http.Request, id string) {
-	if s.app.GetConnectorManager() == nil {
-		http.Error(w, "Connector manager not initialized", http.StatusInternalServerError)
+	if s.connectorService == nil {
+		http.Error(w, "Connector service not initialized", http.StatusServiceUnavailable)
 		return
 	}
 
-	connector, err := s.app.GetConnectorManager().GetConnector(id)
+	c, err := s.connectorService.GetConnector(r.Context(), id)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 
-	cfg := connector.GetConfig()
-	status := s.app.GetConnectorManager().GetConnectorHealth(id)
-
 	response := ConnectorResponse{
-		ID:          connector.ID(),
-		Name:        connector.Name(),
-		Type:        connector.Type(),
-		Mode:        cfg.Mode,
-		Enabled:     cfg.Enabled,
-		Description: connector.Description(),
-		Endpoint:    connector.GetEndpoint(),
-		Status:      status,
-		Tags:        cfg.Tags,
-		Metadata:    cfg.Metadata,
+		ID:          c.ID,
+		Name:        c.Name,
+		Type:        c.Type,
+		Mode:        c.Mode,
+		Enabled:     c.Enabled,
+		Description: c.Description,
+		Endpoint:    c.Endpoint,
+		Status:      c.Status,
+		Tags:        c.Tags,
+		Metadata:    c.Metadata,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
 }
 
-// createConnector adds a new connector
 func (s *Server) createConnector(w http.ResponseWriter, r *http.Request) {
-	if s.app.GetConnectorManager() == nil {
-		http.Error(w, "Connector manager not initialized", http.StatusInternalServerError)
+	if s.connectorService == nil {
+		http.Error(w, "Connector service not initialized", http.StatusServiceUnavailable)
 		return
 	}
 	var cfg connectors.Config
@@ -177,7 +157,6 @@ func (s *Server) createConnector(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate required fields
 	if cfg.ID == "" {
 		http.Error(w, "Connector ID is required", http.StatusBadRequest)
 		return
@@ -195,15 +174,9 @@ func (s *Server) createConnector(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Add the connector
-	if err := s.app.GetConnectorManager().AddConnector(cfg); err != nil {
+	id, err := s.connectorService.AddConnector(r.Context(), cfg)
+	if err != nil {
 		http.Error(w, "Failed to create connector: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	// Save configuration
-	if err := s.app.GetConnectorManager().SaveConfig(); err != nil {
-		http.Error(w, "Failed to save configuration: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -211,14 +184,13 @@ func (s *Server) createConnector(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"message": "Connector created successfully",
-		"id":      cfg.ID,
+		"id":      id,
 	})
 }
 
-// updateConnector updates an existing connector
 func (s *Server) updateConnector(w http.ResponseWriter, r *http.Request, id string) {
-	if s.app.GetConnectorManager() == nil {
-		http.Error(w, "Connector manager not initialized", http.StatusInternalServerError)
+	if s.connectorService == nil {
+		http.Error(w, "Connector service not initialized", http.StatusServiceUnavailable)
 		return
 	}
 
@@ -228,11 +200,8 @@ func (s *Server) updateConnector(w http.ResponseWriter, r *http.Request, id stri
 		return
 	}
 
-	// Ensure ID matches
 	cfg.ID = id
-
-	// Update the connector
-	if err := s.app.GetConnectorManager().UpdateConnector(id, cfg); err != nil {
+	if err := s.connectorService.UpdateConnector(r.Context(), id, cfg); err != nil {
 		http.Error(w, "Failed to update connector: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -243,14 +212,13 @@ func (s *Server) updateConnector(w http.ResponseWriter, r *http.Request, id stri
 	})
 }
 
-// deleteConnector removes a connector
 func (s *Server) deleteConnector(w http.ResponseWriter, r *http.Request, id string) {
-	if s.app.GetConnectorManager() == nil {
-		http.Error(w, "Connector manager not initialized", http.StatusInternalServerError)
+	if s.connectorService == nil {
+		http.Error(w, "Connector service not initialized", http.StatusServiceUnavailable)
 		return
 	}
 
-	if err := s.app.GetConnectorManager().RemoveConnector(id); err != nil {
+	if err := s.connectorService.RemoveConnector(r.Context(), id); err != nil {
 		http.Error(w, "Failed to delete connector: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -261,20 +229,13 @@ func (s *Server) deleteConnector(w http.ResponseWriter, r *http.Request, id stri
 	})
 }
 
-// checkConnectorHealth checks health of a specific connector
 func (s *Server) checkConnectorHealth(w http.ResponseWriter, r *http.Request, id string) {
-	if s.app.GetConnectorManager() == nil {
-		http.Error(w, "Connector manager not initialized", http.StatusInternalServerError)
+	if s.connectorService == nil {
+		http.Error(w, "Connector service not initialized", http.StatusServiceUnavailable)
 		return
 	}
 
-	connector, err := s.app.GetConnectorManager().GetConnector(id)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-
-	status, err := connector.HealthCheck(r.Context())
+	status, err := s.connectorService.HealthCheck(r.Context(), id)
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
@@ -294,13 +255,12 @@ func (s *Server) checkConnectorHealth(w http.ResponseWriter, r *http.Request, id
 	})
 }
 
-// checkAllHealth checks health of all connectors
 func (s *Server) checkAllHealth(w http.ResponseWriter, r *http.Request) {
-	if s.app.GetConnectorManager() == nil {
-		http.Error(w, "Connector manager not initialized", http.StatusInternalServerError)
+	if s.connectorService == nil {
+		http.Error(w, "Connector service not initialized", http.StatusServiceUnavailable)
 		return
 	}
-	healthStatus := s.app.GetConnectorManager().GetHealthStatus()
+	healthStatus := s.connectorService.GetHealthStatus()
 
 	results := make(map[string]interface{})
 	for id, status := range healthStatus {
@@ -316,26 +276,18 @@ func (s *Server) checkAllHealth(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// testConnector tests connectivity to a connector
 func (s *Server) testConnector(w http.ResponseWriter, r *http.Request, id string) {
-	if s.app.GetConnectorManager() == nil {
-		http.Error(w, "Connector manager not initialized", http.StatusInternalServerError)
+	if s.connectorService == nil {
+		http.Error(w, "Connector service not initialized", http.StatusServiceUnavailable)
 		return
 	}
 
-	connector, err := s.app.GetConnectorManager().GetConnector(id)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-
-	// Test connection with health check
-	status, err := connector.HealthCheck(r.Context())
+	status, endpoint, err := s.connectorService.TestConnector(r.Context(), id)
 
 	response := map[string]interface{}{
 		"id":       id,
 		"status":   status,
-		"endpoint": connector.GetEndpoint(),
+		"endpoint": endpoint,
 	}
 
 	if err != nil {

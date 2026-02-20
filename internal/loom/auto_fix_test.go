@@ -108,6 +108,33 @@ func TestCreateApplyFixBead(t *testing.T) {
 	}
 }
 
+func TestAssessFixRisk(t *testing.T) {
+	tests := []struct {
+		name     string
+		desc     string
+		wantRisk string
+	}{
+		{"low risk typo", "Fix typo in variable name\nRisk Level: Low\nSingle file change", "low"},
+		{"low risk css", "CSS style fix for button color\ncosmetic change only", "low"},
+		{"medium risk multi-file", "Refactor across multiple files\nArchitecture change", "medium"},
+		{"high risk security", "Fix authentication bypass in token validation", "high"},
+		{"high risk destructive", "Delete all stale records using rm -rf /tmp/cache", "high"},
+		{"self-assessed medium", "Simple fix\nRisk Level: Medium\nOne change", "medium"},
+		{"self-assessed high", "Simple fix\nRisk Level: High\nDangerous", "high"},
+		{"no indicators", "Generic fix with no special patterns", "low"},
+		{"missing import", "Fix missing import statement", "low"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			risk, reasons := assessFixRisk(tt.desc)
+			if risk != tt.wantRisk {
+				t.Errorf("assessFixRisk() risk = %s, want %s (reasons: %v)", risk, tt.wantRisk, reasons)
+			}
+		})
+	}
+}
+
 func TestApplyFixTriggerConditions(t *testing.T) {
 	tests := []struct {
 		name          string

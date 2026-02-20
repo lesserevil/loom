@@ -7,10 +7,10 @@ id: bd-001
 type: task
 title: Test
 description: desc
-status: open
-priority: 0
-projectid: proj-9
-assignedto: agent-1771546080-Engineering Manager (Default)
+status: closed
+priority: 2
+projectid: proj-2
+assignedto: agent-1771568146-Engineering Manager (Default)
 blockedby: []
 blocks: []
 relatedto: []
@@ -21,6 +21,6 @@ context: {}
 duedate: null
 milestoneid: ""
 estimatedtime: 0
-createdat: 2026-02-20T00:08:00.933249802Z
-updatedat: 2026-02-20T00:08:00.933461742Z
-closedat: null
+createdat: 2026-02-19T22:15:46.540034013-08:00
+updatedat: 2026-02-19T22:15:46.540693915-08:00
+closedat: 2026-02-19T22:15:46.540693307-08:00

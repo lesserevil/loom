@@ -7,7 +7,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -642,5 +644,410 @@ func TestExecuteTask_ClearsCurrentTask(t *testing.T) {
 
 	if agent.currentTask != nil {
 		t.Error("currentTask should be nil after execution")
+	}
+}
+
+// --- File handler HTTP tests ---
+
+func TestHandleFileWrite_Success(t *testing.T) {
+	agent := newTestAgent(t)
+	body, _ := json.Marshal(map[string]string{"path": "hello.txt", "content": "hello"})
+	req := httptest.NewRequest("POST", "/files/write", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	agent.handleFileWrite(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	data, _ := os.ReadFile(filepath.Join(agent.config.WorkDir, "hello.txt"))
+	if string(data) != "hello" {
+		t.Errorf("file content mismatch: %q", data)
+	}
+}
+
+func TestHandleFileWrite_MethodNotAllowed(t *testing.T) {
+	agent := newTestAgent(t)
+	req := httptest.NewRequest("GET", "/files/write", nil)
+	w := httptest.NewRecorder()
+	agent.handleFileWrite(w, req)
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("expected 405, got %d", w.Code)
+	}
+}
+
+func TestHandleFileWrite_EmptyPath(t *testing.T) {
+	agent := newTestAgent(t)
+	body, _ := json.Marshal(map[string]string{"path": "", "content": "x"})
+	req := httptest.NewRequest("POST", "/files/write", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	agent.handleFileWrite(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", w.Code)
+	}
+}
+
+func TestHandleFileRead_Success(t *testing.T) {
+	agent := newTestAgent(t)
+	os.WriteFile(filepath.Join(agent.config.WorkDir, "read_me.txt"), []byte("contents"), 0644)
+
+	body, _ := json.Marshal(map[string]string{"path": "read_me.txt"})
+	req := httptest.NewRequest("POST", "/files/read", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	agent.handleFileRead(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	var resp map[string]interface{}
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp["content"] != "contents" {
+		t.Errorf("expected 'contents', got %v", resp["content"])
+	}
+}
+
+func TestHandleFileRead_NotFound(t *testing.T) {
+	agent := newTestAgent(t)
+	body, _ := json.Marshal(map[string]string{"path": "nope.txt"})
+	req := httptest.NewRequest("POST", "/files/read", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	agent.handleFileRead(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected 404, got %d", w.Code)
+	}
+}
+
+func TestHandleFileRead_MethodNotAllowed(t *testing.T) {
+	agent := newTestAgent(t)
+	req := httptest.NewRequest("GET", "/files/read", nil)
+	w := httptest.NewRecorder()
+	agent.handleFileRead(w, req)
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("expected 405, got %d", w.Code)
+	}
+}
+
+func TestHandleFileRead_EmptyPath(t *testing.T) {
+	agent := newTestAgent(t)
+	body, _ := json.Marshal(map[string]string{"path": ""})
+	req := httptest.NewRequest("POST", "/files/read", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	agent.handleFileRead(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", w.Code)
+	}
+}
+
+func TestHandleFileTree_Success(t *testing.T) {
+	agent := newTestAgent(t)
+	os.WriteFile(filepath.Join(agent.config.WorkDir, "a.txt"), []byte("x"), 0644)
+	os.MkdirAll(filepath.Join(agent.config.WorkDir, "sub"), 0755)
+	os.WriteFile(filepath.Join(agent.config.WorkDir, "sub", "b.txt"), []byte("y"), 0644)
+
+	body, _ := json.Marshal(map[string]interface{}{"path": ".", "max_depth": 3})
+	req := httptest.NewRequest("POST", "/files/tree", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	agent.handleFileTree(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	var resp map[string]interface{}
+	json.NewDecoder(w.Body).Decode(&resp)
+	count := int(resp["count"].(float64))
+	if count < 2 {
+		t.Errorf("expected >= 2 entries, got %d", count)
+	}
+}
+
+func TestHandleFileTree_MethodNotAllowed(t *testing.T) {
+	agent := newTestAgent(t)
+	req := httptest.NewRequest("GET", "/files/tree", nil)
+	w := httptest.NewRecorder()
+	agent.handleFileTree(w, req)
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("expected 405, got %d", w.Code)
+	}
+}
+
+func TestHandleFileSearch_Success(t *testing.T) {
+	agent := newTestAgent(t)
+	os.WriteFile(filepath.Join(agent.config.WorkDir, "haystack.txt"), []byte("needle in a haystack"), 0644)
+
+	body, _ := json.Marshal(map[string]string{"pattern": "needle"})
+	req := httptest.NewRequest("POST", "/files/search", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	agent.handleFileSearch(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	var resp map[string]interface{}
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp["pattern"] != "needle" {
+		t.Errorf("expected pattern 'needle', got %v", resp["pattern"])
+	}
+}
+
+func TestHandleFileSearch_MethodNotAllowed(t *testing.T) {
+	agent := newTestAgent(t)
+	req := httptest.NewRequest("GET", "/files/search", nil)
+	w := httptest.NewRecorder()
+	agent.handleFileSearch(w, req)
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("expected 405, got %d", w.Code)
+	}
+}
+
+func TestHandleFileSearch_MissingPattern(t *testing.T) {
+	agent := newTestAgent(t)
+	body, _ := json.Marshal(map[string]string{"pattern": ""})
+	req := httptest.NewRequest("POST", "/files/search", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	agent.handleFileSearch(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", w.Code)
+	}
+}
+
+func TestHandleGitCommit_MethodNotAllowed(t *testing.T) {
+	agent := newTestAgent(t)
+	req := httptest.NewRequest("GET", "/git/commit", nil)
+	w := httptest.NewRecorder()
+	agent.handleGitCommit(w, req)
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("expected 405, got %d", w.Code)
+	}
+}
+
+func TestHandleGitCommit_MissingMessage(t *testing.T) {
+	agent := newTestAgent(t)
+	body, _ := json.Marshal(map[string]string{"message": ""})
+	req := httptest.NewRequest("POST", "/git/commit", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	agent.handleGitCommit(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", w.Code)
+	}
+}
+
+func TestHandleGitPush_MethodNotAllowed(t *testing.T) {
+	agent := newTestAgent(t)
+	req := httptest.NewRequest("GET", "/git/push", nil)
+	w := httptest.NewRecorder()
+	agent.handleGitPush(w, req)
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("expected 405, got %d", w.Code)
+	}
+}
+
+func TestHandleGitStatus(t *testing.T) {
+	agent := newTestAgent(t)
+	req := httptest.NewRequest("GET", "/git/status", nil)
+	w := httptest.NewRecorder()
+	agent.handleGitStatus(w, req)
+	// WorkDir is a temp dir without git, so we expect an error response
+	if w.Code != http.StatusInternalServerError {
+		// If git status works (e.g., parent is a git repo), it's also fine
+		if w.Code != http.StatusOK {
+			t.Errorf("expected 200 or 500, got %d", w.Code)
+		}
+	}
+}
+
+func TestHandleGitDiff(t *testing.T) {
+	agent := newTestAgent(t)
+	req := httptest.NewRequest("GET", "/git/diff", nil)
+	w := httptest.NewRecorder()
+	agent.handleGitDiff(w, req)
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+}
+
+func TestRespondJSON(t *testing.T) {
+	w := httptest.NewRecorder()
+	respondJSON(w, http.StatusCreated, map[string]string{"key": "value"})
+	if w.Code != http.StatusCreated {
+		t.Errorf("expected 201, got %d", w.Code)
+	}
+	if ct := w.Header().Get("Content-Type"); ct != "application/json" {
+		t.Errorf("expected application/json, got %q", ct)
+	}
+	var body map[string]string
+	json.NewDecoder(w.Body).Decode(&body)
+	if body["key"] != "value" {
+		t.Errorf("expected value, got %q", body["key"])
+	}
+}
+
+func TestHandleFileWrite_CreatesSubdirs(t *testing.T) {
+	agent := newTestAgent(t)
+	body, _ := json.Marshal(map[string]string{"path": "deep/nested/file.txt", "content": "deep"})
+	req := httptest.NewRequest("POST", "/files/write", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	agent.handleFileWrite(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	data, _ := os.ReadFile(filepath.Join(agent.config.WorkDir, "deep", "nested", "file.txt"))
+	if string(data) != "deep" {
+		t.Errorf("file content mismatch: %q", data)
+	}
+}
+
+func TestHandleGitCommit_InGitRepo(t *testing.T) {
+	agent := newTestAgent(t)
+	// Initialize a real git repo in the temp WorkDir
+	cmds := [][]string{
+		{"git", "init"},
+		{"git", "config", "user.email", "test@test.com"},
+		{"git", "config", "user.name", "Test"},
+	}
+	for _, args := range cmds {
+		c := exec.Command(args[0], args[1:]...)
+		c.Dir = agent.config.WorkDir
+		if out, err := c.CombinedOutput(); err != nil {
+			t.Fatalf("setup %v failed: %s %v", args, out, err)
+		}
+	}
+	os.WriteFile(filepath.Join(agent.config.WorkDir, "f.txt"), []byte("data"), 0644)
+
+	body, _ := json.Marshal(map[string]interface{}{"message": "initial", "files": []string{"f.txt"}})
+	req := httptest.NewRequest("POST", "/git/commit", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	agent.handleGitCommit(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp map[string]interface{}
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp["success"] != true {
+		t.Errorf("expected success, got %v", resp)
+	}
+	if sha, ok := resp["commit_sha"].(string); !ok || len(sha) < 7 {
+		t.Errorf("expected valid sha, got %v", resp["commit_sha"])
+	}
+}
+
+func TestHandleGitCommit_AddAll(t *testing.T) {
+	agent := newTestAgent(t)
+	cmds := [][]string{
+		{"git", "init"},
+		{"git", "config", "user.email", "test@test.com"},
+		{"git", "config", "user.name", "Test"},
+	}
+	for _, args := range cmds {
+		c := exec.Command(args[0], args[1:]...)
+		c.Dir = agent.config.WorkDir
+		c.CombinedOutput()
+	}
+	os.WriteFile(filepath.Join(agent.config.WorkDir, "a.txt"), []byte("a"), 0644)
+
+	body, _ := json.Marshal(map[string]interface{}{"message": "add all"})
+	req := httptest.NewRequest("POST", "/git/commit", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	agent.handleGitCommit(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestHandleGitPush_NoRemote(t *testing.T) {
+	agent := newTestAgent(t)
+	cmds := [][]string{
+		{"git", "init"},
+		{"git", "config", "user.email", "test@test.com"},
+		{"git", "config", "user.name", "Test"},
+	}
+	for _, args := range cmds {
+		c := exec.Command(args[0], args[1:]...)
+		c.Dir = agent.config.WorkDir
+		c.CombinedOutput()
+	}
+	body, _ := json.Marshal(map[string]interface{}{"branch": "main"})
+	req := httptest.NewRequest("POST", "/git/push", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	agent.handleGitPush(w, req)
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500 (no remote), got %d", w.Code)
+	}
+}
+
+func TestHandleGitPush_SetUpstream(t *testing.T) {
+	agent := newTestAgent(t)
+	cmds := [][]string{
+		{"git", "init"},
+		{"git", "config", "user.email", "test@test.com"},
+		{"git", "config", "user.name", "Test"},
+	}
+	for _, args := range cmds {
+		c := exec.Command(args[0], args[1:]...)
+		c.Dir = agent.config.WorkDir
+		c.CombinedOutput()
+	}
+	body, _ := json.Marshal(map[string]interface{}{"set_upstream": true})
+	req := httptest.NewRequest("POST", "/git/push", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	agent.handleGitPush(w, req)
+	// Will fail due to no remote, but exercises the -u branch
+	if w.Code == http.StatusOK {
+		t.Error("expected failure with no remote configured")
+	}
+}
+
+func TestEnsureWorkspaceReady(t *testing.T) {
+	agent := newTestAgent(t)
+	// Should not panic when no .git dir exists
+	agent.ensureWorkspaceReady()
+}
+
+func TestEnsureWorkspaceReady_WithGit(t *testing.T) {
+	agent := newTestAgent(t)
+	c := exec.Command("git", "init")
+	c.Dir = agent.config.WorkDir
+	c.CombinedOutput()
+	agent.ensureWorkspaceReady()
+}
+
+func TestExecuteInstall_WithPackages(t *testing.T) {
+	agent := newTestAgent(t)
+	ctx := context.Background()
+	// This will try to install but fail (no root perms / missing packages), but it exercises the code path
+	_, err := agent.executeInstall(ctx, map[string]interface{}{
+		"packages": []interface{}{"nonexistent-pkg-xyzzy"},
+	})
+	// Error expected (apt-get will fail)
+	if err == nil {
+		t.Log("install succeeded unexpectedly (maybe running as root?)")
+	}
+}
+
+func TestExecuteInstall_WithCommand(t *testing.T) {
+	agent := newTestAgent(t)
+	ctx := context.Background()
+	output, err := agent.executeInstall(ctx, map[string]interface{}{
+		"command": "echo installed",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(output, "installed") {
+		t.Errorf("expected 'installed' in output: %s", output)
+	}
+}
+
+func TestHandleFileSearch_WithGlob(t *testing.T) {
+	agent := newTestAgent(t)
+	os.WriteFile(filepath.Join(agent.config.WorkDir, "code.go"), []byte("func main(){}"), 0644)
+	os.WriteFile(filepath.Join(agent.config.WorkDir, "notes.txt"), []byte("func notes"), 0644)
+
+	body, _ := json.Marshal(map[string]interface{}{"pattern": "func", "glob": "*.go"})
+	req := httptest.NewRequest("POST", "/files/search", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	agent.handleFileSearch(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	var resp map[string]interface{}
+	json.NewDecoder(w.Body).Decode(&resp)
+	output := resp["output"].(string)
+	if !strings.Contains(output, "code.go") {
+		t.Errorf("expected code.go in output: %s", output)
 	}
 }

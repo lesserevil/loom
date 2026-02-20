@@ -3049,7 +3049,100 @@ func (a *Loom) CreateBead(title, description string, priority models.BeadPriorit
 		log.Printf("[Loom] Skipping workflow assignment for system diagnostic bead %s", bead.ID)
 	}
 
+	// Auto-approve low-risk code fix proposals to enable full autonomy
+	if beadType == "decision" && strings.Contains(strings.ToLower(title), "code fix approval") {
+		go a.tryAutoApproveCodeFix(bead)
+	}
+
 	return bead, nil
+}
+
+// tryAutoApproveCodeFix evaluates a code fix proposal for auto-approval.
+// Low-risk fixes (single file, no security impact, small diff) are approved
+// automatically so the self-healing loop runs without human intervention.
+func (a *Loom) tryAutoApproveCodeFix(bead *models.Bead) {
+	risk, reasons := assessFixRisk(bead.Description)
+	log.Printf("[AutoApproval] Bead %s risk=%s reasons=%v", bead.ID, risk, reasons)
+
+	if risk != "low" {
+		log.Printf("[AutoApproval] Bead %s requires manual CEO review (risk=%s)", bead.ID, risk)
+		return
+	}
+
+	// Wait briefly so the bead is fully persisted before we close it
+	time.Sleep(2 * time.Second)
+
+	reason := fmt.Sprintf("Auto-approved (risk=%s): %s", risk, strings.Join(reasons, "; "))
+	if err := a.CloseBead(bead.ID, reason); err != nil {
+		log.Printf("[AutoApproval] Failed to auto-approve bead %s: %v", bead.ID, err)
+		return
+	}
+	log.Printf("[AutoApproval] Auto-approved code fix proposal %s", bead.ID)
+}
+
+// assessFixRisk evaluates the risk level of a code fix proposal.
+// Returns risk level ("low", "medium", "high") and list of reasons.
+func assessFixRisk(description string) (string, []string) {
+	lower := strings.ToLower(description)
+	var reasons []string
+
+	// High-risk indicators
+	highRiskPatterns := []string{
+		"security", "authentication", "authorization", "password",
+		"encryption", "token", "secret", "credential",
+		"database migration", "schema change", "drop table",
+		"delete all", "rm -rf", "force push",
+	}
+	for _, p := range highRiskPatterns {
+		if strings.Contains(lower, p) {
+			return "high", []string{"contains security/destructive keyword: " + p}
+		}
+	}
+
+	// Medium-risk: multi-file changes, API changes, config changes
+	mediumRiskPatterns := []string{
+		"breaking change", "api change", "config change",
+		"multiple files", "architecture", "refactor",
+	}
+	for _, p := range mediumRiskPatterns {
+		if strings.Contains(lower, p) {
+			reasons = append(reasons, "medium-risk pattern: "+p)
+		}
+	}
+	if len(reasons) > 0 {
+		return "medium", reasons
+	}
+
+	// Check risk assessment section in the proposal
+	if strings.Contains(lower, "risk level: high") || strings.Contains(lower, "risk: high") {
+		return "high", []string{"proposal self-assessed as high risk"}
+	}
+	if strings.Contains(lower, "risk level: medium") || strings.Contains(lower, "risk: medium") {
+		return "medium", []string{"proposal self-assessed as medium risk"}
+	}
+
+	// Low-risk indicators
+	if strings.Contains(lower, "risk level: low") || strings.Contains(lower, "risk: low") {
+		reasons = append(reasons, "proposal self-assessed as low risk")
+	}
+
+	lowRiskPatterns := []string{
+		"typo", "comment", "formatting", "whitespace",
+		"variable rename", "css", "style", "cosmetic",
+		"undefined variable", "missing import",
+		"single file", "one file",
+	}
+	for _, p := range lowRiskPatterns {
+		if strings.Contains(lower, p) {
+			reasons = append(reasons, "low-risk pattern: "+p)
+		}
+	}
+
+	if len(reasons) == 0 {
+		reasons = append(reasons, "no high/medium risk indicators detected")
+	}
+
+	return "low", reasons
 }
 
 // CloseBead closes a bead with an optional reason

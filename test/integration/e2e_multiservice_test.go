@@ -23,9 +23,10 @@ import (
 func connectNATS(t *testing.T) *messagebus.NatsMessageBus {
 	t.Helper()
 	mb, err := messagebus.NewNatsMessageBus(messagebus.Config{
-		URL:        "nats://localhost:4222",
-		StreamName: "LOOM",
-		Timeout:    5 * time.Second,
+		URL:            "nats://localhost:4222",
+		StreamName:     "LOOM",
+		Timeout:        5 * time.Second,
+		ConsumerPrefix: fmt.Sprintf("test-%d", time.Now().UnixNano()),
 	})
 	if err != nil {
 		t.Skipf("NATS not available at localhost:4222: %v", err)

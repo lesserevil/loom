@@ -183,9 +183,9 @@ and how it approaches the work.
 
 ## What's Next
 
-- **[AGENTS.md](AGENTS.md)** - Full developer guide, API reference, and troubleshooting
-- **[MANUAL.md](MANUAL.md)** - Complete system manual
-- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** - System design and data flow
+- **[User Guide](docs/guide/user/index.md)** -- Learn the web UI
+- **[Administrator Guide](docs/guide/admin/index.md)** -- Configuration, deployment, and operations
+- **[Developer Guide](docs/guide/developer/index.md)** -- Architecture and contributing
 
 ## Quick Reference
 
@@ -197,3 +197,7 @@ make logs       # Follow container logs
 make test       # Run tests locally
 make help       # All available commands
 ```
+
+---
+
+**Important:** Do not taunt Loom.

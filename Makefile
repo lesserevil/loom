@@ -1,4 +1,4 @@
-.PHONY: all build build-all start stop restart prune bootstrap test test-docker test-api coverage test-coverage fmt vet lint lint-install lint-go lint-js lint-yaml lint-docs lint-api deps deps-go deps-macos deps-linux deps-wsl deps-linux-apt deps-linux-dnf deps-linux-pacman clean distclean install config dev-setup help release release-major release-minor release-patch k8s-apply k8s-delete linkerd-setup linkerd-check linkerd-dashboard linkerd-tap proto-gen agents scale-coders scale-reviewers scale-qa scale-agents logs-agents stop-agents
+.PHONY: all build build-all start stop restart prune bootstrap test test-docker test-api coverage test-coverage fmt vet lint lint-install lint-go lint-js lint-yaml lint-docs lint-api deps deps-go deps-macos deps-linux deps-wsl deps-linux-apt deps-linux-dnf deps-linux-pacman clean distclean install config dev-setup help release release-major release-minor release-patch k8s-apply k8s-delete linkerd-setup linkerd-check linkerd-dashboard linkerd-tap proto-gen agents scale-coders scale-reviewers scale-qa scale-agents logs-agents stop-agents docs docs-serve docs-deploy
 
 # Build variables
 BINARY_NAME=loom
@@ -416,6 +416,25 @@ proto-gen:
 	  api/proto/connectors/connectors.proto
 	@echo "Proto generation complete."
 
+# Documentation (mkdocs)
+docs:
+	@echo ""
+	@echo "=== Building Documentation ==="
+	@pip install --quiet mkdocs-material 2>/dev/null || pip install --quiet --user mkdocs-material
+	@mkdocs build
+
+docs-serve:
+	@echo ""
+	@echo "=== Serving Documentation ==="
+	@pip install --quiet mkdocs-material 2>/dev/null || pip install --quiet --user mkdocs-material
+	@mkdocs serve
+
+docs-deploy:
+	@echo ""
+	@echo "=== Deploying to GitHub Pages ==="
+	@pip install --quiet mkdocs-material 2>/dev/null || pip install --quiet --user mkdocs-material
+	@mkdocs gh-deploy --force
+
 help:
 	@echo "Loom - Makefile Commands"
 	@echo ""
@@ -445,6 +464,11 @@ help:
 	@echo "  make install      - Install binary to GOPATH/bin"
 	@echo "  make config       - Create config.yaml from example"
 	@echo "  make dev-setup    - Set up development environment"
+	@echo ""
+	@echo "Documentation:"
+	@echo "  make docs         - Build documentation site (mkdocs)"
+	@echo "  make docs-serve   - Serve docs locally (http://localhost:8000)"
+	@echo "  make docs-deploy  - Deploy to GitHub Pages"
 	@echo ""
 	@echo "Agent Swarm:"
 	@echo "  make agents           - Start all agent service containers"

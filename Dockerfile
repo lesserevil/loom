@@ -49,6 +49,12 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
     -o loom-project-agent \
     ./cmd/loom-project-agent
 
+# Build the connectors microservice
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -ldflags="-w -s" \
+    -o connectors-service \
+    ./cmd/connectors-service
+
 # Runtime stage
 FROM alpine:latest
 
@@ -68,6 +74,7 @@ WORKDIR /app
 # Copy binaries from builder
 COPY --from=builder /build/loom /app/loom
 COPY --from=builder /build/loom-project-agent /app/loom-project-agent
+COPY --from=builder /build/connectors-service /app/connectors-service
 
 # Copy bd CLI (v0.50.3 pre-built binary)
 COPY --from=builder /go/bin/bd /usr/local/bin/bd

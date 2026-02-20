@@ -1,0 +1,107 @@
+site_name: Loom Documentation
+site_description: Autonomous AI Agent Orchestration Platform
+site_url: https://jordanhubbard.github.io/loom/
+repo_url: https://github.com/jordanhubbard/loom
+repo_name: jordanhubbard/loom
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: deep purple
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: deep purple
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.tabs.link
+  icon:
+    repo: fontawesome/brands/github
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+
+plugins:
+  - search
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Quick Start: getting-started/quickstart.md
+    - Installation: getting-started/setup.md
+    - Your First Project: getting-started/first-project.md
+  - User Guide:
+    - Overview: guide/user/index.md
+    - Dashboard: guide/user/dashboard.md
+    - Projects: guide/user/projects.md
+    - Beads (Work Items): guide/user/beads.md
+    - Agents & Personas: guide/user/agents.md
+    - Workflows: guide/user/workflows.md
+    - CEO Dashboard: guide/user/ceo.md
+    - Decisions & Approvals: guide/user/decisions.md
+    - Analytics: guide/user/analytics.md
+    - Conversations: guide/user/conversations.md
+  - Administrator Guide:
+    - Overview: guide/admin/index.md
+    - Configuration: guide/admin/configuration.md
+    - Providers: guide/admin/providers.md
+    - Authentication: guide/admin/authentication.md
+    - Git & Deploy Keys: guide/admin/git.md
+    - Deployment: guide/admin/deployment.md
+    - Kubernetes: guide/admin/kubernetes.md
+    - Scaling: guide/admin/scaling.md
+    - Observability: guide/admin/observability.md
+    - Security: guide/admin/security.md
+    - Troubleshooting: guide/admin/troubleshooting.md
+  - Developer Guide:
+    - Overview: guide/developer/index.md
+    - Architecture: guide/developer/architecture.md
+    - Microservices: guide/developer/microservices.md
+    - API Reference: guide/developer/api.md
+    - Agent Actions: guide/developer/agent-actions.md
+    - Autonomous Bug Fixing: guide/developer/auto-bug-fix.md
+    - Workflow System: guide/developer/workflows.md
+    - Temporal Integration: guide/developer/temporal.md
+    - Connectors: guide/developer/connectors.md
+    - Plugins: guide/developer/plugins.md
+    - Hot Reload: guide/developer/hot-reload.md
+    - Contributing: guide/developer/contributing.md
+  - Reference:
+    - Entities: guide/reference/entities.md
+    - API Endpoints: guide/reference/api-endpoints.md
+    - Configuration Reference: guide/reference/config.md
+    - Dispatch & Routing: guide/reference/dispatch.md
+    - Git Operations: guide/reference/git.md
+    - Webhook Events: guide/reference/webhooks.md
+  - Tutorials:
+    - The AgentiCorp Story: guide/tutorials/agenticorp.md

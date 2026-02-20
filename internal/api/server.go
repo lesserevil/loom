@@ -3,7 +3,9 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -11,6 +13,7 @@ import (
 	"github.com/jordanhubbard/loom/internal/analytics"
 	"github.com/jordanhubbard/loom/internal/auth"
 	"github.com/jordanhubbard/loom/internal/cache"
+	connectorssvc "github.com/jordanhubbard/loom/internal/connectors"
 	"github.com/jordanhubbard/loom/internal/files"
 	"github.com/jordanhubbard/loom/internal/keymanager"
 	"github.com/jordanhubbard/loom/internal/logging"
@@ -34,6 +37,11 @@ type Server struct {
 	metrics         *metrics.Metrics
 	apiFailureMu    sync.Mutex
 	apiFailureLast  map[string]time.Time
+
+	// ConnectorService provides location-transparent access to connectors.
+	// Uses gRPC remote service when CONNECTORS_SERVICE_ADDR is set,
+	// otherwise falls back to the in-process manager.
+	connectorService connectorssvc.ConnectorService
 
 	// Circuit breaker for auto-filing API failures as beads.
 	// Prevents cascading failures when the bead subsystem itself is broken.
@@ -106,6 +114,22 @@ func NewServer(arb *loom.Loom, km *keymanager.KeyManager, am *auth.Manager, cfg 
 	// Initialize Prometheus metrics
 	promMetrics := metrics.NewMetrics()
 
+	// Initialize connector service: prefer remote gRPC, fall back to local
+	var connSvc connectorssvc.ConnectorService
+	if addr := os.Getenv("CONNECTORS_SERVICE_ADDR"); addr != "" {
+		remote, err := connectorssvc.NewRemoteService(addr)
+		if err != nil {
+			log.Printf("[API] Could not connect to remote connectors service at %s: %v (falling back to local)", addr, err)
+		} else {
+			connSvc = remote
+			log.Printf("[API] Using remote connectors service at %s", addr)
+		}
+	}
+	if connSvc == nil && arb != nil && arb.GetConnectorManager() != nil {
+		connSvc = connectorssvc.NewLocalService(arb.GetConnectorManager())
+		log.Printf("[API] Using local connectors service")
+	}
+
 	return &Server{
 		app:             arb,
 		keyManager:      km,
@@ -115,6 +139,7 @@ func NewServer(arb *loom.Loom, km *keymanager.KeyManager, am *auth.Manager, cfg 
 		cache:           responseCache,
 		config:          cfg,
 		fileManager:     fileManager,
+		connectorService: connSvc,
 		metrics:         promMetrics,
 		apiFailureLast:  make(map[string]time.Time),
 	}
@@ -143,6 +168,9 @@ func (s *Server) SetupRoutes() http.Handler {
 	mux.HandleFunc("/api/openapi.yaml", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "./api/openapi.yaml")
 	})
+
+	// Documentation browser API
+	mux.HandleFunc("/api/v1/docs", s.handleDocs)
 
 	// Health check
 	mux.HandleFunc("/api/v1/health", s.handleHealth)

@@ -15,14 +15,10 @@ ERRORS=0
 ALLOWED_ROOT=(
   "./README.md"
   "./AGENTS.md"
-  "./MANUAL.md"
   "./CHANGELOG.md"
   "./CONTRIBUTING.md"
   "./LICENSE.md"
-  "./MILESTONES.md"
   "./QUICKSTART.md"
-  "./SETUP.md"
-  "./README_OLD.md"
 )
 
 # Find all .md files in root (excluding hidden dirs and allowed files)
