@@ -15,8 +15,12 @@ import (
 
 func TestExportMetadataStructure(t *testing.T) {
 	// Create test app
-	app, cleanup := createTestLoom(t)
-	defer cleanup()
+app, cleanup := createTestLoom(t)
+defer cleanup()
+db := app.GetDatabase()
+if db == nil {
+	t.Fatal("Database is not initialized")
+}
 
 	// Create server
 	cfg := &config.Config{
