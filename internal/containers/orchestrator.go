@@ -430,16 +430,18 @@ func (o *Orchestrator) ListRunningContainers(ctx context.Context) ([]string, err
 
 // RegisterAgent registers a project agent that has announced itself.
 // Called by the API handler when a container agent POSTs to /api/v1/project-agents/register.
-func (o *Orchestrator) RegisterAgent(projectID, agentURL string) {
+// roles is the list of agent roles running inside the container (e.g. ["coder","reviewer","qa","pm","architect"]).
+func (o *Orchestrator) RegisterAgent(projectID, agentURL string, roles []string) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 
 	agent := NewProjectAgentClient(agentURL, projectID)
+	agent.SetRoles(roles)
 	if o.messageBus != nil {
 		agent.SetMessageBus(o.messageBus)
 	}
 	o.projectAgents[projectID] = agent
-	log.Printf("[Orchestrator] Agent registered for project %s at %s", projectID, agentURL)
+	log.Printf("[Orchestrator] Agent registered for project %s at %s (roles=%v)", projectID, agentURL, roles)
 }
 
 // SnapshotContainer commits the running container state as a new image layer

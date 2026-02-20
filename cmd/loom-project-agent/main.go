@@ -25,11 +25,12 @@ func main() {
 		workDir           = flag.String("work-dir", getEnvOrDefault("WORK_DIR", "/workspace"), "Project workspace directory")
 		heartbeatInterval = flag.Duration("heartbeat", 30*time.Second, "Heartbeat interval")
 		natsURL           = flag.String("nats-url", os.Getenv("NATS_URL"), "NATS server URL")
-		role              = flag.String("role", os.Getenv("AGENT_ROLE"), "Agent role (coder, reviewer, qa, pm, architect)")
+		role              = flag.String("role", os.Getenv("AGENT_ROLE"), "Agent role (coder, reviewer, qa, pm, architect). Empty = run all roles.")
 		providerEndpoint  = flag.String("provider-endpoint", os.Getenv("PROVIDER_ENDPOINT"), "LLM provider endpoint")
 		providerModel     = flag.String("provider-model", os.Getenv("PROVIDER_MODEL"), "LLM model name")
 		providerAPIKey    = flag.String("provider-api-key", os.Getenv("PROVIDER_API_KEY"), "LLM provider API key")
-		personaPath       = flag.String("persona-path", os.Getenv("PERSONA_PATH"), "Path to persona instructions file")
+		personaPath       = flag.String("persona-path", os.Getenv("PERSONA_PATH"), "Path to persona file (single-role mode)")
+		personaBasePath   = flag.String("persona-base-path", getEnvOrDefault("PERSONA_BASE_PATH", "/app/personas"), "Base dir for per-role persona files (multi-role mode)")
 		actionLoop        = flag.Bool("action-loop", getEnvBool("ACTION_LOOP_ENABLED", false), "Enable multi-turn action loop")
 		maxIterations     = flag.Int("max-iterations", getEnvInt("MAX_LOOP_ITERATIONS", 20), "Max action loop iterations")
 	)
@@ -39,31 +40,15 @@ func main() {
 	if *projectID == "" {
 		log.Fatal("PROJECT_ID is required")
 	}
-
 	if *controlPlaneURL == "" {
 		log.Fatal("CONTROL_PLANE_URL is required")
 	}
 
-	log.Printf("Starting Loom Agent Service")
-	log.Printf("  Project ID: %s", *projectID)
-	log.Printf("  Control Plane: %s", *controlPlaneURL)
-	log.Printf("  Work Directory: %s", *workDir)
-	log.Printf("  Listen Port: %s", *port)
-	if *role != "" {
-		log.Printf("  Role: %s", *role)
-	}
-	if *providerEndpoint != "" {
-		log.Printf("  Provider: %s (model: %s)", *providerEndpoint, *providerModel)
-	}
-	if *natsURL != "" {
-		log.Printf("  NATS: %s", *natsURL)
-	}
-
-	// Initialize OpenTelemetry tracing for agent
+	// Initialize OpenTelemetry tracing.
 	if otelEndpoint := os.Getenv("OTEL_ENDPOINT"); otelEndpoint != "" {
-		serviceName := fmt.Sprintf("loom-agent-%s", *role)
-		if *role == "" {
-			serviceName = "loom-agent"
+		serviceName := "loom-agent"
+		if *role != "" {
+			serviceName = fmt.Sprintf("loom-agent-%s", *role)
 		}
 		shutdown, err := telemetry.InitTelemetry(context.Background(), serviceName, otelEndpoint)
 		if err != nil {
@@ -73,14 +58,62 @@ func main() {
 		}
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sigChan
+		log.Println("Shutting down agent...")
+		cancel()
+	}()
+
+	serviceID := getEnvOrDefault("SERVICE_ID", fmt.Sprintf("agent-%s", *projectID))
+	instanceID := getEnvOrDefault("INSTANCE_ID", "")
+
+	// Multi-role mode: AGENT_ROLE is unset → run all roles in one process.
+	// Single-role mode: AGENT_ROLE is set → backward-compatible single agent.
+	if *role == "" {
+		log.Printf("Starting multi-role agent container (project=%s, roles=%v)", *projectID, projectagent.DefaultRoles)
+		orch := projectagent.NewInContainerOrchestrator(projectagent.OrchestratorConfig{
+			ProjectID:         *projectID,
+			ControlPlaneURL:   *controlPlaneURL,
+			NatsURL:           *natsURL,
+			WorkDir:           *workDir,
+			HeartbeatInterval: *heartbeatInterval,
+			ServiceID:         serviceID,
+			InstanceID:        instanceID,
+			ProviderEndpoint:  *providerEndpoint,
+			ProviderModel:     *providerModel,
+			ProviderAPIKey:    *providerAPIKey,
+			PersonaBasePath:   *personaBasePath,
+			ActionLoopEnabled: *actionLoop,
+			MaxLoopIterations: *maxIterations,
+		})
+		if err := orch.Start(ctx); err != nil && err != context.Canceled {
+			log.Fatalf("Orchestrator error: %v", err)
+		}
+		log.Println("Agent stopped")
+		return
+	}
+
+	// ── Single-role mode (backward compatible) ──────────────────────────────
+	log.Printf("Starting Loom Agent Service (single-role mode)")
+	log.Printf("  Project ID: %s", *projectID)
+	log.Printf("  Role: %s", *role)
+	log.Printf("  Control Plane: %s", *controlPlaneURL)
+	log.Printf("  Work Directory: %s", *workDir)
+	log.Printf("  Listen Port: %s", *port)
+
 	agent, err := projectagent.New(projectagent.Config{
 		ProjectID:         *projectID,
 		ControlPlaneURL:   *controlPlaneURL,
 		WorkDir:           *workDir,
 		HeartbeatInterval: *heartbeatInterval,
 		NatsURL:           *natsURL,
-		ServiceID:         getEnvOrDefault("SERVICE_ID", fmt.Sprintf("agent-%s", *projectID)),
-		InstanceID:        getEnvOrDefault("INSTANCE_ID", ""),
+		ServiceID:         serviceID,
+		InstanceID:        instanceID,
 		Role:              *role,
 		ProviderEndpoint:  *providerEndpoint,
 		ProviderModel:     *providerModel,
@@ -101,11 +134,8 @@ func main() {
 		Handler: otelhttp.NewHandler(mux, "loom-agent-http"),
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	go func() {
-		if err := agent.Start(ctx); err != nil {
+		if err := agent.Start(ctx); err != nil && err != context.Canceled {
 			log.Printf("Agent background tasks error: %v", err)
 		}
 	}()
@@ -117,20 +147,13 @@ func main() {
 		}
 	}()
 
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-	<-sigChan
-
-	log.Println("Shutting down agent...")
-	cancel()
+	<-ctx.Done()
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownCancel()
-
 	if err := server.Shutdown(shutdownCtx); err != nil {
 		log.Printf("HTTP server shutdown error: %v", err)
 	}
-
 	log.Println("Agent stopped")
 }
 

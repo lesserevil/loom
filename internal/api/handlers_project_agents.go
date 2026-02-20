@@ -15,9 +15,10 @@ func (s *Server) handleProjectAgentRegister(w http.ResponseWriter, r *http.Reque
 	}
 
 	var payload struct {
-		ProjectID string `json:"project_id"`
-		WorkDir   string `json:"work_dir"`
-		AgentURL  string `json:"agent_url"`
+		ProjectID string   `json:"project_id"`
+		WorkDir   string   `json:"work_dir"`
+		AgentURL  string   `json:"agent_url"`
+		Roles     []string `json:"roles,omitempty"`
 	}
 	if err := s.parseJSON(r, &payload); err != nil {
 		s.respondError(w, http.StatusBadRequest, "invalid request body")
@@ -35,8 +36,8 @@ func (s *Server) handleProjectAgentRegister(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	orch.RegisterAgent(payload.ProjectID, payload.AgentURL)
-	log.Printf("[API] Project agent registered: project=%s url=%s", payload.ProjectID, payload.AgentURL)
+	orch.RegisterAgent(payload.ProjectID, payload.AgentURL, payload.Roles)
+	log.Printf("[API] Project agent registered: project=%s url=%s roles=%v", payload.ProjectID, payload.AgentURL, payload.Roles)
 
 	s.respondJSON(w, http.StatusOK, map[string]string{"status": "registered"})
 }

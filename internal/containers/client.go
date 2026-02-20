@@ -42,6 +42,7 @@ type MessageBus interface {
 type ProjectAgentClient struct {
 	baseURL    string
 	projectID  string
+	roles      []string   // roles running in this container (e.g. ["coder","reviewer","qa","pm","architect"])
 	httpClient *http.Client
 	messageBus MessageBus // NATS message bus for async task publishing
 }
@@ -88,6 +89,16 @@ func NewProjectAgentClient(baseURL, projectID string) *ProjectAgentClient {
 // SetMessageBus sets the NATS message bus for async task publishing
 func (c *ProjectAgentClient) SetMessageBus(mb MessageBus) {
 	c.messageBus = mb
+}
+
+// SetRoles records which agent roles are running inside this container.
+func (c *ProjectAgentClient) SetRoles(roles []string) {
+	c.roles = roles
+}
+
+// Roles returns the agent roles running inside this container.
+func (c *ProjectAgentClient) Roles() []string {
+	return c.roles
 }
 
 // Health checks if the project agent is healthy

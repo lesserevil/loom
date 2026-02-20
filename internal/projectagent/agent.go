@@ -641,6 +641,7 @@ func (a *Agent) register(ctx context.Context) error {
 		"project_id": a.config.ProjectID,
 		"work_dir":   a.config.WorkDir,
 		"agent_url":  fmt.Sprintf("http://loom-project-%s:8090", a.config.ProjectID), // Container name on Docker network
+		"roles":      []string{a.config.Role},
 	}
 
 	body, err := json.Marshal(payload)
