@@ -1140,6 +1140,12 @@ func (d *Dispatcher) createRemediationBead(stuckBead *models.Bead, stuckAgent *m
 		return
 	}
 
+	// Skip remediation for already-closed beads
+	if stuckBead.Status == models.BeadStatusClosed {
+		log.Printf("[Remediation] Skipping remediation for %s — bead is already closed", stuckBead.ID)
+		return
+	}
+
 	// Prevent remediation cascades by computing the chain depth.
 	// Walk the remediation_for chain back to the original bead. If the
 	// depth exceeds 1 we refuse to create another remediation bead.
