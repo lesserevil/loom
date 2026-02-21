@@ -94,7 +94,6 @@ let state = {
     projects: [],
     personas: [],
     decisions: [],
-    providers: [],
     systemStatus: null,
     users: [],
     apiKeys: []
@@ -448,7 +447,6 @@ async function loadAll() {
     try {
         await Promise.all([
             loadBeads().catch(err => { console.error('[Loom] Failed to load beads:', err); state.beads = []; }),
-            loadProviders().catch(err => { console.error('[Loom] Failed to load providers:', err); state.providers = []; }),
             loadAgents().catch(err => { console.error('[Loom] Failed to load agents:', err); state.agents = []; }),
             loadProjects().catch(err => { console.error('[Loom] Failed to load projects:', err); state.projects = []; }),
             loadPersonas().catch(err => { console.error('[Loom] Failed to load personas:', err); state.personas = []; }),
@@ -462,8 +460,7 @@ async function loadAll() {
         console.log('[Loom] Data loaded successfully:', {
             beads: state.beads?.length || 0,
             projects: state.projects?.length || 0,
-            agents: state.agents?.length || 0,
-            providers: state.providers?.length || 0
+            agents: state.agents?.length || 0
         });
         render();
         console.log('[Loom] render() completed');
@@ -641,7 +638,6 @@ function scheduleReload(kind, delayMs = 150) {
             if (kind === 'beads') await loadBeads();
             if (kind === 'agents') await loadAgents();
             if (kind === 'projects') await loadProjects();
-            if (kind === 'providers') await loadProviders();
             if (kind === 'decisions') await loadDecisions();
             if (kind === 'status') await loadSystemStatus();
             if (!modalState.activeId) render();
@@ -675,13 +671,10 @@ function startEventStream() {
             'agent.completed': ['agents', 'status'],
             'decision.created': ['decisions'],
             'decision.resolved': ['decisions'],
-            'provider.registered': ['providers'],
-            'provider.deleted': ['providers'],
-            'provider.updated': ['providers'],
             'project.created': ['projects'],
             'project.updated': ['projects'],
             'project.deleted': ['projects'],
-            'config.updated': ['projects', 'providers', 'agents', 'status']
+            'config.updated': ['projects', 'agents', 'status']
         };
 
         for (const [eventName, kinds] of Object.entries(map)) {
@@ -745,10 +738,6 @@ async function loadAgents() {
     state.agents = await apiCall('/agents');
 }
 
-async function loadProviders() {
-    state.providers = await apiCall('/providers');
-}
-
 async function loadProjects() {
     state.projects = await apiCall('/projects');
 }
@@ -788,7 +777,6 @@ function render() {
     renderSystemStatus();
     renderProjectViewer();
     renderKanban();
-    renderProviders();
     renderAgents();
     renderProjects();
     renderPersonas();
@@ -925,17 +913,6 @@ function renderProjectViewer() {
             });
             if (tmData.length) LoomCharts.treemap(tmEl, tmData, { height: 140 });
         }
-
-        // Provider health ring
-        const provRing = document.getElementById('d3-home-provider-ring');
-        if (provRing) {
-            const provCounts = {};
-            (state.providers || []).forEach(function (p) {
-                var s = p.status || 'unknown';
-                provCounts[s] = (provCounts[s] || 0) + 1;
-            });
-            LoomCharts.statusRing(provRing, provCounts, { size: 140, centerLabel: 'providers' });
-        }
     }
 }
 
@@ -1039,13 +1016,6 @@ async function showAddAgentToProjectModal(projectId) {
         return;
     }
 
-    // Get providers
-    const providers = state.providers || [];
-    if (providers.length === 0) {
-        showToast('No providers registered. Register a provider first.', 'error');
-        return;
-    }
-
     // Build persona options - only show default personas (the org chart), excluding templates
     const defaultPersonas = personas.filter(p => 
         p.name && 
@@ -1062,12 +1032,6 @@ async function showAddAgentToProjectModal(projectId) {
         return;
     }
 
-    // Build provider options
-    const providerOptions = providers.map(p => ({
-        value: p.id,
-        label: `${p.name || p.id} (${p.status || 'unknown'})`
-    }));
-
     try {
         const res = await formModal({
             title: 'Add Agent to Project',
@@ -1079,13 +1043,6 @@ async function showAddAgentToProjectModal(projectId) {
                     type: 'select',
                     required: true,
                     options: personaOptions
-                },
-                {
-                    id: 'provider_id',
-                    label: 'Provider',
-                    type: 'select',
-                    required: true,
-                    options: providerOptions
                 },
                 {
                     id: 'custom_name',
@@ -1109,8 +1066,7 @@ async function showAddAgentToProjectModal(projectId) {
             body: JSON.stringify({
                 name: agentName,
                 persona_name: res.persona_name,
-                project_id: projectId,
-                provider_id: res.provider_id
+                project_id: projectId
             })
         });
 
@@ -1564,23 +1520,16 @@ async function handleKanbanDrop(event) {
 }
 
 async function sendStreamingTest() {
-    const providerSelect = document.getElementById('stream-test-provider');
     const input = document.getElementById('stream-test-input');
     const responseEl = document.getElementById('stream-test-response');
     const statsEl = document.getElementById('stream-test-stats');
     const sendBtn = document.getElementById('stream-test-send');
     const streamToggle = document.getElementById('stream-test-streaming');
     
-    if (!providerSelect || !input || !responseEl || !sendBtn) return;
+    if (!input || !responseEl || !sendBtn) return;
 
-    const providerId = providerSelect.value;
     const message = (input.value || '').trim();
     const useStreaming = streamToggle ? streamToggle.checked : true;
-
-    if (!providerId) {
-        showToast('Please select a provider', 'error');
-        return;
-    }
 
     if (!message) {
         showToast('Please enter a message', 'error');
@@ -1601,7 +1550,6 @@ async function sendStreamingTest() {
         let totalChars = 0;
 
         const requestBody = {
-            provider_id: providerId,
             messages: [
                 { role: 'user', content: message }
             ]
@@ -1671,156 +1619,6 @@ async function sendStreamingTest() {
         setBusy('streamTest', false);
         sendBtn.disabled = false;
         sendBtn.textContent = 'Send';
-    }
-}
-
-const OPENAI_COMPATIBLE_TYPES = new Set(['openai', 'local', 'custom', 'anthropic', 'vllm']);
-
-function parseProviderEndpoint(endpoint) {
-    if (!endpoint) return null;
-    try {
-        return new URL(endpoint);
-    } catch (err) {
-        try {
-            return new URL(`http://${endpoint}`);
-        } catch (err2) {
-            return null;
-        }
-    }
-}
-
-function looksLikeOllamaEndpoint(endpoint) {
-    const url = parseProviderEndpoint(endpoint);
-    if (!url) return false;
-    const port = url.port;
-    const path = url.pathname || '';
-    return port === '11434' || path.startsWith('/api') || path.includes('/api/');
-}
-
-function looksLikeOpenAIEndpoint(endpoint) {
-    const url = parseProviderEndpoint(endpoint);
-    if (!url) return false;
-    const path = url.pathname || '';
-    return path.startsWith('/v1') || path.includes('/v1/');
-}
-
-function getProviderEndpointWarning(provider) {
-    if (!provider) return '';
-    const endpoint = provider.endpoint || '';
-    const type = String(provider.type || '').toLowerCase();
-    if (!endpoint || !type) return '';
-
-    if (type === 'ollama' && looksLikeOpenAIEndpoint(endpoint)) {
-        return 'This endpoint looks OpenAI-compatible (/v1) but the protocol is Ollama.';
-    }
-    if (OPENAI_COMPATIBLE_TYPES.has(type) && looksLikeOllamaEndpoint(endpoint)) {
-        return 'This endpoint looks like an Ollama server (port 11434 or /api), but the protocol is OpenAI-compatible.';
-    }
-    return '';
-}
-
-function renderProviders() {
-    const container = document.getElementById('provider-list');
-    if (!container) return;
-    
-    // Also populate streaming test provider dropdown
-    const streamTestSelect = document.getElementById('stream-test-provider');
-    if (streamTestSelect && state.providers) {
-        // Show ALL providers in streaming test (including failed ones for testing)
-        streamTestSelect.innerHTML = 
-            '<option value="">Select a provider...</option>' +
-            state.providers.map(p => {
-                const statusBadge = p.status === 'active' ? '' : ` [${p.status}]`;
-                return `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name || p.id)} (${escapeHtml(p.model || 'unknown')})${statusBadge}</option>`;
-            }).join('');
-    }
-
-    if (!state.providers || state.providers.length === 0) {
-        container.innerHTML = renderEmptyState(
-            'No providers registered',
-            'Register at least one vLLM/OpenAI-compatible provider to enable agent execution.',
-            '<button type="button" onclick="showRegisterProviderModal()">Register Provider</button>'
-        );
-        return;
-    }
-
-    container.innerHTML = state.providers
-        .map((p) => {
-            const id = escapeHtml(p.id || '');
-            const name = escapeHtml(p.name || p.id || '');
-            const endpoint = escapeHtml(p.endpoint || '');
-            const endpointWarning = getProviderEndpointWarning(p);
-            const model = escapeHtml(p.model || '');
-            const configuredModel = escapeHtml(p.configured_model || p.model || '');
-            const selectedModel = escapeHtml(p.selected_model || p.model || '');
-            const selectionReason = escapeHtml(p.selection_reason || '');
-            const modelScore = p.model_score ?? null;
-            const selectedGpu = escapeHtml(p.selected_gpu || '');
-            const status = escapeHtml(p.status || 'unknown');
-            const heartbeatLatency = p.last_heartbeat_latency_ms ?? null;
-            const heartbeatError = escapeHtml(p.last_heartbeat_error || '');
-            const hasApiKey = p.key_id ? '*'.repeat(8) : '<em>none</em>';
-            const modelsKey = `providerModels:${id}`;
-            const deleteKey = `deleteProvider:${id}`;
-            const negotiateKey = `providerNegotiate:${id}`;
-
-            const isHealthy = status === 'healthy' || status === 'active';
-            const pillColor = isHealthy ? '#2e7d32' : status === 'pending' ? '#f57c00' : '#d32f2f';
-            const pillLabel = isHealthy ? 'Healthy' : status.charAt(0).toUpperCase() + status.slice(1);
-            const latencyStr = heartbeatLatency !== null && heartbeatLatency !== 0 ? `${heartbeatLatency}ms` : '';
-
-            return `
-                <div class="provider-card">
-                    <div class="provider-header">
-                        <div><strong>${name}</strong><div class="small">${id}</div></div>
-                        <div style="display:flex;align-items:center;gap:0.5rem;">
-                            <span style="display:inline-block;padding:0.2rem 0.6rem;border-radius:999px;font-size:0.75rem;font-weight:600;background:${pillColor};color:#fff;">${escapeHtml(pillLabel)}${latencyStr ? ' · ' + escapeHtml(latencyStr) : ''}</span>
-                            <span class="badge">${escapeHtml(p.type || '')}</span>
-                        </div>
-                    </div>
-                    <div class="small"><strong>Endpoint:</strong> ${endpoint}</div>
-                    ${endpointWarning ? `<div class="small" style="color: var(--warning-color);"><strong>Warning:</strong> ${escapeHtml(endpointWarning)}</div>` : ''}
-                    <div class="small"><strong>API Key:</strong> ${hasApiKey}</div>
-                    <div class="small"><strong>Configured model:</strong> ${configuredModel || '<em>unset</em>'}</div>
-                    <div class="small"><strong>Selected model:</strong> ${selectedModel || '<em>unset</em>'}</div>
-                    <div class="small"><strong>Selection reason:</strong> ${selectionReason || '<em>pending</em>'}</div>
-                    <div class="small"><strong>Model score:</strong> ${modelScore !== null ? escapeHtml(modelScore.toFixed(2)) : '<em>n/a</em>'}</div>
-                    <div class="small"><strong>Selected GPU:</strong> ${selectedGpu || '<em>n/a</em>'}</div>
-                    ${heartbeatError ? `<div class="small" style="color:var(--danger-color);"><strong>Heartbeat error:</strong> ${heartbeatError}</div>` : ''}
-                    <div class="provider-actions">
-                        <button type="button" class="secondary" onclick="fetchProviderModels('${id}')" ${isBusy(modelsKey) ? 'disabled' : ''}>${isBusy(modelsKey) ? 'Loading…' : 'Models'}</button>
-                        <button type="button" class="secondary" onclick="renegotiateProvider('${id}')" ${isBusy(negotiateKey) ? 'disabled' : ''}>${isBusy(negotiateKey) ? 'Negotiating…' : 'Re-negotiate model'}</button>
-                        <button type="button" class="secondary" onclick="showEditProviderModal('${id}')">Edit</button>
-                        <button type="button" class="secondary" onclick="deleteProvider('${id}')" ${isBusy(deleteKey) ? 'disabled' : ''}>${isBusy(deleteKey) ? 'Deleting…' : 'Delete'}</button>
-                    </div>
-                </div>
-            `;
-        })
-        .join('');
-
-    // D3 provider overview charts
-    if (typeof LoomCharts !== 'undefined' && state.providers && state.providers.length) {
-        const ringEl = document.getElementById('d3-providers-health-ring');
-        if (ringEl) {
-            const counts = {};
-            state.providers.forEach(function (p) {
-                var s = (p.status === 'healthy' || p.status === 'active') ? 'healthy' : (p.status || 'unknown');
-                counts[s] = (counts[s] || 0) + 1;
-            });
-            LoomCharts.statusRing(ringEl, counts, { size: 150, centerLabel: 'providers' });
-        }
-        const latBar = document.getElementById('d3-providers-latency-bar');
-        if (latBar) {
-            const latData = {};
-            state.providers.forEach(function (p) {
-                if (p.last_heartbeat_latency_ms) {
-                    latData[p.name || p.id] = p.last_heartbeat_latency_ms;
-                }
-            });
-            if (Object.keys(latData).length) {
-                LoomCharts.barChart(latBar, latData, { prefix: '', barHeight: 28 });
-            }
-        }
     }
 }
 
@@ -2437,15 +2235,7 @@ async function sendReplQuery() {
         responseEl.textContent = '';
         responseEl.classList.add('streaming');
 
-        // Get healthy provider for the request
-        const healthyProviders = (state.providers || []).filter(p => p.status === 'healthy' || p.status === 'active');
-        if (healthyProviders.length === 0) {
-            throw new Error('No active providers available');
-        }
-        const providerId = healthyProviders[0].id;
-
         const requestBody = {
-            provider_id: providerId,
             messages: [
                 { role: 'system', content: 'You are the CEO of Loom. Respond concisely and helpfully.' },
                 { role: 'user', content: message }
@@ -2595,12 +2385,6 @@ async function ceoReplStreamQuery(message, responseEl, sendBtn) {
         responseEl.textContent = '';
         responseEl.classList.add('streaming');
 
-        const healthyProviders = (state.providers || []).filter(p => p.status === 'healthy' || p.status === 'active');
-        if (healthyProviders.length === 0) {
-            throw new Error('No active providers available.');
-        }
-        const providerId = healthyProviders[0].id;
-
         // Build context about current project state
         const projectId = uiState.project.selectedId || ((state.projects || [])[0] || {}).id || '';
         const project = state.projects.find(p => p.id === projectId);
@@ -2622,7 +2406,6 @@ For example: "code reviewer: Review the authentication module for security issue
 Answer questions concisely about the system state, agents, and beads.`;
 
         const requestBody = {
-            provider_id: providerId,
             messages: [
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: message }
@@ -2745,17 +2528,10 @@ function renderCeoDashboard() {
     const container = document.getElementById('ceo-dashboard-summary');
     if (!container) return;
 
-    const providers = state.providers || [];
     const projects = state.projects || [];
     const beads = state.beads || [];
     const agents = state.agents || [];
     const decisions = state.decisions || [];
-
-    const providerCounts = {
-        active: providers.filter((p) => p.status === 'active').length,
-        healthy: providers.filter((p) => p.status === 'healthy').length,
-        failed: providers.filter((p) => p.status === 'failed').length
-    };
 
     const beadCounts = {
         open: beads.filter((b) => b.status === 'open').length,
@@ -2777,10 +2553,6 @@ function renderCeoDashboard() {
     };
 
     container.innerHTML = `
-        <div class="ceo-dashboard-card">
-            <h3>Providers</h3>
-            <div class="small">Active: ${providerCounts.active} • Healthy: ${providerCounts.healthy} • Failed: ${providerCounts.failed}</div>
-        </div>
         <div class="ceo-dashboard-card">
             <h3>Projects</h3>
             <div class="small">Total: ${projects.length}</div>
@@ -2884,193 +2656,16 @@ async function showChangePasswordModal() {
     }
 }
 
-async function showRegisterProviderModal(preset = {}) {
-    const values = await formModal({
-        title: 'Register provider',
-        submitText: 'Register',
-        fields: [
-            {
-                id: 'endpoint',
-                label: 'Provider URL',
-                required: true,
-                placeholder: preset.endpoint || 'e.g. http://myvllmhost.local:8000',
-                description: 'OpenAI-compatible servers typically use /v1 (often :8000). Ollama defaults to :11434.'
-            },
-            { id: 'name', label: 'Display name (optional)', required: false, placeholder: preset.name || '' },
-            { 
-                id: 'type', 
-                label: 'Protocol', 
-                required: false, 
-                type: 'select',
-                options: [
-                    { value: 'local', label: 'Local (vLLM)' },
-                    { value: 'openai', label: 'OpenAI' },
-                    { value: 'anthropic', label: 'Anthropic' },
-                    { value: 'ollama', label: 'Ollama' },
-                    { value: 'custom', label: 'Custom' }
-                ],
-                value: preset.type || 'local'
-            },
-            { id: 'api_key', label: 'API Key (optional)', required: false, type: 'password', placeholder: 'Leave blank if not required' },
-            { id: 'model', label: 'Default model', required: false, placeholder: 'nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-FP8', value: preset.model || 'nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-FP8' }
-        ]
-    });
-    
-    if (!values) return;
-    
-    // Auto-generate provider ID from URL hostname
-    const endpoint = (values.endpoint || '').trim();
-    const providerType = (values.type || '').trim() || 'local';
-    const endpointWarning = getProviderEndpointWarning({ endpoint, type: providerType });
-    if (endpointWarning) {
-        const ok = await confirmModal({
-            title: 'Check provider endpoint',
-            body: `${endpointWarning} Continue anyway?`,
-            confirmText: 'Continue',
-            cancelText: 'Edit'
-        });
-        if (!ok) return;
-    }
-    let providerId = endpoint;
-    try {
-        const url = new URL(endpoint);
-        providerId = url.hostname.split('.')[0]; // e.g. "puck" from "http://puck.local:8000"
-    } catch (e) {
-        // Use endpoint as-is if not a valid URL
-    }
-    
-    const payload = {
-        id: providerId,
-        name: (values.name || '').trim() || providerId,
-        type: providerType,
-        endpoint: endpoint,
-        api_key: (values.api_key || '').trim() || '',
-        model: (values.model || '').trim()
-    };
 
-    try {
-        setBusy('registerProvider', true);
-        await apiCall('/providers', { method: 'POST', body: JSON.stringify(payload) });
-        showToast('Provider registered', 'success');
-        await loadProviders();
-        render();
-    } catch (err) {
-        showToast(`Failed to register provider: ${err.message}`, 'error');
-    } finally {
-        setBusy('registerProvider', false);
-    }
-}
 
-async function fetchProviderModels(providerId) {
-    try {
-        setBusy(`providerModels:${providerId}`, true);
-        const resp = await apiCall(`/providers/${providerId}/models`);
-        const models = resp?.models || [];
-        const body = models.length > 0
-            ? `<div>${models.map((m) => `<div class="badge">${escapeHtml(m.id || '')}</div>`).join(' ')}</div>`
-            : '<p>No models returned from provider.</p>';
 
-        openAppModal({
-            title: `Models: ${providerId}`,
-            bodyHtml: body,
-            actions: [{ label: 'Close', variant: 'secondary', onClick: () => closeAppModal() }]
-        });
-    } catch (err) {
-        showToast(`Failed to fetch models: ${err.message || 'Unknown error'}`, 'error');
-    } finally {
-        setBusy(`providerModels:${providerId}`, false);
-    }
-}
 
-async function renegotiateProvider(providerId) {
-    try {
-        setBusy(`providerNegotiate:${providerId}`, true);
-        await apiCall(`/providers/${providerId}/negotiate`, { method: 'POST' });
-        showToast('Provider negotiation complete', 'success');
-        await loadProviders();
-        render();
-    } catch (err) {
-        showToast(`Failed to negotiate provider: ${err.message || 'Unknown error'}`, 'error');
-    } finally {
-        setBusy(`providerNegotiate:${providerId}`, false);
-    }
-}
 
-async function showEditProviderModal(providerId) {
-    const provider = state.providers.find(p => p.id === providerId);
-    if (!provider) return;
-
-    try {
-        const res = await formModal({
-            title: `Edit Provider: ${provider.name || provider.id}`,
-            submitText: 'Save Changes',
-            fields: [
-                { id: 'name', label: 'Display name', type: 'text', value: provider.name || '' },
-                { id: 'endpoint', label: 'Provider URL', type: 'text', required: true, value: provider.endpoint || '' },
-                {
-                    id: 'type',
-                    label: 'Protocol',
-                    type: 'select',
-                    value: provider.type || 'local',
-                    options: [
-                        { value: 'local', label: 'Local (vLLM)' },
-                        { value: 'openai', label: 'OpenAI' },
-                        { value: 'anthropic', label: 'Anthropic' },
-                        { value: 'ollama', label: 'Ollama' },
-                        { value: 'custom', label: 'Custom' }
-                    ]
-                },
-                { id: 'model', label: 'Default model', type: 'text', value: provider.model || '' }
-            ]
-        });
-        if (!res) return;
-
-        await apiCall(`/providers/${providerId}`, {
-            method: 'PUT',
-            body: JSON.stringify({
-                name: res.name,
-                endpoint: res.endpoint,
-                type: res.type,
-                model: res.model
-            })
-        });
-
-        showToast('Provider updated successfully', 'success');
-        await loadProviders();
-        render();
-    } catch (e) {
-        // handled
-    }
-}
-
-async function deleteProvider(providerId) {
-    const ok = await confirmModal({
-        title: 'Delete provider?',
-        body: `This will remove provider ${providerId}.`,
-        confirmText: 'Delete',
-        cancelText: 'Cancel',
-        danger: true
-    });
-    if (!ok) return;
-
-    try {
-        setBusy(`deleteProvider:${providerId}`, true);
-        await apiCall(`/providers/${providerId}`, { method: 'DELETE' });
-        showToast('Provider deleted', 'success');
-        await loadProviders();
-        render();
-    } catch (e) {
-        // handled
-    } finally {
-        setBusy(`deleteProvider:${providerId}`, false);
-    }
-}
 
 function showSpawnAgentModal() {
     // Populate persona and project dropdowns
     const personaSelect = document.getElementById('agent-persona');
     const projectSelect = document.getElementById('agent-project');
-    const providerSelect = document.getElementById('agent-provider');
     
     personaSelect.innerHTML = state.personas.map(p => 
         `<option value="${escapeHtml(p.name)}">${escapeHtml(p.name)}</option>`
@@ -3080,10 +2675,6 @@ function showSpawnAgentModal() {
         `<option value="${p.id}">${escapeHtml(p.name)}</option>`
     ).join('');
 
-    providerSelect.innerHTML = state.providers.map(p =>
-        `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name || p.id)}</option>`
-    ).join('');
-    
     openModal('spawn-agent-modal', { initialFocusSelector: '#agent-name' });
 }
 
@@ -3098,8 +2689,7 @@ document.getElementById('spawn-agent-form')?.addEventListener('submit', async (e
     const data = {
         name: formData.get('name'),
         persona_name: formData.get('persona_name'),
-        project_id: formData.get('project_id'),
-        provider_id: formData.get('provider_id')
+        project_id: formData.get('project_id')
     };
     
     try {
@@ -4376,22 +3966,6 @@ function renderAnalytics(stats) {
         const gaugeEl = document.getElementById('analytics-error-gauge');
         if (gaugeEl) LoomCharts.gauge(gaugeEl, stats.error_rate || 0, { label: (stats.error_rate * 100).toFixed(1) + '%' });
 
-        // Provider donuts
-        const donutReq = document.getElementById('d3-donut-requests-provider');
-        if (donutReq) LoomCharts.donut(donutReq, stats.requests_by_provider || {}, { centerLabel: 'requests' });
-
-        const donutTok = document.getElementById('d3-donut-tokens-provider');
-        if (donutTok) LoomCharts.donut(donutTok, stats.tokens_by_provider || stats.requests_by_provider || {}, { centerLabel: 'tokens' });
-
-        // Latency bar
-        const latBar = document.getElementById('d3-bar-latency-provider');
-        if (latBar) {
-            const latData = stats.latency_by_provider || {};
-            const latDisplay = {};
-            Object.keys(latData).forEach(function (k) { latDisplay[k] = Math.round(latData[k] / 1000); });
-            LoomCharts.barChart(latBar, latDisplay, { prefix: '', barHeight: 32 });
-        }
-
         // Agent workload bars
         const agentReqBar = document.getElementById('d3-bar-requests-agent');
         if (agentReqBar) {
@@ -4413,7 +3987,6 @@ function renderAnalytics(stats) {
     }
 
     // Cost charts (legacy bar chart as fallback until costs are configured)
-    renderBarChart('chart-cost-by-provider', stats.cost_by_provider || {}, '$');
     renderBarChart('chart-cost-by-user', stats.cost_by_user || {}, '$');
 
     // Render detailed table

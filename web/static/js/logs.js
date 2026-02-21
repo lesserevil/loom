@@ -39,13 +39,12 @@ const LogViewer = {
 
     async fetchSystemMetrics() {
         try {
-            const [status, agents, providers] = await Promise.all([
+            const [status, agents] = await Promise.all([
                 apiCall('/system/status', { suppressToast: true }),
-                apiCall('/agents', { suppressToast: true }),
-                apiCall('/providers', { suppressToast: true })
+                apiCall('/agents', { suppressToast: true })
             ]);
             
-            return { status, agents, providers };
+            return { status, agents };
         } catch (error) {
             console.error('[LogViewer] Failed to fetch metrics:', error);
             return null;
@@ -100,10 +99,6 @@ const LogViewer = {
                     <span class="metric-label">Agents:</span>
                     <span class="metric-value">Loading...</span>
                 </div>
-                <div class="metric" id="metric-providers">
-                    <span class="metric-label">Providers:</span>
-                    <span class="metric-value">Loading...</span>
-                </div>
                 <div class="metric" id="metric-beads">
                     <span class="metric-label">Open Beads:</span>
                     <span class="metric-value">Loading...</span>
@@ -126,7 +121,6 @@ const LogViewer = {
                 <option value="all">All Sources</option>
                 <option value="temporal">Temporal</option>
                 <option value="agent">Agents</option>
-                <option value="provider">Providers</option>
                 <option value="dispatcher">Dispatcher</option>
                 <option value="database">Database</option>
                 <option value="actions">Actions</option>
@@ -389,7 +383,7 @@ const LogViewer = {
         const metrics = await this.fetchSystemMetrics();
         if (!metrics) return;
 
-        const { status, agents, providers } = metrics;
+        const { status, agents } = metrics;
 
         // Update system status
         const statusEl = document.getElementById('metric-status');
@@ -407,14 +401,6 @@ const LogViewer = {
             const paused = agents.filter(a => a.status === 'paused').length;
             const agentsValue = agentsEl.querySelector('.metric-value');
             agentsValue.textContent = `${agents.length} total (${idle} idle, ${working} working, ${paused} paused)`;
-        }
-
-        // Update providers
-        const providersEl = document.getElementById('metric-providers');
-        if (providersEl && providers) {
-            const healthy = providers.filter(p => p.status === 'healthy' || p.status === 'active').length;
-            const providersValue = providersEl.querySelector('.metric-value');
-            providersValue.textContent = `${healthy}/${providers.length} healthy`;
         }
 
         // Update beads (from global state if available)

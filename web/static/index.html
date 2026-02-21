@@ -51,7 +51,6 @@
                 <li><a href="#kanban" aria-label="Jump to Kanban Board section">Kanban Board</a></li>
                 <li><a href="/static/workflows.html" aria-label="View Workflow System">Workflows</a></li>
                 <li><a href="/static/connectors.html" aria-label="View Connectors">Connectors</a></li>
-                <li><a href="#providers" aria-label="Jump to Providers section">Providers</a></li>
                 <li><a href="#agents" aria-label="Jump to Agents section">Agents</a></li>
                 <li><a href="#decisions" aria-label="Jump to Decisions section">Decisions</a></li>
                 <li><a href="#ceo-dashboard" aria-label="Jump to CEO Dashboard section">CEO Dashboard</a></li>
@@ -83,7 +82,6 @@
 
             <!-- Projects & Infrastructure -->
             <button class="view-tab" data-target="projects" role="tab" aria-selected="false">📁 Projects</button>
-            <button class="view-tab" data-target="providers" role="tab" aria-selected="false">🔌 Providers</button>
             <button class="view-tab" data-target="conversations" role="tab" aria-selected="false">💬 Conversations</button>
 
             <!-- Admin & Monitoring -->
@@ -123,10 +121,6 @@
                 <div class="analytics-card" style="display:flex;flex-direction:column;align-items:center;">
                     <h3>Bead Distribution</h3>
                     <div id="d3-home-bead-treemap" style="width:100%;"></div>
-                </div>
-                <div class="analytics-card" style="display:flex;flex-direction:column;align-items:center;">
-                    <h3>Provider Health</h3>
-                    <div id="d3-home-provider-ring"></div>
                 </div>
             </div>
 
@@ -270,27 +264,6 @@
             </div>
         </section>
 
-        <!-- Providers Section -->
-        <section id="providers" class="view-panel" role="tabpanel" aria-label="Providers" hidden>
-            <h2><span aria-hidden="true">🔌</span> Providers</h2>
-            <div class="controls">
-                <button type="button" onclick="showRegisterProviderModal()" aria-haspopup="dialog">Register Provider</button>
-            </div>
-            <div class="analytics-summary" style="margin-bottom: 1rem;">
-                <div class="analytics-card" style="display:flex;flex-direction:column;align-items:center;">
-                    <h3>Health Overview</h3>
-                    <div id="d3-providers-health-ring"></div>
-                </div>
-                <div class="analytics-card" style="display:flex;flex-direction:column;align-items:center;">
-                    <h3>Heartbeat Latency</h3>
-                    <div id="d3-providers-latency-bar" class="chart" style="width:100%;"></div>
-                </div>
-            </div>
-            <div id="provider-list" class="provider-container">
-                <!-- Providers will be loaded here -->
-            </div>
-        </section>
-
         <!-- Agents Section -->
         <section id="agents" class="view-panel" role="tabpanel" aria-label="Agents" hidden>
             <h2><span aria-hidden="true">🤖</span> Active Agents</h2>
@@ -406,7 +379,6 @@
                             <option value="loom">Loom</option>
                             <option value="temporal">Temporal</option>
                             <option value="agent">Agent</option>
-                            <option value="provider">Provider</option>
                             <option value="dispatcher">Dispatcher</option>
                             <option value="database">Database</option>
                         </select>
@@ -574,10 +546,10 @@ loomctl import backup.json --dry-run</code></pre>
                 <h3><span aria-hidden="true">⚡</span> Streaming Test</h3>
                 <p class="small" style="margin-bottom: 1rem;">Test real-time streaming responses from AI providers.</p>
             <div class="repl-container">
-                <div class="field">
+                <div class="field" style="display:none;">
                     <label for="stream-test-provider">Provider</label>
                     <select id="stream-test-provider">
-                        <option value="">Select a provider...</option>
+                        <option value="">Default Provider</option>
                     </select>
                 </div>
                 <label for="stream-test-input">Message</label>
@@ -687,7 +659,6 @@ loomctl import backup.json --dry-run</code></pre>
                                 <option value="agents:write">agents:write</option>
                                 <option value="beads:read" selected>beads:read</option>
                                 <option value="beads:write" selected>beads:write</option>
-                                <option value="providers:read">providers:read</option>
                                 <option value="projects:read">projects:read</option>
                             </select>
                             <p class="small">Hold Ctrl/Cmd to select multiple</p>
@@ -781,25 +752,6 @@ loomctl import backup.json --dry-run</code></pre>
                 </div>
             </div>
 
-            <!-- Provider Overview — donuts + bars -->
-            <div class="analytics-section">
-                <h3>Provider Overview</h3>
-                <div class="analytics-charts" style="grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));">
-                    <div class="chart-container" style="display:flex;flex-direction:column;align-items:center;">
-                        <h4>Requests by Provider</h4>
-                        <div id="d3-donut-requests-provider"></div>
-                    </div>
-                    <div class="chart-container" style="display:flex;flex-direction:column;align-items:center;">
-                        <h4>Tokens by Provider</h4>
-                        <div id="d3-donut-tokens-provider"></div>
-                    </div>
-                    <div class="chart-container">
-                        <h4>Avg Latency by Provider</h4>
-                        <div id="d3-bar-latency-provider" class="chart"></div>
-                    </div>
-                </div>
-            </div>
-
             <!-- Agent Workload -->
             <div class="analytics-section">
                 <h3>Agent Workload</h3>
@@ -820,10 +772,6 @@ loomctl import backup.json --dry-run</code></pre>
                 <h3>Cost Breakdown</h3>
                 <p class="small" style="margin-bottom:1rem;">Cost tracking is active. Configure <code>cost_per_token</code> on providers to see real costs.</p>
                 <div class="analytics-charts">
-                    <div class="chart-container">
-                        <h4>Cost by Provider</h4>
-                        <div id="chart-cost-by-provider" class="chart"></div>
-                    </div>
                     <div class="chart-container">
                         <h4>Cost by Agent</h4>
                         <div id="chart-cost-by-user" class="chart"></div>
@@ -861,7 +809,6 @@ loomctl import backup.json --dry-run</code></pre>
                     <thead>
                         <tr>
                             <th>Endpoint</th>
-                            <th>Provider</th>
                             <th>Requests</th>
                             <th>Batch Size</th>
                             <th>Est. Savings</th>
@@ -1083,11 +1030,6 @@ loomctl import backup.json --dry-run</code></pre>
                     <!-- Options loaded dynamically -->
                 </select>
 
-                <label for="agent-provider">Provider:</label>
-                <select id="agent-provider" name="provider_id" required>
-                    <!-- Options loaded dynamically -->
-                </select>
-                
                 <button type="submit">Spawn Agent</button>
             </form>
         </div>

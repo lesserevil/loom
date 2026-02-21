@@ -38,8 +38,7 @@
             state: typeof state !== 'undefined' ? {
                 beads: state.beads?.length || 0,
                 projects: state.projects?.length || 0,
-                agents: state.agents?.length || 0,
-                providers: state.providers?.length || 0
+                agents: state.agents?.length || 0
             } : 'state not available'
         };
 
