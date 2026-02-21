@@ -2,6 +2,7 @@ package dispatch
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -117,17 +118,18 @@ func TestIsStuckInLoop_WithProgressMetrics(t *testing.T) {
 	}
 
 	// Record enough actions for detection (threshold * 2 = 6)
+	// Use mutation actions so LastProgress gets set
 	for i := 0; i < 8; i++ {
 		action := ActionRecord{
 			Timestamp:  time.Now(),
 			AgentID:    "agent-1",
-			ActionType: "read_file",
-			ActionData: map[string]interface{}{"file_path": "same.go"},
+			ActionType: "edit_file",
+			ActionData: map[string]interface{}{"file_path": fmt.Sprintf("file%d.go", i)},
 		}
 		_ = ld.RecordAction(bead, action)
 	}
 
-	// Since we just recorded actions (recent), there IS progress
+	// Since we just recorded mutation actions (recent), there IS progress
 	stuck, _ := ld.IsStuckInLoop(bead)
 	if stuck {
 		t.Error("Expected not stuck when recent progress exists")

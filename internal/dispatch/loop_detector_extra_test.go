@@ -360,19 +360,20 @@ func TestUpdateProgressMetrics(t *testing.T) {
 	ld := NewLoopDetector()
 
 	tests := []struct {
-		name       string
-		actionType string
-		checkField string
+		name           string
+		actionType     string
+		checkField     string
+		expectProgress bool
 	}{
-		{name: "read_file", actionType: "read_file", checkField: "files_read"},
-		{name: "glob", actionType: "glob", checkField: "files_read"},
-		{name: "grep", actionType: "grep", checkField: "files_read"},
-		{name: "edit_file", actionType: "edit_file", checkField: "files_modified"},
-		{name: "write_file", actionType: "write_file", checkField: "files_modified"},
-		{name: "run_tests", actionType: "run_tests", checkField: "tests_run"},
-		{name: "test", actionType: "test", checkField: "tests_run"},
-		{name: "bash", actionType: "bash", checkField: "commands_executed"},
-		{name: "execute", actionType: "execute", checkField: "commands_executed"},
+		{name: "read_file", actionType: "read_file", checkField: "files_read", expectProgress: false},
+		{name: "glob", actionType: "glob", checkField: "files_read", expectProgress: false},
+		{name: "grep", actionType: "grep", checkField: "files_read", expectProgress: false},
+		{name: "edit_file", actionType: "edit_file", checkField: "files_modified", expectProgress: true},
+		{name: "write_file", actionType: "write_file", checkField: "files_modified", expectProgress: true},
+		{name: "run_tests", actionType: "run_tests", checkField: "tests_run", expectProgress: true},
+		{name: "test", actionType: "test", checkField: "tests_run", expectProgress: true},
+		{name: "bash", actionType: "bash", checkField: "commands_executed", expectProgress: true},
+		{name: "execute", actionType: "execute", checkField: "commands_executed", expectProgress: true},
 	}
 
 	for _, tt := range tests {
@@ -420,8 +421,11 @@ func TestUpdateProgressMetrics(t *testing.T) {
 				}
 			}
 
-			if metrics.LastProgress.IsZero() {
-				t.Error("Expected LastProgress to be set")
+			if tt.expectProgress && metrics.LastProgress.IsZero() {
+				t.Error("Expected LastProgress to be set for mutation action")
+			}
+			if !tt.expectProgress && !metrics.LastProgress.IsZero() {
+				t.Error("Expected LastProgress to remain zero for read-only action")
 			}
 		})
 	}
