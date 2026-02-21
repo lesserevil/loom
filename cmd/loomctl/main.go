@@ -17,11 +17,12 @@ import (
 const version = "2.0.0"
 
 var (
-	serverURL    string
-	outputFormat string
+	projectID  string
+	status     string
+	priority   string
+	beadType   string
+	assignedTo string
 )
-
-func main() {
 	rootCmd := &cobra.Command{
 		Use:   "loomctl",
 		Short: "Loom CLI - interact with your Loom server",
