@@ -337,86 +337,6 @@ func TestRegistryGetModels_NotFound(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// Registry: GetScorer, SetScoringWeights, GetScoringWeights
-// ---------------------------------------------------------------------------
-
-func TestRegistryGetScorer(t *testing.T) {
-	r := NewRegistry()
-	s := r.GetScorer()
-	if s == nil {
-		t.Fatal("GetScorer returned nil")
-	}
-}
-
-func TestRegistrySetGetScoringWeights(t *testing.T) {
-	r := NewRegistry()
-
-	custom := ScoringWeights{
-		ModelSize:      5.0,
-		RoundTrip:      4.0,
-		RequestLatency: 3.0,
-		Cost:           2.0,
-	}
-	r.SetScoringWeights(custom)
-	got := r.GetScoringWeights()
-	if got.ModelSize != 5.0 || got.Cost != 2.0 {
-		t.Errorf("weights not set correctly: %+v", got)
-	}
-}
-
-func TestRegistryGetScoringWeights_NilScorer(t *testing.T) {
-	// Construct a registry with nil scorer to test fallback
-	r := &Registry{
-		providers: make(map[string]*RegisteredProvider),
-		scorer:    nil,
-	}
-	w := r.GetScoringWeights()
-	d := DefaultWeights()
-	if w.ModelSize != d.ModelSize {
-		t.Errorf("expected default weights when scorer is nil")
-	}
-}
-
-func TestRegistrySetScoringWeights_NilScorer(t *testing.T) {
-	r := &Registry{
-		providers: make(map[string]*RegisteredProvider),
-		scorer:    nil,
-	}
-	// Should not panic
-	r.SetScoringWeights(ScoringWeights{ModelSize: 1})
-}
-
-// ---------------------------------------------------------------------------
-// Registry: UpdateProviderScore
-// ---------------------------------------------------------------------------
-
-func TestRegistryUpdateProviderScore(t *testing.T) {
-	r := NewRegistry()
-	_ = r.Upsert(&ProviderConfig{
-		ID: "ups", Type: "mock", Model: "m", Status: "healthy",
-	})
-
-	r.UpdateProviderScore("ups", 70.0, 2.0)
-
-	p, _ := r.Get("ups")
-	if p.Config.ModelParamsB != 70.0 {
-		t.Errorf("ModelParamsB = %f, want 70", p.Config.ModelParamsB)
-	}
-	if p.Config.CostPerMToken != 2.0 {
-		t.Errorf("CostPerMToken = %f, want 2", p.Config.CostPerMToken)
-	}
-	if p.Config.CapabilityScore <= 0 {
-		t.Error("CapabilityScore should be > 0 after update")
-	}
-}
-
-func TestRegistryUpdateProviderScore_NonExistent(t *testing.T) {
-	r := NewRegistry()
-	// Should not panic
-	r.UpdateProviderScore("nope", 30, 0)
-}
-
-// ---------------------------------------------------------------------------
 // Registry: RecordRequestMetrics
 // ---------------------------------------------------------------------------
 
@@ -434,9 +354,6 @@ func TestRegistryRecordRequestMetrics_Success(t *testing.T) {
 	}
 	if p.Config.SuccessRequests != 1 {
 		t.Errorf("SuccessRequests = %d, want 1", p.Config.SuccessRequests)
-	}
-	if p.Config.AvgLatencyMs != 500.0 {
-		t.Errorf("AvgLatencyMs = %f, want 500", p.Config.AvgLatencyMs)
 	}
 }
 
@@ -467,10 +384,11 @@ func TestRegistryRecordRequestMetrics_RollingAverage(t *testing.T) {
 	r.RecordRequestMetrics("rma", 500, true)
 
 	p, _ := r.Get("rma")
-	// EMA: first=1000, second = 0.8*1000 + 0.2*500 = 900
-	expected := 900.0
-	if p.Config.AvgLatencyMs != expected {
-		t.Errorf("AvgLatencyMs = %f, want %f", p.Config.AvgLatencyMs, expected)
+	if p.Config.TotalRequests != 2 {
+		t.Errorf("TotalRequests = %d, want 2", p.Config.TotalRequests)
+	}
+	if p.Config.SuccessRequests != 2 {
+		t.Errorf("SuccessRequests = %d, want 2", p.Config.SuccessRequests)
 	}
 }
 
@@ -499,145 +417,12 @@ func TestRegistryUpdateHeartbeatLatency(t *testing.T) {
 	if p.Config.LastHeartbeatAt.IsZero() {
 		t.Error("LastHeartbeatAt should be set")
 	}
-	if p.Config.CapabilityScore <= 0 {
-		t.Error("CapabilityScore should be > 0 after heartbeat update")
-	}
 }
 
 func TestRegistryUpdateHeartbeatLatency_NonExistent(t *testing.T) {
 	r := NewRegistry()
 	// Should not panic
 	r.UpdateHeartbeatLatency("nope", 100)
-}
-
-// ---------------------------------------------------------------------------
-// Registry: ListActiveForComplexity
-// ---------------------------------------------------------------------------
-
-func TestRegistryListActiveForComplexity(t *testing.T) {
-	r := NewRegistry()
-
-	// Register providers of different sizes
-	_ = r.Upsert(&ProviderConfig{ID: "s", Type: "mock", Model: "m", Status: "healthy"})
-	_ = r.Upsert(&ProviderConfig{ID: "m", Type: "mock", Model: "m", Status: "healthy"})
-	_ = r.Upsert(&ProviderConfig{ID: "l", Type: "mock", Model: "m", Status: "healthy"})
-
-	// Give them different model sizes
-	r.GetScorer().UpdateProviderMetrics("s", 7, 100, 500, 0)
-	r.GetScorer().UpdateProviderMetrics("m", 32, 100, 500, 0)
-	r.GetScorer().UpdateProviderMetrics("l", 70, 100, 500, 0)
-
-	// Simple task should prefer small
-	providers := r.ListActiveForComplexity(ComplexitySimple)
-	if len(providers) != 3 {
-		t.Fatalf("expected 3 providers, got %d", len(providers))
-	}
-	if providers[0].Config.ID != "s" {
-		t.Errorf("expected small first for simple task, got %q", providers[0].Config.ID)
-	}
-}
-
-func TestRegistryListActiveForComplexity_NoProviders(t *testing.T) {
-	r := NewRegistry()
-	providers := r.ListActiveForComplexity(ComplexityMedium)
-	if len(providers) != 0 {
-		t.Errorf("expected empty list, got %d", len(providers))
-	}
-}
-
-func TestRegistryListActiveForComplexity_SingleProvider(t *testing.T) {
-	r := NewRegistry()
-	_ = r.Upsert(&ProviderConfig{ID: "only", Type: "mock", Model: "m", Status: "healthy"})
-	providers := r.ListActiveForComplexity(ComplexityMedium)
-	if len(providers) != 1 {
-		t.Errorf("expected 1, got %d", len(providers))
-	}
-}
-
-func TestRegistryListActiveForComplexity_ExcludesInactive(t *testing.T) {
-	r := NewRegistry()
-	_ = r.Upsert(&ProviderConfig{ID: "active", Type: "mock", Model: "m", Status: "healthy"})
-	_ = r.Upsert(&ProviderConfig{ID: "pending", Type: "mock", Model: "m", Status: "pending"})
-	providers := r.ListActiveForComplexity(ComplexitySimple)
-	if len(providers) != 1 {
-		t.Errorf("expected 1 active, got %d", len(providers))
-	}
-}
-
-// ---------------------------------------------------------------------------
-// Registry: SelectProviderForComplexity
-// ---------------------------------------------------------------------------
-
-func TestRegistrySelectProviderForComplexity(t *testing.T) {
-	r := NewRegistry()
-	_ = r.Upsert(&ProviderConfig{ID: "a", Type: "mock", Model: "m", Status: "healthy"})
-	r.GetScorer().UpdateProviderMetrics("a", 30, 100, 500, 0)
-
-	p, score, found := r.SelectProviderForComplexity(ComplexityMedium)
-	if !found {
-		t.Fatal("expected to find a provider")
-	}
-	if p == nil {
-		t.Fatal("expected non-nil provider")
-	}
-	// Score may be zero for a fresh provider; just verify selection succeeded
-	_ = score
-}
-
-func TestRegistrySelectProviderForComplexity_NoneAvailable(t *testing.T) {
-	r := NewRegistry()
-	_, _, found := r.SelectProviderForComplexity(ComplexityMedium)
-	if found {
-		t.Error("expected found=false with no providers")
-	}
-}
-
-// ---------------------------------------------------------------------------
-// Registry: GetComplexityEstimator
-// ---------------------------------------------------------------------------
-
-func TestRegistryGetComplexityEstimator(t *testing.T) {
-	r := NewRegistry()
-	ce := r.GetComplexityEstimator()
-	if ce == nil {
-		t.Fatal("GetComplexityEstimator returned nil")
-	}
-	// Quick sanity check
-	level := ce.EstimateComplexity("review code", "")
-	if level != ComplexitySimple {
-		t.Errorf("unexpected complexity: %s", level.String())
-	}
-}
-
-// ---------------------------------------------------------------------------
-// Registry: ListActive round-robin behavior
-// ---------------------------------------------------------------------------
-
-func TestRegistryListActive_RoundRobin(t *testing.T) {
-	r := NewRegistry()
-
-	// Register two providers with equal scores (same model, same latency)
-	_ = r.Upsert(&ProviderConfig{ID: "rr1", Type: "mock", Model: "m", Status: "healthy"})
-	_ = r.Upsert(&ProviderConfig{ID: "rr2", Type: "mock", Model: "m", Status: "healthy"})
-
-	// Give them identical scores
-	r.GetScorer().UpdateProviderMetrics("rr1", 30, 100, 500, 0)
-	r.GetScorer().UpdateProviderMetrics("rr2", 30, 100, 500, 0)
-
-	// Call ListActive multiple times - should rotate first provider
-	firstIDs := make(map[string]int)
-	for i := 0; i < 10; i++ {
-		active := r.ListActive()
-		if len(active) < 2 {
-			t.Fatalf("expected 2 active, got %d", len(active))
-		}
-		firstIDs[active[0].Config.ID]++
-	}
-
-	// Both should appear as first at least once (round robin)
-	if firstIDs["rr1"] == 0 || firstIDs["rr2"] == 0 {
-		t.Errorf("round robin not working: rr1=%d rr2=%d", firstIDs["rr1"], firstIDs["rr2"])
-	}
 }
 
 func TestRegistryListActive_NoActive(t *testing.T) {
@@ -655,24 +440,6 @@ func TestRegistryListActive_SingleProvider(t *testing.T) {
 	active := r.ListActive()
 	if len(active) != 1 {
 		t.Errorf("expected 1 active, got %d", len(active))
-	}
-}
-
-func TestRegistryListActive_SortsByScore(t *testing.T) {
-	r := NewRegistry()
-	_ = r.Upsert(&ProviderConfig{ID: "big", Type: "mock", Model: "m", Status: "healthy"})
-	_ = r.Upsert(&ProviderConfig{ID: "small", Type: "mock", Model: "m", Status: "healthy"})
-
-	// Give them very different scores so round-robin doesn't interfere
-	r.GetScorer().UpdateProviderMetrics("big", 480, 100, 500, 0)
-	r.GetScorer().UpdateProviderMetrics("small", 7, 100, 500, 0)
-
-	active := r.ListActive()
-	if len(active) < 2 {
-		t.Fatalf("expected 2, got %d", len(active))
-	}
-	if active[0].Config.ID != "big" {
-		t.Errorf("expected big first, got %q", active[0].Config.ID)
 	}
 }
 
@@ -843,8 +610,8 @@ func TestRegistryRegister_OllamaType(t *testing.T) {
 		t.Fatalf("Register ollama: %v", err)
 	}
 	p, _ := r.Get("ollama1")
-	if _, ok := p.Protocol.(*OllamaProvider); !ok {
-		t.Error("expected OllamaProvider protocol")
+	if _, ok := p.Protocol.(*OpenAIProvider); !ok {
+		t.Error("expected OpenAIProvider protocol for ollama type")
 	}
 }
 

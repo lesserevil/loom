@@ -9,24 +9,23 @@ import (
 	"time"
 )
 
-func TestOllamaStreamingChatCompletion(t *testing.T) {
-	// Create mock Ollama server that returns newline-delimited JSON
+func TestOpenAIStreamingChatCompletion(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/chat" {
-			t.Errorf("Expected path /api/chat, got %s", r.URL.Path)
+		if r.URL.Path != "/chat/completions" {
+			t.Errorf("Expected path /chat/completions, got %s", r.URL.Path)
 		}
 
-		// Send Ollama-style streaming response (newline-delimited JSON)
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Content-Type", "text/event-stream")
 
 		chunks := []string{
-			`{"model":"llama2","message":{"role":"assistant","content":"Hello"},"done":false}`,
-			`{"model":"llama2","message":{"role":"assistant","content":" there"},"done":false}`,
-			`{"model":"llama2","message":{"role":"assistant","content":"!"},"done":true}`,
+			`data: {"id":"chatcmpl-1","object":"chat.completion.chunk","model":"gpt-4","choices":[{"index":0,"delta":{"role":"assistant","content":"Hello"},"finish_reason":null}]}`,
+			`data: {"id":"chatcmpl-1","object":"chat.completion.chunk","model":"gpt-4","choices":[{"index":0,"delta":{"content":" there"},"finish_reason":null}]}`,
+			`data: {"id":"chatcmpl-1","object":"chat.completion.chunk","model":"gpt-4","choices":[{"index":0,"delta":{"content":"!"},"finish_reason":"stop"}]}`,
+			`data: [DONE]`,
 		}
 
 		for _, chunk := range chunks {
-			_, _ = w.Write([]byte(chunk + "\n"))
+			_, _ = w.Write([]byte(chunk + "\n\n"))
 			if flusher, ok := w.(http.Flusher); ok {
 				flusher.Flush()
 			}
@@ -34,18 +33,15 @@ func TestOllamaStreamingChatCompletion(t *testing.T) {
 	}))
 	defer server.Close()
 
-	// Create Ollama provider
-	provider := NewOllamaProvider(server.URL)
+	provider := NewOpenAIProvider(server.URL, "")
 
-	// Make streaming request
 	req := &ChatCompletionRequest{
-		Model: "llama2",
+		Model: "gpt-4",
 		Messages: []ChatMessage{
 			{Role: "user", Content: "Hi"},
 		},
 	}
 
-	// Collect chunks
 	var chunks []*StreamChunk
 	err := provider.CreateChatCompletionStream(context.Background(), req, func(chunk *StreamChunk) error {
 		chunks = append(chunks, chunk)
@@ -56,12 +52,10 @@ func TestOllamaStreamingChatCompletion(t *testing.T) {
 		t.Fatalf("Streaming failed: %v", err)
 	}
 
-	// Verify chunks
 	if len(chunks) != 3 {
 		t.Errorf("Expected 3 chunks, got %d", len(chunks))
 	}
 
-	// Verify content
 	var content strings.Builder
 	for _, chunk := range chunks {
 		if len(chunk.Choices) > 0 {
@@ -74,7 +68,6 @@ func TestOllamaStreamingChatCompletion(t *testing.T) {
 		t.Errorf("Expected content %q, got %q", expected, content.String())
 	}
 
-	// Verify finish reason on last chunk
 	if len(chunks) > 0 && len(chunks[len(chunks)-1].Choices) > 0 {
 		finishReason := chunks[len(chunks)-1].Choices[0].FinishReason
 		if finishReason != "stop" {
@@ -147,7 +140,6 @@ func TestProviderStreamingInterface(t *testing.T) {
 		provider Protocol
 	}{
 		{"OpenAI", NewOpenAIProvider("http://test", "key")},
-		{"Ollama", NewOllamaProvider("http://test")},
 		{"Mock", NewMockProvider()},
 	}
 
@@ -171,7 +163,7 @@ func TestRegistryStreamingSupport(t *testing.T) {
 		endpoint string
 	}{
 		{"openai-test", "openai", "http://test"},
-		{"ollama-test", "ollama", "http://test"},
+		{"local-test", "local", "http://test"},
 		{"mock-test", "mock", ""},
 	}
 

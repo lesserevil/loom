@@ -349,23 +349,20 @@ func TestUpdateServiceCostRequestOmitEmpty(t *testing.T) {
 func TestProvider(t *testing.T) {
 	now := time.Now()
 	provider := Provider{
-		ID:               "prov-1",
-		Name:             "OpenAI",
-		Type:             "openai",
-		Endpoint:         "https://api.openai.com",
-		Model:            "gpt-4",
-		ConfiguredModel:  "gpt-4-turbo",
-		Status:           "active",
-		RequiresKey:      true,
-		KeyID:            "key-1",
-		IsShared:         false,
-		CostPerMToken:    30.0,
-		ContextWindow:    128000,
-		SupportsFunction: true,
-		SupportsVision:   true,
-		Tags:             []string{"production", "fast"},
-		CreatedAt:        now,
-		UpdatedAt:        now,
+		ID:              "prov-1",
+		Name:            "OpenAI",
+		Type:            "openai",
+		Endpoint:        "https://api.openai.com",
+		Model:           "gpt-4",
+		ConfiguredModel: "gpt-4-turbo",
+		Status:          "active",
+		RequiresKey:     true,
+		KeyID:           "key-1",
+		IsShared:        false,
+		ContextWindow:   128000,
+		Tags:            []string{"production", "fast"},
+		CreatedAt:       now,
+		UpdatedAt:       now,
 	}
 
 	if provider.Name != "OpenAI" {
@@ -374,10 +371,6 @@ func TestProvider(t *testing.T) {
 
 	if provider.ContextWindow != 128000 {
 		t.Errorf("Provider.ContextWindow = %d, want %d", provider.ContextWindow, 128000)
-	}
-
-	if !provider.SupportsFunction {
-		t.Error("Expected SupportsFunction to be true")
 	}
 }
 
@@ -415,399 +408,66 @@ func TestProviderSchemaVersion(t *testing.T) {
 	}
 }
 
-// TestProviderRecordSuccess tests RecordSuccess method
 func TestProviderRecordSuccess(t *testing.T) {
 	provider := &Provider{
 		ID:     "prov-1",
 		Status: "active",
 	}
 
-	// First request
 	provider.RecordSuccess(1000, 500)
 
 	if provider.Metrics.TotalRequests != 1 {
 		t.Errorf("TotalRequests = %d, want %d", provider.Metrics.TotalRequests, 1)
 	}
-
 	if provider.Metrics.SuccessRequests != 1 {
 		t.Errorf("SuccessRequests = %d, want %d", provider.Metrics.SuccessRequests, 1)
 	}
-
-	if provider.Metrics.LastLatencyMs != 1000 {
-		t.Errorf("LastLatencyMs = %d, want %d", provider.Metrics.LastLatencyMs, 1000)
-	}
-
-	if provider.Metrics.MinLatencyMs != 1000 {
-		t.Errorf("MinLatencyMs = %d, want %d", provider.Metrics.MinLatencyMs, 1000)
-	}
-
-	if provider.Metrics.MaxLatencyMs != 1000 {
-		t.Errorf("MaxLatencyMs = %d, want %d", provider.Metrics.MaxLatencyMs, 1000)
-	}
-
-	if provider.Metrics.AvgLatencyMs != 1000.0 {
-		t.Errorf("AvgLatencyMs = %f, want %f", provider.Metrics.AvgLatencyMs, 1000.0)
-	}
-
 	if provider.Metrics.TotalTokens != 500 {
 		t.Errorf("TotalTokens = %d, want %d", provider.Metrics.TotalTokens, 500)
 	}
 
-	if provider.Metrics.SuccessRate != 1.0 {
-		t.Errorf("SuccessRate = %f, want %f", provider.Metrics.SuccessRate, 1.0)
-	}
-
-	// Second request with different latency
 	provider.RecordSuccess(2000, 300)
 
 	if provider.Metrics.TotalRequests != 2 {
 		t.Errorf("TotalRequests = %d, want %d", provider.Metrics.TotalRequests, 2)
 	}
-
-	if provider.Metrics.MinLatencyMs != 1000 {
-		t.Errorf("MinLatencyMs = %d, want %d", provider.Metrics.MinLatencyMs, 1000)
-	}
-
-	if provider.Metrics.MaxLatencyMs != 2000 {
-		t.Errorf("MaxLatencyMs = %d, want %d", provider.Metrics.MaxLatencyMs, 2000)
-	}
-
-	// Exponential moving average: 0.8*1000 + 0.2*2000 = 1200
-	expectedAvg := 1200.0
-	if provider.Metrics.AvgLatencyMs != expectedAvg {
-		t.Errorf("AvgLatencyMs = %f, want %f", provider.Metrics.AvgLatencyMs, expectedAvg)
-	}
-
 	if provider.Metrics.TotalTokens != 800 {
 		t.Errorf("TotalTokens = %d, want %d", provider.Metrics.TotalTokens, 800)
 	}
 }
 
-// TestProviderRecordFailure tests RecordFailure method
 func TestProviderRecordFailure(t *testing.T) {
 	provider := &Provider{
 		ID:     "prov-1",
 		Status: "active",
 	}
 
-	// Record one success
 	provider.RecordSuccess(1000, 100)
-
-	// Record one failure
-	provider.RecordFailure(500)
+	provider.RecordFailure()
 
 	if provider.Metrics.TotalRequests != 2 {
 		t.Errorf("TotalRequests = %d, want %d", provider.Metrics.TotalRequests, 2)
 	}
-
 	if provider.Metrics.SuccessRequests != 1 {
 		t.Errorf("SuccessRequests = %d, want %d", provider.Metrics.SuccessRequests, 1)
 	}
-
 	if provider.Metrics.FailedRequests != 1 {
 		t.Errorf("FailedRequests = %d, want %d", provider.Metrics.FailedRequests, 1)
 	}
-
-	// Success rate should be 0.5
-	expectedRate := 0.5
-	if provider.Metrics.SuccessRate != expectedRate {
-		t.Errorf("SuccessRate = %f, want %f", provider.Metrics.SuccessRate, expectedRate)
-	}
 }
 
-// TestProviderComputedMetrics tests the computed metrics and scores
-func TestProviderComputedMetrics(t *testing.T) {
-	tests := []struct {
-		name          string
-		status        string
-		successCount  int64
-		failureCount  int64
-		avgLatencyMs  float64
-		avgThroughput float64
-		wantMinAvail  float64 // Minimum availability score
-		wantMaxAvail  float64 // Maximum availability score
-	}{
-		{
-			name:         "Active with 100% success",
-			status:       "active",
-			successCount: 10,
-			failureCount: 0,
-			avgLatencyMs: 1000,
-			wantMinAvail: 90.0, // Should be close to 100
-			wantMaxAvail: 100.0,
-		},
-		{
-			name:         "Active with 50% success",
-			status:       "active",
-			successCount: 5,
-			failureCount: 5,
-			avgLatencyMs: 1000,
-			wantMinAvail: 45.0, // 100 * 0.5 = 50
-			wantMaxAvail: 55.0,
-		},
-		{
-			name:         "Failed status",
-			status:       "failed",
-			successCount: 0,
-			failureCount: 10,
-			avgLatencyMs: 5000,
-			wantMinAvail: 0.0,
-			wantMaxAvail: 0.0,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			provider := &Provider{
-				ID:     "prov-1",
-				Status: tt.status,
-			}
-
-			// Record successes
-			for i := int64(0); i < tt.successCount; i++ {
-				provider.RecordSuccess(int64(tt.avgLatencyMs), 100)
-			}
-
-			// Record failures
-			for i := int64(0); i < tt.failureCount; i++ {
-				provider.RecordFailure(int64(tt.avgLatencyMs))
-			}
-
-			if provider.Metrics.AvailabilityScore < tt.wantMinAvail || provider.Metrics.AvailabilityScore > tt.wantMaxAvail {
-				t.Errorf("AvailabilityScore = %f, want between %f and %f",
-					provider.Metrics.AvailabilityScore, tt.wantMinAvail, tt.wantMaxAvail)
-			}
-
-			// Overall score should be between 0 and 100
-			if provider.Metrics.OverallScore < 0 || provider.Metrics.OverallScore > 100 {
-				t.Errorf("OverallScore = %f, want between 0 and 100", provider.Metrics.OverallScore)
-			}
-		})
-	}
-}
-
-// TestProviderGetScore tests GetScore method
-func TestProviderGetScore(t *testing.T) {
-	provider := &Provider{
-		ID:     "prov-1",
-		Status: "active",
-	}
-
-	provider.RecordSuccess(1000, 100)
-
-	score := provider.GetScore()
-	if score < 0 || score > 100 {
-		t.Errorf("GetScore() = %f, want between 0 and 100", score)
-	}
-
-	if score != provider.Metrics.OverallScore {
-		t.Errorf("GetScore() = %f, want %f", score, provider.Metrics.OverallScore)
-	}
-}
-
-// TestProviderLatencyScoring tests latency impact on performance score
-func TestProviderLatencyScoring(t *testing.T) {
-	tests := []struct {
-		name       string
-		latencyMs  int64
-		expectHigh bool // Expect high or low performance score
-	}{
-		{"Fast response", 100, true},
-		{"Medium response", 1000, false},
-		{"Slow response", 5000, false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			provider := &Provider{
-				ID:     "prov-1",
-				Status: "active",
-			}
-
-			provider.RecordSuccess(tt.latencyMs, 100)
-
-			if tt.expectHigh && provider.Metrics.PerformanceScore < 50 {
-				t.Errorf("Expected high PerformanceScore for %dms, got %f",
-					tt.latencyMs, provider.Metrics.PerformanceScore)
-			}
-
-			if !tt.expectHigh && provider.Metrics.PerformanceScore > 70 {
-				t.Errorf("Expected low PerformanceScore for %dms, got %f",
-					tt.latencyMs, provider.Metrics.PerformanceScore)
-			}
-		})
-	}
-}
-
-// TestProviderThroughputCalculation tests token throughput calculation
-func TestProviderThroughputCalculation(t *testing.T) {
-	provider := &Provider{
-		ID:     "prov-1",
-		Status: "active",
-	}
-
-	// 1000 tokens in 1000ms = 1000 tokens/sec
-	provider.RecordSuccess(1000, 1000)
-
-	if provider.Metrics.TotalTokens != 1000 {
-		t.Errorf("TotalTokens = %d, want %d", provider.Metrics.TotalTokens, 1000)
-	}
-
-	// Throughput should be around 1000 tok/s
-	expectedThroughput := 1000.0
-	if provider.Metrics.AvgThroughput < expectedThroughput*0.9 || provider.Metrics.AvgThroughput > expectedThroughput*1.1 {
-		t.Errorf("AvgThroughput = %f, want around %f", provider.Metrics.AvgThroughput, expectedThroughput)
-	}
-}
-
-// TestGPUConstraints tests GPUConstraints struct
-func TestGPUConstraints(t *testing.T) {
-	constraints := GPUConstraints{
-		MinVRAMGB:       40,
-		RequiredGPUArch: "hopper",
-		AllowedGPUIDs:   []string{"GPU-0", "GPU-1"},
-		PreferredClass:  "H100",
-	}
-
-	if constraints.MinVRAMGB != 40 {
-		t.Errorf("MinVRAMGB = %d, want %d", constraints.MinVRAMGB, 40)
-	}
-
-	if constraints.RequiredGPUArch != "hopper" {
-		t.Errorf("RequiredGPUArch = %q, want %q", constraints.RequiredGPUArch, "hopper")
-	}
-
-	if len(constraints.AllowedGPUIDs) != 2 {
-		t.Errorf("AllowedGPUIDs length = %d, want %d", len(constraints.AllowedGPUIDs), 2)
-	}
-}
-
-// TestModelSpec tests ModelSpec struct
-func TestModelSpec(t *testing.T) {
-	spec := ModelSpec{
-		Name:              "llama-3-70b",
-		Vendor:            "Meta",
-		Family:            "Llama",
-		TotalParamsB:      70.0,
-		ActiveParamsB:     70.0,
-		Precision:         "fp16",
-		Instruct:          true,
-		Interactivity:     "high",
-		MinVRAMGB:         40,
-		SuggestedGPUClass: "A100-80GB",
-		Rank:              1,
-	}
-
-	if spec.Name != "llama-3-70b" {
-		t.Errorf("Name = %q, want %q", spec.Name, "llama-3-70b")
-	}
-
-	if spec.TotalParamsB != 70.0 {
-		t.Errorf("TotalParamsB = %f, want %f", spec.TotalParamsB, 70.0)
-	}
-
-	if !spec.Instruct {
-		t.Error("Expected Instruct to be true")
-	}
-
-	// Test JSON marshaling
-	data, err := json.Marshal(spec)
-	if err != nil {
-		t.Fatalf("json.Marshal() error = %v", err)
-	}
-
-	var unmarshaled ModelSpec
-	if err := json.Unmarshal(data, &unmarshaled); err != nil {
-		t.Fatalf("json.Unmarshal() error = %v", err)
-	}
-
-	if unmarshaled.Vendor != spec.Vendor {
-		t.Errorf("Unmarshaled Vendor = %q, want %q", unmarshaled.Vendor, spec.Vendor)
-	}
-}
-
-// TestProviderMetricsZeroValues tests metrics with zero values
-func TestProviderMetricsZeroValues(t *testing.T) {
-	provider := &Provider{
-		ID:     "prov-1",
-		Status: "pending",
-	}
-
-	// No requests recorded yet
-	if provider.Metrics.TotalRequests != 0 {
-		t.Errorf("TotalRequests = %d, want %d", provider.Metrics.TotalRequests, 0)
-	}
-
-	if provider.Metrics.SuccessRate != 0 {
-		t.Errorf("SuccessRate = %f, want %f", provider.Metrics.SuccessRate, 0.0)
-	}
-
-	// Try to get score with no data
-	score := provider.GetScore()
-	if score < 0 || score > 100 {
-		t.Errorf("GetScore() with no data = %f, want between 0 and 100", score)
-	}
-}
-
-// TestProviderStatusScoring tests different status values
-func TestProviderStatusScoring(t *testing.T) {
-	tests := []struct {
-		name               string
-		status             string
-		wantHealthyScore   bool
-		wantUnhealthyScore bool
-	}{
-		{"Active", "active", true, false},
-		{"Healthy", "healthy", true, false},
-		{"Pending", "pending", false, false},
-		{"Error", "error", false, true},
-		{"Failed", "failed", false, true},
-		{"Unknown", "unknown", false, false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			provider := &Provider{
-				ID:     "prov-1",
-				Status: tt.status,
-			}
-
-			// Record one success to trigger scoring
-			provider.RecordSuccess(1000, 100)
-
-			if tt.wantHealthyScore && provider.Metrics.AvailabilityScore < 90 {
-				t.Errorf("Expected high AvailabilityScore for status %q, got %f",
-					tt.status, provider.Metrics.AvailabilityScore)
-			}
-
-			if tt.wantUnhealthyScore && provider.Metrics.AvailabilityScore > 10 {
-				t.Errorf("Expected low AvailabilityScore for status %q, got %f",
-					tt.status, provider.Metrics.AvailabilityScore)
-			}
-		})
-	}
-}
-
-// TestProviderRecordSuccessWithZeroTokens tests recording success with no tokens
 func TestProviderRecordSuccessWithZeroTokens(t *testing.T) {
 	provider := &Provider{
 		ID:     "prov-1",
 		Status: "active",
 	}
 
-	// Record success with zero tokens
 	provider.RecordSuccess(1000, 0)
 
 	if provider.Metrics.TotalRequests != 1 {
 		t.Errorf("TotalRequests = %d, want %d", provider.Metrics.TotalRequests, 1)
 	}
-
 	if provider.Metrics.TotalTokens != 0 {
 		t.Errorf("TotalTokens = %d, want %d", provider.Metrics.TotalTokens, 0)
-	}
-
-	// Throughput should remain 0
-	if provider.Metrics.AvgThroughput != 0 {
-		t.Errorf("AvgThroughput = %f, want %f", provider.Metrics.AvgThroughput, 0.0)
 	}
 }
