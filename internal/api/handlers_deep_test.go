@@ -723,16 +723,6 @@ func TestHandleFileLock_POST_MissingFilePath(t *testing.T) {
 	}
 }
 
-func TestHandleSelectProvider_POST_InvalidJSON(t *testing.T) {
-	s := newTestServer()
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/routing/select", strings.NewReader(`{invalid}`))
-	w := httptest.NewRecorder()
-	s.handleSelectProvider(w, req)
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400, got %d", w.Code)
-	}
-}
-
 func TestHandleWork_POST_InvalidJSON(t *testing.T) {
 	s := newTestServer()
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/work", strings.NewReader(`{invalid}`))

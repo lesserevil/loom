@@ -954,16 +954,6 @@ func TestHandleProvider_ModelsMethodNotAllowed(t *testing.T) {
 	}
 }
 
-func TestHandleProvider_NegotiateMethodNotAllowed(t *testing.T) {
-	s := newTestServer()
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/providers/p1/negotiate", nil)
-	w := httptest.NewRecorder()
-	s.handleProvider(w, req)
-	if w.Code != http.StatusMethodNotAllowed {
-		t.Fatalf("expected 405, got %d", w.Code)
-	}
-}
-
 // ============================================================
 // Project state endpoints method tests
 // ============================================================

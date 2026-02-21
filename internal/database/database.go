@@ -532,8 +532,8 @@ func (d *Database) UpsertProvider(provider *internalmodels.Provider) error {
 	provider.UpdatedAt = time.Now()
 
 	query := `
-		INSERT INTO providers (id, name, type, endpoint, model, configured_model, selected_model, selection_reason, model_score, selected_gpu, description, requires_key, key_id, api_key, owner_id, is_shared, status, last_heartbeat_at, last_heartbeat_latency_ms, last_heartbeat_error, context_window, model_params_b, capability_score, avg_latency_ms, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO providers (id, name, type, endpoint, model, configured_model, selected_model, description, requires_key, key_id, api_key, owner_id, is_shared, status, last_heartbeat_at, last_heartbeat_latency_ms, last_heartbeat_error, context_window, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			name = excluded.name,
 			type = excluded.type,
@@ -541,9 +541,6 @@ func (d *Database) UpsertProvider(provider *internalmodels.Provider) error {
 			model = excluded.model,
 			configured_model = excluded.configured_model,
 			selected_model = excluded.selected_model,
-			selection_reason = excluded.selection_reason,
-			model_score = excluded.model_score,
-			selected_gpu = excluded.selected_gpu,
 			description = excluded.description,
 			requires_key = excluded.requires_key,
 			key_id = excluded.key_id,
@@ -555,9 +552,6 @@ func (d *Database) UpsertProvider(provider *internalmodels.Provider) error {
 			last_heartbeat_latency_ms = excluded.last_heartbeat_latency_ms,
 			last_heartbeat_error = excluded.last_heartbeat_error,
 			context_window = excluded.context_window,
-			model_params_b = excluded.model_params_b,
-			capability_score = excluded.capability_score,
-			avg_latency_ms = excluded.avg_latency_ms,
 			updated_at = excluded.updated_at
 	`
 
@@ -569,9 +563,6 @@ func (d *Database) UpsertProvider(provider *internalmodels.Provider) error {
 		provider.Model,
 		provider.ConfiguredModel,
 		provider.SelectedModel,
-		provider.SelectionReason,
-		provider.ModelScore,
-		provider.SelectedGPU,
 		provider.Description,
 		provider.RequiresKey,
 		provider.KeyID,
@@ -583,9 +574,6 @@ func (d *Database) UpsertProvider(provider *internalmodels.Provider) error {
 		provider.LastHeartbeatLatencyMs,
 		provider.LastHeartbeatError,
 		provider.ContextWindow,
-		provider.ModelParamsB,
-		provider.CapabilityScore,
-		provider.AvgLatencyMs,
 		provider.CreatedAt,
 		provider.UpdatedAt,
 	)
@@ -623,13 +611,12 @@ func (d *Database) DeleteAllAgents() error {
 // GetProvider retrieves a provider by ID
 func (d *Database) GetProvider(id string) (*internalmodels.Provider, error) {
 	query := `
-		SELECT id, name, type, endpoint, model, configured_model, selected_model, selection_reason, model_score, selected_gpu, description, requires_key, key_id, status, last_heartbeat_at, last_heartbeat_latency_ms, last_heartbeat_error, context_window, model_params_b, capability_score, avg_latency_ms, created_at, updated_at
+		SELECT id, name, type, endpoint, model, configured_model, selected_model, description, requires_key, key_id, status, last_heartbeat_at, last_heartbeat_latency_ms, last_heartbeat_error, context_window, created_at, updated_at
 		FROM providers
 		WHERE id = ?
 	`
 
 	provider := &internalmodels.Provider{}
-	var modelParamsB, capabilityScore, avgLatencyMs sql.NullFloat64
 	err := d.db.QueryRow(rebind(query), id).Scan(
 		&provider.ID,
 		&provider.Name,
@@ -638,9 +625,6 @@ func (d *Database) GetProvider(id string) (*internalmodels.Provider, error) {
 		&provider.Model,
 		&provider.ConfiguredModel,
 		&provider.SelectedModel,
-		&provider.SelectionReason,
-		&provider.ModelScore,
-		&provider.SelectedGPU,
 		&provider.Description,
 		&provider.RequiresKey,
 		&provider.KeyID,
@@ -649,21 +633,9 @@ func (d *Database) GetProvider(id string) (*internalmodels.Provider, error) {
 		&provider.LastHeartbeatLatencyMs,
 		&provider.LastHeartbeatError,
 		&provider.ContextWindow,
-		&modelParamsB,
-		&capabilityScore,
-		&avgLatencyMs,
 		&provider.CreatedAt,
 		&provider.UpdatedAt,
 	)
-	if modelParamsB.Valid {
-		provider.ModelParamsB = modelParamsB.Float64
-	}
-	if capabilityScore.Valid {
-		provider.CapabilityScore = capabilityScore.Float64
-	}
-	if avgLatencyMs.Valid {
-		provider.AvgLatencyMs = avgLatencyMs.Float64
-	}
 
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("provider not found: %s", id)
@@ -678,7 +650,7 @@ func (d *Database) GetProvider(id string) (*internalmodels.Provider, error) {
 // ListProviders retrieves all providers
 func (d *Database) ListProviders() ([]*internalmodels.Provider, error) {
 	query := `
-		SELECT id, name, type, endpoint, model, configured_model, selected_model, selection_reason, model_score, selected_gpu, description, requires_key, key_id, COALESCE(api_key, '') as api_key, owner_id, is_shared, status, last_heartbeat_at, last_heartbeat_latency_ms, last_heartbeat_error, model_params_b, capability_score, avg_latency_ms, created_at, updated_at
+		SELECT id, name, type, endpoint, model, configured_model, selected_model, description, requires_key, key_id, COALESCE(api_key, '') as api_key, owner_id, is_shared, status, last_heartbeat_at, last_heartbeat_latency_ms, last_heartbeat_error, context_window, created_at, updated_at
 		FROM providers
 		ORDER BY created_at DESC
 	`
@@ -694,14 +666,11 @@ func (d *Database) ListProviders() ([]*internalmodels.Provider, error) {
 		provider := &internalmodels.Provider{}
 		var (
 			model, configuredModel, selectedModel sql.NullString
-			selectionReason, selectedGPU          sql.NullString
 			description, keyID, lastHBError       sql.NullString
 			apiKey                                sql.NullString
 			ownerID                               sql.NullString
 			isShared                              sql.NullBool
-			modelScore                            sql.NullFloat64
-			modelParamsB, capabilityScore         sql.NullFloat64
-			avgLatencyMs                          sql.NullFloat64
+			contextWindow                         sql.NullInt64
 			lastHBAt                              sql.NullTime
 			lastHBLatencyMs                       sql.NullInt64
 		)
@@ -713,9 +682,6 @@ func (d *Database) ListProviders() ([]*internalmodels.Provider, error) {
 			&model,
 			&configuredModel,
 			&selectedModel,
-			&selectionReason,
-			&modelScore,
-			&selectedGPU,
 			&description,
 			&provider.RequiresKey,
 			&keyID,
@@ -726,9 +692,7 @@ func (d *Database) ListProviders() ([]*internalmodels.Provider, error) {
 			&lastHBAt,
 			&lastHBLatencyMs,
 			&lastHBError,
-			&modelParamsB,
-			&capabilityScore,
-			&avgLatencyMs,
+			&contextWindow,
 			&provider.CreatedAt,
 			&provider.UpdatedAt,
 		)
@@ -738,8 +702,6 @@ func (d *Database) ListProviders() ([]*internalmodels.Provider, error) {
 		provider.Model = model.String
 		provider.ConfiguredModel = configuredModel.String
 		provider.SelectedModel = selectedModel.String
-		provider.SelectionReason = selectionReason.String
-		provider.SelectedGPU = selectedGPU.String
 		provider.Description = description.String
 		provider.KeyID = keyID.String
 		provider.APIKey = apiKey.String
@@ -752,17 +714,8 @@ func (d *Database) ListProviders() ([]*internalmodels.Provider, error) {
 		} else {
 			provider.IsShared = true
 		}
-		if modelScore.Valid {
-			provider.ModelScore = modelScore.Float64
-		}
-		if modelParamsB.Valid {
-			provider.ModelParamsB = modelParamsB.Float64
-		}
-		if capabilityScore.Valid {
-			provider.CapabilityScore = capabilityScore.Float64
-		}
-		if avgLatencyMs.Valid {
-			provider.AvgLatencyMs = avgLatencyMs.Float64
+		if contextWindow.Valid {
+			provider.ContextWindow = int(contextWindow.Int64)
 		}
 		if lastHBAt.Valid {
 			provider.LastHeartbeatAt = lastHBAt.Time
@@ -780,7 +733,7 @@ func (d *Database) ListProviders() ([]*internalmodels.Provider, error) {
 // Returns providers owned by the user OR shared providers
 func (d *Database) ListProvidersForUser(userID string) ([]*internalmodels.Provider, error) {
 	query := `
-		SELECT id, name, type, endpoint, model, configured_model, selected_model, selection_reason, model_score, selected_gpu, description, requires_key, key_id, owner_id, is_shared, status, last_heartbeat_at, last_heartbeat_latency_ms, last_heartbeat_error, created_at, updated_at
+		SELECT id, name, type, endpoint, model, configured_model, selected_model, description, requires_key, key_id, owner_id, is_shared, status, last_heartbeat_at, last_heartbeat_latency_ms, last_heartbeat_error, created_at, updated_at
 		FROM providers
 		WHERE owner_id = ? OR is_shared = true OR owner_id IS NULL
 		ORDER BY created_at DESC
@@ -797,11 +750,9 @@ func (d *Database) ListProvidersForUser(userID string) ([]*internalmodels.Provid
 		provider := &internalmodels.Provider{}
 		var (
 			model, configuredModel, selectedModel sql.NullString
-			selectionReason, selectedGPU          sql.NullString
 			description, keyID, lastHBError       sql.NullString
 			ownerID                               sql.NullString
 			isShared                              sql.NullBool
-			modelScore                            sql.NullFloat64
 			lastHBAt                              sql.NullTime
 			lastHBLatencyMs                       sql.NullInt64
 		)
@@ -813,9 +764,6 @@ func (d *Database) ListProvidersForUser(userID string) ([]*internalmodels.Provid
 			&model,
 			&configuredModel,
 			&selectedModel,
-			&selectionReason,
-			&modelScore,
-			&selectedGPU,
 			&description,
 			&provider.RequiresKey,
 			&keyID,
@@ -834,8 +782,6 @@ func (d *Database) ListProvidersForUser(userID string) ([]*internalmodels.Provid
 		provider.Model = model.String
 		provider.ConfiguredModel = configuredModel.String
 		provider.SelectedModel = selectedModel.String
-		provider.SelectionReason = selectionReason.String
-		provider.SelectedGPU = selectedGPU.String
 		provider.Description = description.String
 		provider.KeyID = keyID.String
 		provider.LastHeartbeatError = lastHBError.String
@@ -846,9 +792,6 @@ func (d *Database) ListProvidersForUser(userID string) ([]*internalmodels.Provid
 			provider.IsShared = isShared.Bool
 		} else {
 			provider.IsShared = true
-		}
-		if modelScore.Valid {
-			provider.ModelScore = modelScore.Float64
 		}
 		if lastHBAt.Valid {
 			provider.LastHeartbeatAt = lastHBAt.Time

@@ -393,44 +393,6 @@ func TestExtractPersonaFromMessage(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// Pure function tests: isChatCapableModel
-// ---------------------------------------------------------------------------
-
-func TestIsChatCapableModel(t *testing.T) {
-	tests := []struct {
-		name     string
-		model    string
-		expected bool
-	}{
-		{"empty", "", false},
-		{"instruct model", "Llama-3-Instruct", true},
-		{"chat model", "Qwen-Chat-7B", true},
-		{"claude", "claude-3-opus", true},
-		{"gpt prefix", "gpt-4-turbo", true},
-		{"nemotron", "nvidia/NVIDIA-Nemotron-3-Nano-30B", true},
-		{"deepseek", "deepseek-coder-v2", true},
-		{"gemma", "gemma-7b-it", true},
-		{"phi model", "phi-3-mini", true},
-		{"qwen model", "Qwen2-7B", true},
-		{"starcoder not chat", "starcoder2-3b", false},
-		{"codegen not chat", "codegen-16B-mono", false},
-		{"base model not chat", "llama-7b-base", false},
-		{"raw model not chat", "codellama-raw", false},
-		{"unknown defaults to chat", "some-custom-model", true},
-		{"llama3 chat capable", "llama-3-8b", true},
-		{"mistral", "mistral-7b-instruct", true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := isChatCapableModel(tt.model)
-			if got != tt.expected {
-				t.Errorf("isChatCapableModel(%q) = %v, want %v", tt.model, got, tt.expected)
-			}
-		})
-	}
-}
-
-// ---------------------------------------------------------------------------
 // Pure function tests: rolesForProfile
 // ---------------------------------------------------------------------------
 
@@ -1714,34 +1676,6 @@ func TestLoom_RunReplQuery_NoDatabase(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// Loom method tests: NegotiateProviderModel
-// ---------------------------------------------------------------------------
-
-func TestLoom_NegotiateProviderModel_NoDatabase(t *testing.T) {
-	l, tmpDir := testLoom(t, func(c *config.Config) {
-		c.Database = config.DatabaseConfig{}
-	})
-	defer os.RemoveAll(tmpDir)
-
-	ctx := context.Background()
-	_, err := l.NegotiateProviderModel(ctx, "test")
-	if err == nil {
-		t.Error("NegotiateProviderModel should fail without database")
-	}
-}
-
-func TestLoom_NegotiateProviderModel_EmptyID(t *testing.T) {
-	l, tmpDir := testLoom(t)
-	defer os.RemoveAll(tmpDir)
-
-	ctx := context.Background()
-	_, err := l.NegotiateProviderModel(ctx, "")
-	if err == nil {
-		t.Error("NegotiateProviderModel should fail with empty ID")
-	}
-}
-
-// ---------------------------------------------------------------------------
 // Loom method tests: GetProjectGitPublicKey / RotateProjectGitKey
 // ---------------------------------------------------------------------------
 
@@ -2229,26 +2163,6 @@ func TestProjectReadinessState(t *testing.T) {
 	}
 	if state.checkedAt.IsZero() {
 		t.Error("state.checkedAt should not be zero")
-	}
-}
-
-// ---------------------------------------------------------------------------
-// Loom method tests: SelectProvider
-// ---------------------------------------------------------------------------
-
-func TestLoom_SelectProvider_NoDatabase(t *testing.T) {
-	l, tmpDir := testLoom(t, func(c *config.Config) {
-		c.Database = config.DatabaseConfig{}
-	})
-	defer os.RemoveAll(tmpDir)
-
-	ctx := context.Background()
-	_, err := l.SelectProvider(ctx, nil, "")
-	// Should fail since no database available
-	if err == nil {
-		// SelectProvider calls database.ListProviders; without database it will panic or error
-		// Depending on implementation this may or may not error
-		_ = err
 	}
 }
 

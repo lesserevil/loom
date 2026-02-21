@@ -109,23 +109,6 @@ func (s *Server) handleProvider(w http.ResponseWriter, r *http.Request) {
 		s.respondJSON(w, http.StatusOK, map[string]interface{}{"models": models})
 		return
 	}
-	if len(parts) > 1 && parts[1] == "negotiate" {
-		if r.Method != http.MethodPost {
-			s.respondError(w, http.StatusMethodNotAllowed, "Method not allowed")
-			return
-		}
-		if s.app == nil {
-			s.respondError(w, http.StatusServiceUnavailable, "Application not initialized")
-			return
-		}
-		updated, err := s.app.NegotiateProviderModel(context.Background(), providerID)
-		if err != nil {
-			s.respondError(w, http.StatusBadGateway, err.Error())
-			return
-		}
-		s.respondJSON(w, http.StatusOK, updated)
-		return
-	}
 
 	switch r.Method {
 	case http.MethodGet:

@@ -44,7 +44,6 @@ import (
 	"github.com/jordanhubbard/loom/internal/persona"
 	"github.com/jordanhubbard/loom/internal/project"
 	"github.com/jordanhubbard/loom/internal/provider"
-	"github.com/jordanhubbard/loom/internal/routing"
 	"github.com/jordanhubbard/loom/internal/swarm"
 	"github.com/jordanhubbard/loom/internal/temporal"
 	temporalactivities "github.com/jordanhubbard/loom/internal/temporal/activities"
@@ -456,20 +455,16 @@ func New(cfg *config.Config) (*Loom, error) {
 	return arb, nil
 }
 
-// setupProviderMetrics sets up metrics tracking callback for provider requests
 func (a *Loom) setupProviderMetrics() {
 	if a.metrics == nil || a.providerRegistry == nil {
 		return
 	}
 
-	// Set metrics callback to record provider requests
 	a.providerRegistry.SetMetricsCallback(func(providerID string, success bool, latencyMs int64, totalTokens int64) {
-		// Update provider metrics
 		if a.metrics != nil {
 			a.metrics.RecordProviderRequest(providerID, "", success, latencyMs, totalTokens)
 		}
 
-		// Also update provider model metrics if available
 		if a.database == nil {
 			return
 		}
@@ -477,25 +472,21 @@ func (a *Loom) setupProviderMetrics() {
 		if err != nil || provider == nil {
 			return
 		}
-		// Record success/failure on provider model
 		if success {
 			provider.RecordSuccess(latencyMs, totalTokens)
 		} else {
-			provider.RecordFailure(latencyMs)
+			provider.RecordFailure()
 		}
-		// Persist updated metrics
 		_ = a.database.UpsertProvider(provider)
 
-		// Emit event for real-time updates
 		if a.eventBus != nil {
 			_ = a.eventBus.Publish(&eventbus.Event{
 				Type: eventbus.EventTypeProviderUpdated,
 				Data: map[string]interface{}{
-					"provider_id":   providerID,
-					"success":       success,
-					"latency_ms":    latencyMs,
-					"total_tokens":  totalTokens,
-					"overall_score": provider.GetScore(),
+					"provider_id":  providerID,
+					"success":      success,
+					"latency_ms":   latencyMs,
+					"total_tokens": totalTokens,
 				},
 			})
 		}
@@ -924,7 +915,6 @@ func (a *Loom) Initialize(ctx context.Context) error {
 				Model:                  selected,
 				ConfiguredModel:        p.ConfiguredModel,
 				SelectedModel:          selected,
-				SelectedGPU:            p.SelectedGPU,
 				Status:                 p.Status,
 				LastHeartbeatAt:        p.LastHeartbeatAt,
 				LastHeartbeatLatencyMs: p.LastHeartbeatLatencyMs,
@@ -2414,7 +2404,6 @@ func (a *Loom) RegisterProvider(ctx context.Context, p *internalmodels.Provider,
 		Model:                  p.SelectedModel,
 		ConfiguredModel:        p.ConfiguredModel,
 		SelectedModel:          p.SelectedModel,
-		SelectedGPU:            p.SelectedGPU,
 		Status:                 p.Status,
 		LastHeartbeatAt:        p.LastHeartbeatAt,
 		LastHeartbeatLatencyMs: p.LastHeartbeatLatencyMs,
@@ -2489,7 +2478,6 @@ func (a *Loom) UpdateProvider(ctx context.Context, p *internalmodels.Provider) (
 		Model:                  p.SelectedModel,
 		ConfiguredModel:        p.ConfiguredModel,
 		SelectedModel:          p.SelectedModel,
-		SelectedGPU:            p.SelectedGPU,
 		Status:                 p.Status,
 		LastHeartbeatAt:        p.LastHeartbeatAt,
 		LastHeartbeatLatencyMs: p.LastHeartbeatLatencyMs,
@@ -2722,96 +2710,17 @@ func (a *Loom) selectBestProviderForRepl() (*internalmodels.Provider, error) {
 		return nil, err
 	}
 
-	// Filter for chat-capable models (Instruct, Chat, claude, gpt, etc.)
-	// Exclude completion-only models like StarCoder, CodeGen, etc.
-	chatCapable := make([]*internalmodels.Provider, 0)
+	// With TokenHub as the sole provider, just return the first healthy one.
 	for _, p := range providers {
-		if p == nil || p.Status != "healthy" {
+		if p == nil {
 			continue
 		}
-		if isChatCapableModel(p.SelectedModel) || isChatCapableModel(p.Model) {
-			chatCapable = append(chatCapable, p)
+		if p.Status == "healthy" || p.Status == "active" {
+			return p, nil
 		}
 	}
 
-	if len(chatCapable) == 0 {
-		return nil, fmt.Errorf("no chat-capable providers available (need Instruct/Chat model)")
-	}
-
-	router := routing.NewRouter(routing.PolicyBalanced)
-	return router.SelectProvider(context.Background(), chatCapable, nil)
-}
-
-// isChatCapableModel checks if a model name indicates chat/instruct capability
-func isChatCapableModel(modelName string) bool {
-	if modelName == "" {
-		return false
-	}
-	lower := strings.ToLower(modelName)
-
-	// Models that ARE chat-capable
-	chatPatterns := []string{
-		"instruct",
-		"chat",
-		"claude",
-		"gpt-",
-		"gpt4",
-		"opus",
-		"sonnet",
-		"haiku",
-		"llama-3",  // Llama 3 has chat templates
-		"qwen",     // Qwen models generally have chat templates
-		"mistral",  // Mistral instruct models
-		"deepseek", // DeepSeek chat models
-		"gemma",    // Gemma instruct
-		"phi-",     // Phi models with chat
-		"nemotron", // NVIDIA Nemotron
-	}
-	for _, pattern := range chatPatterns {
-		if strings.Contains(lower, pattern) {
-			return true
-		}
-	}
-
-	// Models that are NOT chat-capable (completion only)
-	completionPatterns := []string{
-		"starcoder",
-		"codegen",
-		"santacoder",
-		"codellama-7b",  // Base CodeLlama without instruct
-		"codellama-13b", // Base CodeLlama without instruct
-		"codellama-34b", // Base CodeLlama without instruct
-		"-base",
-		"-raw",
-	}
-	for _, pattern := range completionPatterns {
-		if strings.Contains(lower, pattern) {
-			return false
-		}
-	}
-
-	// Default: assume chat-capable if not explicitly a completion model
-	return true
-}
-
-// SelectProvider chooses the best provider based on policy and requirements
-func (a *Loom) SelectProvider(ctx context.Context, requirements *routing.ProviderRequirements, policy string) (*internalmodels.Provider, error) {
-	if a.database == nil {
-		return nil, fmt.Errorf("database not configured")
-	}
-	providers, err := a.database.ListProviders()
-	if err != nil {
-		return nil, err
-	}
-
-	// Default policy
-	routingPolicy := routing.PolicyBalanced
-	if policy != "" {
-		routingPolicy = routing.RoutingPolicy(policy)
-	}
-
-	router := routing.NewRouter(routingPolicy)
-	return router.SelectProvider(ctx, providers, requirements)
+	return nil, fmt.Errorf("no healthy providers available")
 }
 
 func (a *Loom) buildLoomPersonaPrompt() string {
@@ -2857,99 +2766,6 @@ func (a *Loom) ensureProviderHeartbeat(ctx context.Context, providerID string) e
 		return nil
 	}
 	return a.temporalManager.StartProviderHeartbeatWorkflow(ctx, providerID, 30*time.Second)
-}
-
-// NegotiateProviderModel selects the best available model from the catalog for a provider.
-func (a *Loom) NegotiateProviderModel(ctx context.Context, providerID string) (*internalmodels.Provider, error) {
-	if a.database == nil {
-		return nil, fmt.Errorf("database not configured")
-	}
-	if providerID == "" {
-		return nil, fmt.Errorf("provider id is required")
-	}
-	providerRecord, err := a.database.GetProvider(providerID)
-	if err != nil {
-		return nil, err
-	}
-
-	models, err := a.providerRegistry.GetModels(ctx, providerID)
-	if err != nil {
-		providerRecord.SelectionReason = fmt.Sprintf("failed to load models: %s", err.Error())
-		providerRecord.SelectedModel = providerRecord.ConfiguredModel
-		providerRecord.Model = providerRecord.SelectedModel
-		_ = a.database.UpsertProvider(providerRecord)
-		return providerRecord, err
-	}
-	available := make([]string, 0, len(models))
-	for _, m := range models {
-		if m.ID != "" {
-			available = append(available, m.ID)
-		}
-	}
-
-	if providerRecord.ConfiguredModel == "" {
-		providerRecord.ConfiguredModel = providerRecord.Model
-	}
-	if providerRecord.ConfiguredModel == "" {
-		providerRecord.ConfiguredModel = "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-FP8"
-	}
-
-	if providerRecord.ConfiguredModel != "" {
-		for _, modelName := range available {
-			if strings.EqualFold(modelName, providerRecord.ConfiguredModel) {
-				providerRecord.SelectedModel = providerRecord.ConfiguredModel
-				providerRecord.SelectionReason = "configured model available"
-				providerRecord.ModelScore = 0
-				break
-			}
-		}
-	}
-
-	if providerRecord.SelectedModel == "" && a.modelCatalog != nil {
-		if best, score, ok := a.modelCatalog.SelectBest(available); ok {
-			providerRecord.SelectedModel = best.Name
-			providerRecord.SelectionReason = "matched recommended catalog"
-			providerRecord.ModelScore = score
-		}
-	}
-
-	if providerRecord.SelectedModel == "" {
-		providerRecord.SelectedModel = providerRecord.ConfiguredModel
-		providerRecord.SelectionReason = "fallback to configured model"
-	}
-
-	providerRecord.Model = providerRecord.SelectedModel
-
-	if err := a.database.UpsertProvider(providerRecord); err != nil {
-		return nil, err
-	}
-	_ = a.providerRegistry.Upsert(&provider.ProviderConfig{
-		ID:              providerRecord.ID,
-		Name:            providerRecord.Name,
-		Type:            providerRecord.Type,
-		Endpoint:        providerRecord.Endpoint,
-		Model:           providerRecord.SelectedModel,
-		ConfiguredModel: providerRecord.ConfiguredModel,
-		SelectedModel:   providerRecord.SelectedModel,
-		SelectedGPU:     providerRecord.SelectedGPU,
-		Status:          "active",
-	})
-	if a.eventBus != nil {
-		_ = a.eventBus.Publish(&eventbus.Event{
-			Type:   eventbus.EventTypeProviderUpdated,
-			Source: "provider-manager",
-			Data: map[string]interface{}{
-				"provider_id": providerRecord.ID,
-				"name":        providerRecord.Name,
-				"endpoint":    providerRecord.Endpoint,
-				"model":       providerRecord.SelectedModel,
-				"configured":  providerRecord.ConfiguredModel,
-				"score":       providerRecord.ModelScore,
-			},
-		})
-	}
-
-	return providerRecord, nil
 }
 
 // ListModelCatalog returns the recommended model catalog.
@@ -3877,7 +3693,6 @@ func (a *Loom) checkProviderHealthAndActivate(providerID string) {
 			Model:                  dbProvider.SelectedModel,
 			ConfiguredModel:        dbProvider.ConfiguredModel,
 			SelectedModel:          dbProvider.SelectedModel,
-			SelectedGPU:            dbProvider.SelectedGPU,
 			Status:                 "active",
 			LastHeartbeatAt:        dbProvider.LastHeartbeatAt,
 			LastHeartbeatLatencyMs: dbProvider.LastHeartbeatLatencyMs,

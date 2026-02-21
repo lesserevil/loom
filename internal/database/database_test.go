@@ -940,9 +940,6 @@ func TestUpsertProvider_Update(t *testing.T) {
 	p.Status = "inactive"
 	p.ConfiguredModel = "gpt-4-turbo"
 	p.SelectedModel = "gpt-4-turbo"
-	p.SelectionReason = "best performance"
-	p.ModelScore = 0.95
-	p.SelectedGPU = "A100"
 	p.OwnerID = "user-1"
 	p.IsShared = true
 	p.ContextWindow = 128000
@@ -968,9 +965,6 @@ func TestUpsertProvider_Update(t *testing.T) {
 	}
 	if got.SelectedModel != "gpt-4-turbo" {
 		t.Errorf("SelectedModel = %q, want %q", got.SelectedModel, "gpt-4-turbo")
-	}
-	if got.SelectionReason != "best performance" {
-		t.Errorf("SelectionReason = %q, want %q", got.SelectionReason, "best performance")
 	}
 	if got.ContextWindow != 128000 {
 		t.Errorf("ContextWindow = %d, want %d", got.ContextWindow, 128000)
@@ -3498,9 +3492,6 @@ func TestListProviders_WithAllFields(t *testing.T) {
 		Model:           "gpt-4",
 		ConfiguredModel: "gpt-4",
 		SelectedModel:   "gpt-4-turbo",
-		SelectionReason: "best quality",
-		ModelScore:      0.95,
-		SelectedGPU:     "A100",
 		ContextWindow:   128000,
 		Description:     "A full test provider",
 		RequiresKey:     true,
@@ -3533,9 +3524,6 @@ func TestListProviders_WithAllFields(t *testing.T) {
 	}
 	if found.SelectedModel != "gpt-4-turbo" {
 		t.Errorf("SelectedModel = %q, want %q", found.SelectedModel, "gpt-4-turbo")
-	}
-	if found.SelectionReason != "best quality" {
-		t.Errorf("SelectionReason = %q, want %q", found.SelectionReason, "best quality")
 	}
 }
 
