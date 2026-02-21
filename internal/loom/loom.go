@@ -1081,7 +1081,16 @@ func (a *Loom) Initialize(ctx context.Context) error {
 
 		bead, err := a.beadsManager.CreateBead(
 			"System diagnostic check",
-			"This bead was auto-created to verify the work flow is operational. The system detected no beads in any project and created this diagnostic task. If you see this bead completed successfully, the work flow is functioning correctly.",
+			`This is an automated diagnostic task to verify the Loom workflow is operational.
+
+## Your Task
+
+1. Run the project build command to verify the build system works
+2. Run the project tests to verify the test system works
+3. If both pass, use the 'done' action with reason "Diagnostic complete: build and tests pass"
+4. If either fails, use the 'done' action with reason explaining what failed
+
+This is a simple verification task. Do NOT search for bugs or make changes. Just verify build and test, then mark done.`,
 			models.BeadPriorityP2,
 			"task",
 			proj.ID,
