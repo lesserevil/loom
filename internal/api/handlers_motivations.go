@@ -43,8 +43,8 @@ type CreateMotivationRequest struct {
 	AgentID         string                 `json:"agent_id,omitempty"`
 	ProjectID       string                 `json:"project_id,omitempty"`
 	Parameters      map[string]interface{} `json:"parameters,omitempty"`
-	CooldownMinutes int                    `json:"cooldown_minutes"`
-	Priority        int                    `json:"priority"`
+	CooldownMinutes *int                   `json:"cooldown_minutes,omitempty"`
+	Priority        *int                   `json:"priority,omitempty"`
 	CreateBead      bool                   `json:"create_bead"`
 	BeadTemplate    string                 `json:"bead_template,omitempty"`
 	WakeAgent       bool                   `json:"wake_agent"`
