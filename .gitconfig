@@ -1,2 +1,1 @@
-[core]
-    askpass = /bin/true
+[core]\n    askpass = /bin/true\n
