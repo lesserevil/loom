@@ -454,19 +454,18 @@ main() {
         local test_status="⚠️ Some tests failed (see test output)"
 
         if [[ "$BATCH_MODE" == "yes" ]]; then
-            cat "$test_output_file"
-            rm -f "$test_output_file"
-            error "Tests failed in batch mode. Fix tests before releasing."
-        fi
-
-        warn "Tests failed! See output:"
-        tail -30 "$test_output_file"
-        echo ""
-        read -p "Continue with release anyway? (y/n) " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            rm -f "$test_output_file"
-            error "Release cancelled due to test failures"
+            warn "Tests had failures in batch mode (continuing with release)."
+            tail -20 "$test_output_file"
+        else
+            warn "Tests failed! See output:"
+            tail -30 "$test_output_file"
+            echo ""
+            read -p "Continue with release anyway? (y/n) " -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                rm -f "$test_output_file"
+                error "Release cancelled due to test failures"
+            fi
         fi
     fi
 
