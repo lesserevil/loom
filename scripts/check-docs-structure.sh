@@ -19,6 +19,8 @@ ALLOWED_ROOT=(
   "./CONTRIBUTING.md"
   "./LICENSE.md"
   "./QUICKSTART.md"
+  "./MEMORY.md"
+  "./SYSTEM_TEST.md"
 )
 
 # Find all .md files in root (excluding hidden dirs and allowed files)

@@ -18,6 +18,7 @@ var skipDirs = map[string]struct{}{
 	"node_modules": {},
 	"dist":         {},
 	"vendor":       {},
+	"templates":    {},
 }
 
 func main() {
