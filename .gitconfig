@@ -1,2 +1,2 @@
 [core]
-    askpass = /usr/bin/ssh-askpass
+    askpass = /usr/bin/true
