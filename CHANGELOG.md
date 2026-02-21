@@ -7,6 +7,215 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-02-21
+
+### Added
+- integrate TokenHub as LLM routing layer
+- project-scoped filtering across all resources
+- loomctl P0 beads, priority fix, agent self-improvements
+- comprehensive Makefile + full Helm chart for k8s deployment
+- LLM system state endpoint GET /api/v1/system/state
+- intelligent per-project memory system
+- GitHub integration via gh CLI
+- multi-role in-container orchestration
+- phase 2 - NATS RPC package + service discovery wiring
+- phase 1 - build system and code TODO resolution
+- autonomous self-healing system + fix pre-existing test failures
+- Add MIT license file to repository
+- Create VERSION file with content 0.1.0
+- implement container agent registration and sync exec
+- enforce pre-commit build gate with per-repo discovery
+- add use_container field to PUT /api/v1/projects/{id}
+- add Kubernetes manifests and Linkerd service mesh (Phase 5)
+- implement ConnectorsService gRPC server (Phase 4)
+- add PgBouncer connection pooler in front of loom-postgresql
+- wire NATS message bus through dispatcher and containers
+- add observability stack and connector service proto
+- implement NATS-based async agent communication
+- implement Phase 2 - PostgreSQL support
+- implement Phase 1 - NATS message bus foundation
+- implement location-transparent connector architecture
+- implement token-based auth and per-project container orchestration
+- Phase 1 - Project Agent Service implementation
+- execute bootstrap.local at container startup
+- add analytics velocity command and improve install target
+- implement headless UI bug reporter with auto-bead filing
+- add change velocity metrics and dashboard widget (loom-016 Phase 2)
+- add comprehensive linting for code quality (catch dumb bugs)
+- increase iteration budget and add checkpoint commits (loom-016 Phase 1)
+- make start and restart depend on build
+- improve stop command and add prune target
+- add export/import UI to web interface
+- add database export/import API and CLI for backup/migration
+- v2.0 rewrite with JSON-first output and full API coverage
+- add bead poke command for redispatching stuck beads
+- implement loomctl CLI tool for Loom server interaction
+- implement self-healing system for stuck agents
+- disable DoltCoordinator to let bd manage Dolt
+- build bd from source with CGO for Dolt support
+- increase max loop iterations from 25 to 50
+- integrate OpenTelemetry stack with Jaeger, Prometheus, and Grafana
+- auto-advance workflows to first node on creation
+- implement workflow start API endpoint
+- enable autonomous agent commits with proper attribution
+- implement agent role inference for workflow routing (Gap #3)
+- implement commit serialization to prevent git conflicts (Gap #2)
+- implement multi-dispatch redispatch flag
+- initialize workflow system implementation with waterfall workflow
+- add OpenClaw messaging bridge for P0 decision escalations
+- add test coverage analysis with 75% threshold requirement
+- migrate personas to Agent Skills specification format
+- increase max_iterations from 15 to 25 for complex tasks
+- prevent agent assignment for infrastructure beads
+
+### Changed
+- [WIP] Auto-checkpoint after file changes
+- [WIP] Auto-checkpoint after file changes
+- [WIP] Auto-checkpoint after file changes
+- [WIP] Auto-checkpoint after file changes
+- [WIP] Auto-checkpoint after file changes
+- [WIP] Auto-checkpoint after file changes
+- [WIP] Auto-checkpoint after file changes
+- [WIP] Auto-checkpoint after file changes
+- [WIP] Auto-checkpoint after file changes
+- [WIP] Auto-checkpoint after file changes
+- [WIP] Auto-checkpoint after file changes
+- [WIP] Auto-checkpoint after file changes
+- [WIP] Auto-checkpoint after file changes
+- [WIP] Auto-checkpoint after file changes
+- [WIP] Auto-checkpoint after file changes
+- [WIP] Auto-checkpoint after file changes
+- [WIP] Auto-checkpoint after file changes
+- [WIP] Auto-checkpoint after file changes
+- [WIP] Auto-checkpoint after file changes
+- [WIP] Auto-checkpoint after file changes
+- [WIP] Auto-checkpoint after file changes
+- [WIP] Auto-checkpoint after file changes
+- [WIP] Auto-checkpoint after file changes
+- [WIP] Auto-checkpoint after file changes
+- [WIP] Auto-checkpoint after file changes
+- [WIP] Auto-checkpoint after file changes
+- [WIP] Auto-checkpoint after file changes
+- [WIP] Auto-checkpoint after file changes
+- [WIP] Auto-checkpoint after file changes
+- [WIP] Auto-checkpoint after file changes
+- [WIP] Auto-checkpoint after file changes
+- [WIP] Auto-checkpoint after file changes
+- [WIP] Auto-checkpoint after file changes
+- [WIP] Auto-checkpoint after file changes
+- [WIP] Auto-checkpoint after file changes
+- [WIP] Auto-checkpoint after file changes
+- [WIP] Auto-checkpoint after file changes
+- [WIP] Auto-checkpoint after file changes
+- [WIP] Auto-checkpoint after file changes
+- [WIP] Auto-checkpoint after file changes
+- [WIP] Auto-checkpoint after file changes
+- [WIP] Auto-checkpoint after file changes
+- [WIP] Auto-checkpoint after file changes
+- [WIP] Auto-checkpoint after file changes
+- [WIP] Auto-checkpoint after file changes
+- [WIP] Auto-checkpoint after file changes
+- [WIP] Auto-checkpoint after file changes
+- [WIP] Auto-checkpoint after file changes
+- [WIP] Auto-checkpoint after file changes
+- [WIP] Auto-checkpoint after file changes
+- drop SQLite, require PostgreSQL only
+- upgrade to modern v13 schema with tsdb index
+- implement git-centric architecture with worktrees
+- switch from /usr/local/bin to ~/.local/bin
+
+### Fixed
+- allow batch mode to proceed with test warnings
+- make docs target graceful when mkdocs is not installed
+- resolve golangci-lint findings across codebase
+- skip Helm templates in yaml-lint, allow root-level MEMORY.md
+- remove dead priority type comparison and unused package vars
+- Use pointer types for int fields in CreateMotivationRequest
+- Improve diagnostic bead description and fix loomctl syntax error
+- stuck inner_loop/progress_stagnant beads re-dispatch infinitely
+- allow priority 0 (P0) in bead creation
+- rename projectid loom-self → loom across all beads
+- prevent agent explosion on restart
+- remove maxAgents cap from RestoreAgentWorker + add staleness timeout
+- Create AUTONOMY_TEST.md with required content
+- eliminate agent explosion, stale agents, and bd errors
+- remove artificial pool limit; add container agent registration retry
+- graceful degradation + arch-aware Go + UseContainer persistence
+- return 404 for project agent assign/unassign when project not found
+- return 404 instead of 500 for GET workflow not found
+- return 404 for bead redispatch/escalate when bead not found
+- return 404 instead of 500 for PATCH bead not found
+- return 404 instead of 500 for DELETE project not found
+- add version and uptime to GET /api/v1/health response
+- return 503 instead of 500 when worker pool is at capacity
+- return 404 instead of 500 for DELETE provider not found
+- improve analytics and manager nil diagnostics
+- fix all PostgreSQL test failures and achieve full test suite pass
+- port log manager SQL to PostgreSQL and re-enable interceptor
+- add retry logic for container startup connection issues
+- disable structured metadata for compatibility with older schema
+- resolve lock contention causing API timeouts
+- correct command flags for NATS container
+- implement per-project git storage configuration
+- set project working directory for agent command execution
+- run bootstrap.local on HOST using loomctl
+- make workflow enforcement opt-in to unblock dispatch
+- detect and clear dead agent assignments after restart
+- stop remediation cascade and fix parse error messages
+- make worker pool SpawnWorker idempotent
+- auto-configure upstream tracking for beads branches
+- implement write-through scoring to eliminate dual data model
+- detect repeated infrastructure errors as stuck
+- persist beads database across container restarts
+- initialize noop tracer to prevent test crashes
+- change default working directory from /app/src to /app
+- increase max import size from 50MB to 200MB
+- build both loom and loomctl, preserve databases in clean
+- implement -o table output format
+- decouple agents from providers, round-robin across pool
+- detect scope loops early and fix bead loading fallback
+- raise stagnation threshold and fix action type names
+- persist git_auth_method and reset workflows on redispatch
+- set loom-self project to SSH auth for git push
+- use simple mode for 30B-class models, raise context threshold
+- align all SKILL.md files with simple JSON format and fix role names
+- resolve 7 critical disconnects preventing autonomous self-modification
+- add read_bead_conversation to action schema prompt
+- add YAML frontmatter to remediation-specialist persona
+- add remediation-specialist to allowed roles
+- wire up BeadReader interface to enable conversation access
+- add missing actions for reading bead conversations
+- include stdout/stderr in bash command results
+- resolve worker deadlock and context cancellation blocking auto-dispatch
+- allow dispatch for escalated workflows + skip system beads
+- identify workflow escalation blocking dispatch
+- add error logging and debug tracing for dispatch loop
+- disable federation sync to prevent startup hang
+- disable entrypoint Dolt startup, use DoltCoordinator
+- correct loom-self beads path in entrypoint
+- include .git in image for loom-self bead loading
+- copy .git directory for loom-self project
+- copy .beads directory to runtime image
+- correct Loom UI port in observability menu
+- bump app.js version to force cache refresh
+- correct observability menu links and icons
+- disable bd CLI build due to upstream import cycle errors
+- add input validation to StartWorkflow function
+- update tests to match new role inference behavior
+- repair broken tests in api, loom, and consensus packages
+- resolve deadlock in AgentMessageBus.Close()
+- use directory path as persona Name for backward compatibility
+- increase HTTP client timeout from 5min to 15min for action loops
+- configure loom-self for local development mode
+- stop infinite redispatch loop for beads that hit max_iterations
+- ensure deps installs required go toolchain
+- improve deps setup across os and dolt downloads
+- beads never unassigned — auto-assign to CTO/EM, add CTO persona
+
+### Other
+- Microservices phases 4-5, documentation overhaul, and Loom personality
+- Remove mistaken case of loom server
+
 ## [0.1.2] - 2026-02-12
 
 ### Added
