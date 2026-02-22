@@ -249,11 +249,18 @@ func (a *Agent) Start(ctx context.Context) error {
 
 // RegisterHandlers registers HTTP handlers for task reception
 func (a *Agent) RegisterHandlers(mux *http.ServeMux) {
+	a.RegisterCoreHandlers(mux)
 	mux.HandleFunc("/health", a.handleHealth)
-	mux.HandleFunc("/task", a.handleTask)
-	mux.HandleFunc("/exec", a.handleExec)
 	mux.HandleFunc("/status", a.handleStatus)
 	mux.HandleFunc("/results/", a.handleResults)
+}
+
+// RegisterCoreHandlers registers only the agent-specific endpoints (task, exec,
+// files, git) without the shared endpoints (health, status, results) that the
+// orchestrator owns when running in multi-role mode.
+func (a *Agent) RegisterCoreHandlers(mux *http.ServeMux) {
+	mux.HandleFunc("/task", a.handleTask)
+	mux.HandleFunc("/exec", a.handleExec)
 	mux.HandleFunc("/files/write", a.handleFileWrite)
 	mux.HandleFunc("/files/read", a.handleFileRead)
 	mux.HandleFunc("/files/tree", a.handleFileTree)

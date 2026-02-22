@@ -160,7 +160,7 @@ func (o *InContainerOrchestrator) registerHandlers(mux *http.ServeMux) {
 	// to preserve the existing /task, /exec, /files/*, /git/* contract.
 	primary := o.primaryAgent()
 	if primary != nil {
-		primary.RegisterHandlers(mux)
+		primary.RegisterCoreHandlers(mux)
 	}
 }
 
