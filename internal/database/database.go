@@ -611,7 +611,7 @@ func (d *Database) DeleteAllAgents() error {
 // GetProvider retrieves a provider by ID
 func (d *Database) GetProvider(id string) (*internalmodels.Provider, error) {
 	query := `
-		SELECT id, name, type, endpoint, model, configured_model, selected_model, description, requires_key, key_id, status, last_heartbeat_at, last_heartbeat_latency_ms, last_heartbeat_error, context_window, created_at, updated_at
+		SELECT id, name, type, endpoint, model, configured_model, selected_model, description, requires_key, key_id, COALESCE(api_key, '') as api_key, owner_id, is_shared, status, last_heartbeat_at, last_heartbeat_latency_ms, last_heartbeat_error, context_window, created_at, updated_at
 		FROM providers
 		WHERE id = ?
 	`
@@ -628,6 +628,9 @@ func (d *Database) GetProvider(id string) (*internalmodels.Provider, error) {
 		&provider.Description,
 		&provider.RequiresKey,
 		&provider.KeyID,
+		&provider.APIKey,
+		&provider.OwnerID,
+		&provider.IsShared,
 		&provider.Status,
 		&provider.LastHeartbeatAt,
 		&provider.LastHeartbeatLatencyMs,
