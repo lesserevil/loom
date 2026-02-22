@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-02-22
+
+### Added
+- Self-audit runner: periodically runs build/test/lint and files beads for failures (`SELF_AUDIT_INTERVAL_MINUTES`)
+- Auto-merge runner: squash-merges approved agent PRs (`AUTO_MERGE_INTERVAL_MINUTES`)
+- Sentinel errors `ErrBeadNotFound`, `ErrBeadAlreadyClaimed`, `ErrFileLocked` for structured error handling
+- `SetUseNATSDispatch()` method on Dispatcher for per-instance NATS routing control
+
+### Fixed
+- Dispatcher task goroutine leaked on context cancellation (used `context.Background()` instead of request ctx)
+- Commit lock held indefinitely when context cancelled mid-acquisition in `acquireCommitLock`
+- Redispatch/escalate API endpoints silently ignored malformed JSON request bodies (now return 400)
+- `os.WriteFile` debug calls in dispatch hot path silently swallowed errors and wrote to `/tmp`
+- JSON unmarshal errors in loop detector `getErrorHistory`/`hasRecentProgress` silently returned empty values
+- Error classification in bead API handlers used fragile `strings.Contains` matching (now uses `errors.Is`)
+- `UseNATSDispatch` package-level global prevented test isolation (moved to struct field)
+- NATS JetStream "consumer already bound" error resolved by scoping `ConsumerPrefix` to `ServiceID`
+- Dispatch pipeline: stale beads reassigned, terminal beads skipped, remediation cascade capped (15-min cooldown, max 3 per bead, CEO escalation on exhaustion)
+- Project initialization duplicated `loom` project entry on restart
+
 ## [0.1.4] - 2026-02-21
 
 ### Added
