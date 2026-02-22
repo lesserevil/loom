@@ -346,6 +346,22 @@ func (d *Dispatcher) selectCandidate(
 		}
 
 		dispatchCount := dispatchCountForBead(b)
+
+		// Hard upper bound: no bead may exceed maxHops*10 regardless of
+		// loop detection result. This catches runaway dispatches when all
+		// other guards fail (e.g. bd-106: 11,329 dispatches).
+		hardLimit := maxHops * 10
+		if hardLimit < 200 {
+			hardLimit = 200
+		}
+		if dispatchCount >= hardLimit {
+			log.Printf("[Dispatcher] HARD LIMIT: Bead %s hit %d dispatches (hard_limit=%d), force-blocking",
+				b.ID, dispatchCount, hardLimit)
+			d.ralphAutoBlock(ctx, b, dispatchCount, maxHops, "hard_dispatch_limit_exceeded")
+			skippedReasons["hard_dispatch_limit"]++
+			continue
+		}
+
 		exceeded, stuck, hopReason := d.checkHopLimit(b, dispatchCount, maxHops)
 		if exceeded {
 			if stuck {
@@ -356,7 +372,10 @@ func (d *Dispatcher) selectCandidate(
 			skippedReasons["dispatch_limit_but_progressing"]++
 		}
 
-		if dispatchCount >= maxHops-1 {
+		if dispatchCount > maxHops {
+			log.Printf("[Dispatcher] Bead %s dispatch_count=%d exceeds max_hops=%d — progressing but at risk",
+				b.ID, dispatchCount, maxHops)
+		} else if dispatchCount >= maxHops-1 {
 			log.Printf("[Dispatcher] WARNING: Bead %s has been dispatched %d times", b.ID, dispatchCount)
 		}
 

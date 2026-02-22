@@ -482,17 +482,38 @@ func (d *Dispatcher) DispatchOnce(ctx context.Context, projectID string) (*Dispa
 		return &DispatchResult{Dispatched: false, ProjectID: projectID}, nil
 	}
 
+	// Claim the inflight slot immediately after candidate selection.
+	// This is the authoritative gate that prevents two concurrent DispatchOnce
+	// calls from both processing the same bead. The selectCandidate check is
+	// advisory; this is the atomic compare-and-set.
+	d.inflightMu.Lock()
+	if _, alreadyRunning := d.inflight[candidate.ID]; alreadyRunning {
+		d.inflightMu.Unlock()
+		log.Printf("[Dispatcher] Bead %s lost inflight race, skipping duplicate dispatch", candidate.ID)
+		return &DispatchResult{Dispatched: false, ProjectID: projectID}, nil
+	}
+	d.inflight[candidate.ID] = struct{}{}
+	d.inflightMu.Unlock()
+
+	releaseInflight := func() {
+		d.inflightMu.Lock()
+		delete(d.inflight, candidate.ID)
+		d.inflightMu.Unlock()
+	}
+
 	selectedProjectID := projectID
 	if selectedProjectID == "" {
 		selectedProjectID = candidate.ProjectID
 	}
 	if ag == nil {
+		releaseInflight()
 		d.setStatus(StatusParked, "no idle agents with active providers")
 		return &DispatchResult{Dispatched: false, ProjectID: selectedProjectID}, nil
 	}
 
 	providerID := d.selectProviderForTask(candidate, ag)
 	if providerID == "" {
+		releaseInflight()
 		d.setStatus(StatusParked, "no active providers available")
 		return &DispatchResult{Dispatched: false, ProjectID: selectedProjectID, AgentID: ag.ID}, nil
 	}
@@ -509,6 +530,7 @@ func (d *Dispatcher) DispatchOnce(ctx context.Context, projectID string) (*Dispa
 	}
 
 	if err := d.claimAndAssign(candidate, ag, selectedProjectID); err != nil {
+		releaseInflight()
 		d.setStatus(StatusParked, "failed to claim bead")
 		return &DispatchResult{Dispatched: false, ProjectID: projectID}, nil
 	}
@@ -543,22 +565,9 @@ func (d *Dispatcher) DispatchOnce(ctx context.Context, projectID string) (*Dispa
 
 	if UseNATSDispatch && d.messageBus != nil {
 		log.Printf("[Dispatcher] NATS-only dispatch for bead %s — skipping in-process execution", candidate.ID)
+		releaseInflight()
 		return dispatchResult, nil
 	}
-
-	// Prevent duplicate in-flight execution of the same bead.
-	// This check must come BEFORE swarm routing so that NATS-dispatched tasks
-	// are also protected — otherwise the 1-minute stuck-agent reset can trigger
-	// a new NATS publish while the previous goroutine is still running, causing
-	// goroutine leaks and cascading LLM requests.
-	d.inflightMu.Lock()
-	if _, running := d.inflight[candidate.ID]; running {
-		d.inflightMu.Unlock()
-		log.Printf("[Dispatcher] Bead %s already in-flight, skipping duplicate dispatch", candidate.ID)
-		return &DispatchResult{Dispatched: false, ProjectID: selectedProjectID}, nil
-	}
-	d.inflight[candidate.ID] = struct{}{}
-	d.inflightMu.Unlock()
 
 	// If a remote agent swarm member is registered for this project, prefer routing
 	// via NATS task publish. Skip control-plane members — they handle routing but
