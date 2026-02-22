@@ -13,20 +13,11 @@ GO_TOOLCHAIN_VERSION ?= $(GO_REQUIRED).0
 # to start my embedded instance or defer to an external one.
 TOKENHUB_RUNNING := $(shell curl -sf --connect-timeout 2 --max-time 3 http://localhost:8090/healthz > /dev/null 2>&1 && echo yes || echo no)
 
-# When using an external TokenHub, I connect it to my Docker network so
-# my containers can reach it as "tokenhub:8080". This is a no-op if the
-# embedded profile is active (the compose service already has that name).
-define connect-external-tokenhub
-	@if [ "$(TOKENHUB_RUNNING)" = "yes" ]; then \
-		cid=$$(docker ps --filter "publish=8090" --format "{{.ID}}" | head -1); \
-		if [ -n "$$cid" ]; then \
-			if ! docker inspect "$$cid" --format '{{json .NetworkSettings.Networks}}' | grep -q loom_loom-network; then \
-				echo "I'm connecting the external TokenHub ($$cid) to my network..."; \
-				docker network connect --alias tokenhub loom_loom-network "$$cid" 2>/dev/null || true; \
-			fi; \
-		fi; \
-	fi
-endef
+# When using an external provider, I set LOOM_PROVIDER_URL to reach the
+# host from inside containers. Docker's host gateway provides a stable
+# route that survives network teardowns (unlike docker network connect).
+DOCKER_HOST_GATEWAY := $(shell docker network inspect bridge --format '{{(index .IPAM.Config 0).Gateway}}' 2>/dev/null || echo 172.17.0.1)
+EXTERNAL_PROVIDER_URL := http://$(DOCKER_HOST_GATEWAY):8090
 
 all: build
 
@@ -70,12 +61,12 @@ run: build
 	@echo "=== Starting full Loom stack ==="
 	@if [ "$(TOKENHUB_RUNNING)" = "yes" ]; then \
 		echo "I found a running TokenHub at localhost:8090 — skipping embedded startup."; \
-		docker compose up -d --build; \
+		echo "  Provider URL for containers: $(EXTERNAL_PROVIDER_URL)"; \
+		LOOM_PROVIDER_URL="$(EXTERNAL_PROVIDER_URL)" docker compose up -d --build; \
 	else \
 		echo "No TokenHub detected — I'll start my embedded instance."; \
 		docker compose --profile embedded-tokenhub up -d --build; \
 	fi
-	$(call connect-external-tokenhub)
 	@$(MAKE) -s bootstrap
 	@echo ""
 	@echo "Loom is running:"
@@ -88,12 +79,12 @@ run: build
 start: build
 	@if [ "$(TOKENHUB_RUNNING)" = "yes" ]; then \
 		echo "I found a running TokenHub at localhost:8090 — skipping embedded startup."; \
-		docker compose up -d --build; \
+		echo "  Provider URL for containers: $(EXTERNAL_PROVIDER_URL)"; \
+		LOOM_PROVIDER_URL="$(EXTERNAL_PROVIDER_URL)" docker compose up -d --build; \
 	else \
 		echo "No TokenHub detected — I'll start my embedded instance."; \
 		docker compose --profile embedded-tokenhub up -d --build; \
 	fi
-	$(call connect-external-tokenhub)
 	@$(MAKE) -s bootstrap
 
 # Stop loom (completely shut down all containers)
@@ -105,12 +96,12 @@ restart: build
 	docker compose --profile embedded-tokenhub down
 	@if [ "$(TOKENHUB_RUNNING)" = "yes" ]; then \
 		echo "I found a running TokenHub at localhost:8090 — skipping embedded startup."; \
-		docker compose up -d --build; \
+		echo "  Provider URL for containers: $(EXTERNAL_PROVIDER_URL)"; \
+		LOOM_PROVIDER_URL="$(EXTERNAL_PROVIDER_URL)" docker compose up -d --build; \
 	else \
 		echo "No TokenHub detected — I'll start my embedded instance."; \
 		docker compose --profile embedded-tokenhub up -d --build; \
 	fi
-	$(call connect-external-tokenhub)
 	@$(MAKE) -s bootstrap
 
 # Run bootstrap.local if present (configures TokenHub + registers provider)

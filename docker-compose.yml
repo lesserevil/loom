@@ -235,7 +235,8 @@ services:
       - OTEL_ENDPOINT=otel-collector:4317
       # LOOM_PROVIDER_URL: any OpenAI-compatible endpoint works here
       # (embedded TokenHub, standalone TokenHub, direct OpenAI, vLLM, etc.)
-      - LOOM_PROVIDER_URL=http://tokenhub:8080
+      # When using an external provider, the Makefile sets this to the host gateway.
+      - LOOM_PROVIDER_URL=${LOOM_PROVIDER_URL:-http://tokenhub:8080}
       - LOOM_PROVIDER_API_KEY=${LOOM_PROVIDER_API_KEY}
       - TOKENHUB_ADMIN_TOKEN=${TOKENHUB_ADMIN_TOKEN}
     networks:
