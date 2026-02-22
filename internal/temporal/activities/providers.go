@@ -336,6 +336,16 @@ func (a *ProviderActivities) discoverAndListModels(ctx context.Context, provider
 		}
 	}
 
+	// Fall back to the provider's direct API key when no key manager key is set.
+	// This covers providers registered with api_key via the REST API (the common case).
+	if record.KeyID == "" && record.APIKey != "" {
+		for i := range candidates {
+			if candidates[i].APIKey == "" {
+				candidates[i].APIKey = record.APIKey
+			}
+		}
+	}
+
 	// Try the registered Protocol first (has auth credentials baked in)
 	if a.registry != nil {
 		if reg, regErr := a.registry.Get(providerID); regErr == nil && reg.Protocol != nil {
