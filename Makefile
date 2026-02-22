@@ -9,6 +9,10 @@ LDFLAGS=-ldflags "-X main.version=$(VERSION)"
 GO_REQUIRED := $(shell awk '/^go /{print $$2}' go.mod)
 GO_TOOLCHAIN_VERSION ?= $(GO_REQUIRED).0
 
+# I probe for an existing TokenHub at localhost:8090 to decide whether
+# to start my embedded instance or defer to an external one.
+TOKENHUB_RUNNING := $(shell curl -sf --connect-timeout 2 --max-time 3 http://localhost:8090/healthz > /dev/null 2>&1 && echo yes || echo no)
+
 all: build
 
 # Build all Go binaries and documentation
@@ -49,7 +53,13 @@ build-all: lint-yaml
 # Build + launch full stack (Docker Compose) + wait for health + bootstrap
 run: build
 	@echo "=== Starting full Loom stack ==="
-	docker compose up -d --build
+	@if [ "$(TOKENHUB_RUNNING)" = "yes" ]; then \
+		echo "I found a running TokenHub at localhost:8090 — skipping embedded startup."; \
+		docker compose up -d --build; \
+	else \
+		echo "No TokenHub detected — I'll start my embedded instance."; \
+		docker compose --profile embedded-tokenhub up -d --build; \
+	fi
 	@$(MAKE) -s bootstrap
 	@echo ""
 	@echo "Loom is running:"
@@ -60,17 +70,29 @@ run: build
 
 # Start loom (build binaries + container + start full stack in background)
 start: build
-	docker compose up -d --build
+	@if [ "$(TOKENHUB_RUNNING)" = "yes" ]; then \
+		echo "I found a running TokenHub at localhost:8090 — skipping embedded startup."; \
+		docker compose up -d --build; \
+	else \
+		echo "No TokenHub detected — I'll start my embedded instance."; \
+		docker compose --profile embedded-tokenhub up -d --build; \
+	fi
 	@$(MAKE) -s bootstrap
 
 # Stop loom (completely shut down all containers)
 stop:
-	docker compose down --remove-orphans
+	docker compose --profile embedded-tokenhub down --remove-orphans
 
 # Rebuild and restart loom (build binaries first)
 restart: build
-	docker compose down
-	docker compose up -d --build
+	docker compose --profile embedded-tokenhub down
+	@if [ "$(TOKENHUB_RUNNING)" = "yes" ]; then \
+		echo "I found a running TokenHub at localhost:8090 — skipping embedded startup."; \
+		docker compose up -d --build; \
+	else \
+		echo "No TokenHub detected — I'll start my embedded instance."; \
+		docker compose --profile embedded-tokenhub up -d --build; \
+	fi
 	@$(MAKE) -s bootstrap
 
 # Run bootstrap.local if present (configures TokenHub + registers provider)

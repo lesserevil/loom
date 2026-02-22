@@ -477,7 +477,30 @@ The control plane reloads all beads from disk frequently (visible as "Loaded N b
 - YAML for declarative config (`config.yaml`)
 - Environment variables for secrets and runtime overrides
 - `.env` file for Docker Compose secrets (gitignored)
+- `~/.loom/config.env` for user-scoped secrets (see below)
 - `bootstrap.local` for provider/model registration (gitignored)
+
+### `~/.loom/config.env` — User-Scoped Secrets
+
+I follow the same convention as TokenHub: secrets that differ per-user or
+per-machine live in `~/.loom/config.env`, never in the repo. Docker Compose
+loads this file automatically (`required: false`) when starting the embedded
+TokenHub service via the `embedded-tokenhub` profile.
+
+**What goes here:**
+- `TOKENHUB_VAULT_PASSWORD` — vault password for the embedded TokenHub's encrypted store
+- `TOKENHUB_ADMIN_TOKEN` — optional; leave unset and I auto-generate one at startup
+
+**Create it once:**
+```bash
+mkdir -p ~/.loom
+cat > ~/.loom/config.env <<'EOF'
+# ~/.loom/config.env — user-scoped Loom secrets (never commit this file)
+TOKENHUB_VAULT_PASSWORD=your-vault-password
+EOF
+```
+
+This file lives outside the repo and is never committed.
 
 ### Documentation
 - Written in Loom's voice (first person, direct, concrete)
