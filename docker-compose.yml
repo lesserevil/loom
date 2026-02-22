@@ -93,7 +93,7 @@ services:
   tokenhub:
     build:
       context: ../tokenhub
-      dockerfile: Dockerfile.slim
+      dockerfile: Dockerfile
     image: tokenhub:latest
     container_name: tokenhub
     restart: unless-stopped
@@ -101,27 +101,25 @@ services:
       - TOKENHUB_LISTEN_ADDR=:8080
       - TOKENHUB_LOG_LEVEL=info
       - TOKENHUB_DB_DSN=file:/data/tokenhub.sqlite?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)
-      - TOKENHUB_VAULT_ENABLED=false
-      # vLLM endpoints (sparky local): round-robin across both
-      - TOKENHUB_VLLM_ENDPOINTS=http://sparky.local:8000/v1,http://sparky.local:8001/v1
-      # Additional OpenAI-compatible providers (NVIDIA NIM cloud)
-      - TOKENHUB_EXTRA_PROVIDERS=${TOKENHUB_EXTRA_PROVIDERS:-}
-      # Disable health probes (providers use auth that probes can't supply)
-      - TOKENHUB_HEALTH_PROBE_DISABLED=true
+      # Vault: enabled with headless auto-unlock. Password comes from the host .env file.
+      # Providers and their API keys are registered at runtime via the admin API or UI —
+      # never hard-coded here. See: https://github.com/jordanhubbard/tokenhub
+      - TOKENHUB_VAULT_ENABLED=true
+      - TOKENHUB_VAULT_PASSWORD=${TOKENHUB_VAULT_PASSWORD}
       # Routing policy: balanced selection, generous budget/latency for agent workloads
       - TOKENHUB_DEFAULT_MODE=normal
       - TOKENHUB_DEFAULT_MAX_BUDGET_USD=1.00
       - TOKENHUB_DEFAULT_MAX_LATENCY_MS=120000
       - TOKENHUB_PROVIDER_TIMEOUT_SECS=120
-      # Security: admin token for provider/model registration API
-      - TOKENHUB_ADMIN_TOKEN=${TOKENHUB_ADMIN_TOKEN:-loom-tokenhub-admin}
+      # Security: admin token for the /admin/v1/* management API.
+      # Set TOKENHUB_ADMIN_TOKEN in your .env file. No default — a missing value
+      # causes tokenhub to auto-generate a random token logged at startup.
+      - TOKENHUB_ADMIN_TOKEN=${TOKENHUB_ADMIN_TOKEN}
       - TOKENHUB_CORS_ORIGINS=*
       - TOKENHUB_RATE_LIMIT_RPS=120
       - TOKENHUB_RATE_LIMIT_BURST=240
       # Temporal disabled — Loom has its own Temporal
       - TOKENHUB_TEMPORAL_ENABLED=false
-    extra_hosts:
-      - "sparky.local:10.11.100.116"
     networks:
       - loom-network
     volumes:
