@@ -16,7 +16,9 @@ import (
 	"net"
 
 	"github.com/jordanhubbard/loom/internal/api"
+	"github.com/jordanhubbard/loom/internal/audit"
 	"github.com/jordanhubbard/loom/internal/auth"
+	"github.com/jordanhubbard/loom/internal/automerge"
 	internalconnectors "github.com/jordanhubbard/loom/internal/connectors"
 	"github.com/jordanhubbard/loom/internal/hotreload"
 	"github.com/jordanhubbard/loom/internal/keymanager"
@@ -131,6 +133,30 @@ func main() {
 	// Ralph dispatch loop: drain all dispatchable work every 10 seconds.
 	log.Printf("Starting dispatch loop goroutine")
 	go arb.StartDispatchLoop(runCtx, 10*time.Second)
+
+	// Self-audit loop: periodically run build/test/lint and file beads for failures.
+	// Disabled by default via env var. Set SELF_AUDIT_INTERVAL_MINUTES to enable.
+	selfAuditInterval := 0
+	if interval := os.Getenv("SELF_AUDIT_INTERVAL_MINUTES"); interval != "" {
+		if n, err := fmt.Sscanf(interval, "%d", &selfAuditInterval); err == nil && n == 1 {
+			log.Printf("Self-audit enabled with %d minute interval", selfAuditInterval)
+		}
+	}
+	if selfAuditInterval > 0 {
+		selfAuditRunner := audit.NewRunner("loom", ".", selfAuditInterval, arb)
+		go selfAuditRunner.Start(runCtx)
+	}
+
+	autoMergeInterval := 0
+	if interval := os.Getenv("AUTO_MERGE_INTERVAL_MINUTES"); interval != "" {
+		if n, err := fmt.Sscanf(interval, "%d", &autoMergeInterval); err == nil && n == 1 {
+			log.Printf("Auto-merge enabled with %d minute interval", autoMergeInterval)
+		}
+	}
+	if autoMergeInterval > 0 {
+		autoMergeRunner := automerge.NewRunner(arb)
+		go autoMergeRunner.Start(runCtx, time.Duration(autoMergeInterval)*time.Minute)
+	}
 
 	// Initialize auth manager (JWT + API key support)
 	authManager := auth.NewManager(cfg.Security.JWTSecret)

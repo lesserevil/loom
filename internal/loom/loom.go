@@ -627,7 +627,14 @@ func (a *Loom) Initialize(ctx context.Context) error {
 			})
 		}
 	}
-	if len(projectValues) == 0 {
+	hasLoomProject := false
+	for _, p := range projectValues {
+		if p.ID == "loom" {
+			hasLoomProject = true
+			break
+		}
+	}
+	if !hasLoomProject {
 		projectValues = append(projectValues, models.Project{
 			ID:            "loom",
 			Name:          "Loom",
@@ -1127,7 +1134,7 @@ This is a simple verification task. Do NOT search for bugs or make changes. Just
 
 	// Apply UseNATSDispatch feature flag from config.
 	if a.config.Dispatch.UseNATSDispatch && a.messageBus != nil {
-		dispatch.UseNATSDispatch = true
+		a.dispatcher.SetUseNATSDispatch(true)
 		log.Printf("[Loom] NATS dispatch enabled – tasks will be routed to agent containers")
 	}
 
@@ -1425,6 +1432,27 @@ func (a *Loom) GetPersonaManager() *persona.Manager {
 // GetBeadsManager returns the beads manager
 func (a *Loom) GetBeadsManager() *beads.Manager {
 	return a.beadsManager
+}
+
+func (a *Loom) GetBeadsByProject(projectID string) ([]*models.Bead, error) {
+	return a.beadsManager.ListBeads(map[string]interface{}{"project_id": projectID})
+}
+
+func (a *Loom) GetProjectWorkDir(projectID string) string {
+	p, err := a.projectManager.GetProject(projectID)
+	if err != nil || p == nil {
+		return ""
+	}
+	return p.WorkDir
+}
+
+func (a *Loom) ListProjectIDs() []string {
+	projects := a.projectManager.ListProjects()
+	ids := make([]string, 0, len(projects))
+	for _, p := range projects {
+		ids = append(ids, p.ID)
+	}
+	return ids
 }
 
 // GetDoltCoordinator returns the Dolt multi-instance coordinator

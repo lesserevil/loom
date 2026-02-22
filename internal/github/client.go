@@ -220,22 +220,30 @@ func (c *Client) ListPRs(ctx context.Context, state string) ([]PullRequest, erro
 	}
 	out, err := c.gh(ctx, "pr", "list",
 		"--state", state, "--limit", "50",
-		"--json", "number,title,body,state,url,author,headRefName,baseRefName,mergeable,createdAt,updatedAt")
+		"--json", "number,title,body,state,url,author,headRefName,baseRefName,mergeable,reviewDecision,isDraft,statusCheckRollup,createdAt,updatedAt")
 	if err != nil {
 		return nil, err
 	}
+	type ghStatusCheck struct {
+		Name       string `json:"name"`
+		Status     string `json:"status"`
+		Conclusion string `json:"conclusion"`
+	}
 	type ghPR struct {
-		Number int    `json:"number"`
-		Title  string `json:"title"`
-		Body   string `json:"body"`
-		State  string `json:"state"`
-		URL    string `json:"url"`
-		Author struct {
+		Number            int              `json:"number"`
+		Title             string           `json:"title"`
+		Body              string           `json:"body"`
+		State             string           `json:"state"`
+		URL               string           `json:"url"`
+		Author            struct {
 			Login string `json:"login"`
 		} `json:"author"`
-		HeadRefName string `json:"headRefName"`
-		BaseRefName string `json:"baseRefName"`
-		Mergeable   string `json:"mergeable"`
+		HeadRefName       string           `json:"headRefName"`
+		BaseRefName       string           `json:"baseRefName"`
+		Mergeable         string           `json:"mergeable"`
+		ReviewDecision    string           `json:"reviewDecision"`
+		IsDraft           bool             `json:"isDraft"`
+		StatusCheckRollup []ghStatusCheck  `json:"statusCheckRollup"`
 	}
 	var raw []ghPR
 	if err := json.Unmarshal(out, &raw); err != nil {
@@ -243,16 +251,23 @@ func (c *Client) ListPRs(ctx context.Context, state string) ([]PullRequest, erro
 	}
 	prs := make([]PullRequest, 0, len(raw))
 	for _, r := range raw {
+		checks := make([]StatusCheck, len(r.StatusCheckRollup))
+		for i, c := range r.StatusCheckRollup {
+			checks[i] = StatusCheck{Name: c.Name, Status: c.Status, Conclusion: c.Conclusion}
+		}
 		prs = append(prs, PullRequest{
-			Number:    r.Number,
-			Title:     r.Title,
-			Body:      r.Body,
-			State:     r.State,
-			URL:       r.URL,
-			Author:    r.Author.Login,
-			HeadRef:   r.HeadRefName,
-			BaseRef:   r.BaseRefName,
-			Mergeable: r.Mergeable,
+			Number:         r.Number,
+			Title:          r.Title,
+			Body:           r.Body,
+			State:          r.State,
+			URL:            r.URL,
+			Author:         r.Author.Login,
+			HeadRef:        r.HeadRefName,
+			BaseRef:        r.BaseRefName,
+			Mergeable:      r.Mergeable,
+			ReviewDecision: r.ReviewDecision,
+			IsDraft:        r.IsDraft,
+			StatusChecks:   checks,
 		})
 	}
 	return prs, nil

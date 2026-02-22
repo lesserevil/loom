@@ -361,7 +361,7 @@ func (m *Manager) UpdateBead(id string, updates map[string]interface{}) error {
 	bead, ok := m.beads[id]
 	if !ok {
 		m.mu.Unlock()
-		return fmt.Errorf("bead not found: %s", id)
+		return fmt.Errorf("bead not found %s: %w", id, ErrBeadNotFound)
 	}
 
 	previousAssigned := bead.AssignedTo
@@ -457,7 +457,7 @@ func (m *Manager) ClaimBead(beadID, agentID string) error {
 	bead, ok := m.beads[beadID]
 	if !ok {
 		m.mu.Unlock()
-		err := fmt.Errorf("bead not found: %s", beadID)
+		err := fmt.Errorf("bead not found %s: %w", beadID, ErrBeadNotFound)
 		observability.Error("bead.claim", map[string]interface{}{
 			"agent_id": agentID,
 			"bead_id":  beadID,
@@ -467,7 +467,7 @@ func (m *Manager) ClaimBead(beadID, agentID string) error {
 
 	if bead.AssignedTo != "" && bead.AssignedTo != agentID {
 		m.mu.Unlock()
-		err := fmt.Errorf("bead already claimed by agent %s", bead.AssignedTo)
+		err := fmt.Errorf("bead already claimed by agent %s: %w", bead.AssignedTo, ErrBeadAlreadyClaimed)
 		observability.Error("bead.claim", map[string]interface{}{
 			"agent_id":    agentID,
 			"bead_id":     beadID,
@@ -507,7 +507,7 @@ func (m *Manager) ReassignBead(beadID, newAgentID, previousAgentID string) error
 	bead, ok := m.beads[beadID]
 	if !ok {
 		m.mu.Unlock()
-		return fmt.Errorf("bead not found: %s", beadID)
+		return fmt.Errorf("bead not found %s: %w", beadID, ErrBeadNotFound)
 	}
 
 	oldAgent := bead.AssignedTo
@@ -539,12 +539,12 @@ func (m *Manager) AddDependency(childID, parentID, relationship string) error {
 
 	child, ok := m.beads[childID]
 	if !ok {
-		return fmt.Errorf("child bead not found: %s", childID)
+		return fmt.Errorf("child bead not found %s: %w", childID, ErrBeadNotFound)
 	}
 
 	parent, ok := m.beads[parentID]
 	if !ok {
-		return fmt.Errorf("parent bead not found: %s", parentID)
+		return fmt.Errorf("parent bead not found %s: %w", parentID, ErrBeadNotFound)
 	}
 
 	// Update bead relationships
@@ -619,7 +619,7 @@ func (m *Manager) UnblockBead(beadID, blockerID string) error {
 
 	bead, ok := m.beads[beadID]
 	if !ok {
-		return fmt.Errorf("bead not found: %s", beadID)
+		return fmt.Errorf("bead not found %s: %w", beadID, ErrBeadNotFound)
 	}
 
 	// Remove blocker

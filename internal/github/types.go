@@ -16,18 +16,26 @@ type Issue struct {
 }
 
 // PullRequest represents a GitHub pull request.
+type StatusCheck struct {
+	Name       string `json:"name"`
+	Status     string `json:"status"`
+	Conclusion string `json:"conclusion"`
+}
 type PullRequest struct {
-	Number    int       `json:"number"`
-	Title     string    `json:"title"`
-	Body      string    `json:"body"`
-	State     string    `json:"state"`
-	URL       string    `json:"url"`
-	Author    string    `json:"author"`
-	HeadRef   string    `json:"headRefName"`
-	BaseRef   string    `json:"baseRefName"`
-	Mergeable string    `json:"mergeable"`
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	Number         int           `json:"number"`
+	Title          string        `json:"title"`
+	Body           string        `json:"body"`
+	State          string        `json:"state"`
+	URL            string        `json:"url"`
+	Author         string        `json:"author"`
+	HeadRef        string        `json:"headRefName"`
+	BaseRef        string        `json:"baseRefName"`
+	Mergeable      string        `json:"mergeable"`
+	ReviewDecision string        `json:"reviewDecision"`
+	IsDraft        bool          `json:"isDraft"`
+	StatusChecks   []StatusCheck `json:"-"`
+	CreatedAt      time.Time     `json:"createdAt"`
+	UpdatedAt      time.Time     `json:"updatedAt"`
 }
 
 // WorkflowRun represents a GitHub Actions workflow run.

@@ -129,9 +129,10 @@ func New(config Config) (*Agent, error) {
 	// Initialize NATS if URL is provided
 	if config.NatsURL != "" {
 		mb, err := messagebus.NewNatsMessageBus(messagebus.Config{
-			URL:        config.NatsURL,
-			StreamName: "LOOM",
-			Timeout:    10 * time.Second,
+			URL:            config.NatsURL,
+			StreamName:     "LOOM",
+			Timeout:        10 * time.Second,
+			ConsumerPrefix: config.ServiceID,
 		})
 		if err != nil {
 			log.Printf("Warning: Failed to connect to NATS at %s: %v", config.NatsURL, err)

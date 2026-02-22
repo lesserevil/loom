@@ -1,12 +1,16 @@
 package loom
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"time"
 
 	"github.com/jordanhubbard/loom/pkg/models"
 )
+
+// ErrFileLocked is returned when a file is already locked by another agent.
+var ErrFileLocked = errors.New("file already locked")
 
 // FileLockManager manages file locks to prevent merge conflicts
 type FileLockManager struct {
@@ -39,7 +43,7 @@ func (m *FileLockManager) AcquireLock(projectID, filePath, agentID, beadID strin
 	if lock, exists := m.locks[key]; exists {
 		// Check if lock has expired
 		if lock.ExpiresAt.IsZero() || time.Now().Before(lock.ExpiresAt) {
-			return nil, fmt.Errorf("file already locked by agent %s", lock.AgentID)
+			return nil, fmt.Errorf("file already locked by agent %s: %w", lock.AgentID, ErrFileLocked)
 		}
 		// Lock expired, can proceed
 		delete(m.locks, key)

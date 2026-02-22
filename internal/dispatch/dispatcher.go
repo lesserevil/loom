@@ -95,6 +95,10 @@ type Dispatcher struct {
 
 	inflightMu sync.Mutex
 	inflight   map[string]struct{} // bead IDs currently being executed
+
+	// useNATSDispatch controls whether tasks are routed exclusively to NATS
+	// container agents instead of in-process workers. Set via SetUseNATSDispatch.
+	useNATSDispatch bool
 }
 
 // MessageBus defines the interface for publishing task messages
@@ -102,11 +106,6 @@ type MessageBus interface {
 	PublishTask(ctx context.Context, projectID string, task *messages.TaskMessage) error
 	PublishTaskForRole(ctx context.Context, projectID, role string, task *messages.TaskMessage) error
 }
-
-// UseNATSDispatch controls whether the dispatcher routes tasks exclusively to NATS
-// container agents instead of in-process workers. When true and the MessageBus is
-// configured, tasks are published to NATS and not executed locally.
-var UseNATSDispatch bool
 
 // commitRequest represents a request to acquire the commit lock
 type commitRequest struct {
@@ -160,6 +159,15 @@ func (d *Dispatcher) GetSystemStatus() SystemStatus {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	return d.status
+}
+
+// SetUseNATSDispatch enables or disables NATS-only task routing for this
+// dispatcher instance. This replaces the former package-level UseNATSDispatch
+// global, allowing per-instance configuration and safe test isolation.
+func (d *Dispatcher) SetUseNATSDispatch(enabled bool) {
+	d.mu.Lock()
+	d.useNATSDispatch = enabled
+	d.mu.Unlock()
 }
 
 // SetDatabase sets the database for conversation context management
@@ -398,6 +406,17 @@ func (d *Dispatcher) acquireCommitLock(ctx context.Context, beadID, agentID stri
 	case err := <-req.ResultCh:
 		return err
 	case <-ctx.Done():
+		// processCommitQueue may have already acquired the lock and sent on ResultCh
+		// (buffered, so the send won't block). If so, release it now to avoid an
+		// indefinite hold; otherwise the 5-minute timeout rescue will clean it up.
+		select {
+		case lockErr := <-req.ResultCh:
+			if lockErr == nil {
+				d.releaseCommitLock()
+			}
+		default:
+			// Lock not yet acquired; no action needed.
+		}
 		return fmt.Errorf("context cancelled while waiting for commit")
 	}
 }
@@ -458,12 +477,10 @@ func (d *Dispatcher) DispatchOnce(ctx context.Context, projectID string) (*Dispa
 	}
 
 	log.Printf("[Dispatcher] GetReadyBeads returned %d beads for project %s", len(ready), projectID)
-	os.WriteFile("/tmp/dispatch-ready-beads.txt", []byte(fmt.Sprintf("ready=%d project=%s\n", len(ready), projectID)), 0644)
 
 	sortReadyBeads(ready)
 
 	idleAgents := d.filterIdleAgents(d.agents.GetIdleAgentsByProject(projectID))
-	os.WriteFile("/tmp/dispatch-idle-agents.txt", []byte(fmt.Sprintf("idle=%d\n", len(idleAgents))), 0644)
 	idleByID, allByID := d.buildAgentMaps(projectID, idleAgents)
 
 	sel := d.selectCandidate(ctx, ready, idleAgents, idleByID, allByID)
@@ -477,7 +494,6 @@ func (d *Dispatcher) DispatchOnce(ctx context.Context, projectID string) (*Dispa
 	if candidate == nil {
 		reasonsJSON, _ := json.Marshal(sel.SkippedReasons)
 		log.Printf("[Dispatcher] No dispatchable beads found (ready: %d, idle agents: %d, skipped: %s)", len(ready), len(idleAgents), string(reasonsJSON))
-		os.WriteFile("/tmp/dispatch-no-candidate.txt", []byte(fmt.Sprintf("ready=%d idle=%d skipped=%s\n", len(ready), len(idleAgents), string(reasonsJSON))), 0644)
 		d.setStatus(StatusParked, "no dispatchable beads")
 		return &DispatchResult{Dispatched: false, ProjectID: projectID}, nil
 	}
@@ -563,7 +579,7 @@ func (d *Dispatcher) DispatchOnce(ctx context.Context, projectID string) (*Dispa
 	d.setStatus(StatusActive, fmt.Sprintf("dispatching %s", candidate.ID))
 	dispatchResult := &DispatchResult{Dispatched: true, ProjectID: selectedProjectID, BeadID: candidate.ID, AgentID: ag.ID, ProviderID: ag.ProviderID}
 
-	if UseNATSDispatch && d.messageBus != nil {
+	if d.useNATSDispatch && d.messageBus != nil {
 		log.Printf("[Dispatcher] NATS-only dispatch for bead %s — skipping in-process execution", candidate.ID)
 		releaseInflight()
 		return dispatchResult, nil
@@ -573,9 +589,9 @@ func (d *Dispatcher) DispatchOnce(ctx context.Context, projectID string) (*Dispa
 	// via NATS task publish. Skip control-plane members — they handle routing but
 	// don't subscribe to agent task NATS subjects.
 	//
-	// Swarm NATS routing disabled: project containers hit "consumer already bound"
-	// on JetStream subscribe. In-process execution used until NATS consumer isolation fixed.
-	if false && d.swarmMgr != nil && d.messageBus != nil {
+	// Consumer isolation fixed: each agent now uses a unique ConsumerPrefix
+	// (ServiceID-scoped) preventing the "consumer already bound" JetStream error.
+	if d.swarmMgr != nil && d.messageBus != nil {
 		members := d.swarmMgr.GetMembersByProject(selectedProjectID)
 		for _, m := range members {
 			if m.ServiceType == "control-plane" {
@@ -630,7 +646,7 @@ func (d *Dispatcher) DispatchOnce(ctx context.Context, projectID string) (*Dispa
 			d.inflightMu.Unlock()
 		}()
 
-		taskCtx := context.Background()
+		taskCtx := ctx
 
 		if d.workflowEngine != nil {
 			execution, err := d.workflowEngine.GetDatabase().GetWorkflowExecutionByBeadID(candidate.ID)
@@ -1144,6 +1160,46 @@ func (d *Dispatcher) createRemediationBead(stuckBead *models.Bead, stuckAgent *m
 	}
 	if depth > 0 {
 		log.Printf("[Remediation] Skipping remediation for %s — already at depth %d (max %d)", stuckBead.ID, depth, maxRemediationDepth)
+		if d.escalator != nil {
+			reason := fmt.Sprintf("Remediation chain at depth %d for bead %s — agent cannot self-heal", depth, stuckBead.ID)
+			if _, err := d.escalator.EscalateBeadToCEO(stuckBead.ID, reason, ""); err != nil {
+				log.Printf("[Remediation] CEO escalation failed for %s: %v", stuckBead.ID, err)
+			} else {
+				log.Printf("[Remediation] Escalated %s to CEO — remediation chain exhausted", stuckBead.ID)
+			}
+		}
+		return
+	}
+
+	const remediationCooldown = 15 * time.Minute
+	if stuckBead.Context != nil {
+		if lastStr := stuckBead.Context["last_remediation_at"]; lastStr != "" {
+			if lastTime, err := time.Parse(time.RFC3339, lastStr); err == nil {
+				if time.Since(lastTime) < remediationCooldown {
+					log.Printf("[Remediation] Skipping remediation for %s — cooldown (last filed %s ago)",
+						stuckBead.ID, time.Since(lastTime).Truncate(time.Second))
+					return
+				}
+			}
+		}
+	}
+
+	const maxRemediationsPerBead = 3
+	remCount := 0
+	if stuckBead.Context != nil {
+		if countStr := stuckBead.Context["remediation_count"]; countStr != "" {
+			_, _ = fmt.Sscanf(countStr, "%d", &remCount)
+		}
+	}
+	if remCount >= maxRemediationsPerBead {
+		log.Printf("[Remediation] Skipping remediation for %s — max remediations reached (%d/%d)",
+			stuckBead.ID, remCount, maxRemediationsPerBead)
+		if d.escalator != nil {
+			reason := fmt.Sprintf("Bead %s has exhausted %d remediation attempts — requires human review", stuckBead.ID, remCount)
+			if _, err := d.escalator.EscalateBeadToCEO(stuckBead.ID, reason, ""); err != nil {
+				log.Printf("[Remediation] CEO escalation failed for %s: %v", stuckBead.ID, err)
+			}
+		}
 		return
 	}
 
@@ -1273,6 +1329,18 @@ Work singlemindedly until the blocker is resolved. You have full access to:
 	}
 	if err := d.beads.UpdateBead(remediationBead.ID, contextUpdates); err != nil {
 		log.Printf("[Remediation] Warning: Failed to update remediation bead context: %v", err)
+	}
+
+	// Track remediation metadata on the source bead for cooldown/counter checks.
+	sourceCtx := map[string]interface{}{
+		"context": map[string]string{
+			"last_remediation_at":    time.Now().UTC().Format(time.RFC3339),
+			"remediation_count":      fmt.Sprintf("%d", remCount+1),
+			"last_remediation_bead":  remediationBead.ID,
+		},
+	}
+	if err := d.beads.UpdateBead(stuckBead.ID, sourceCtx); err != nil {
+		log.Printf("[Remediation] Warning: Failed to update source bead %s with remediation metadata: %v", stuckBead.ID, err)
 	}
 
 	log.Printf("[Remediation] Created remediation bead %s for stuck bead %s (reason: %s)",

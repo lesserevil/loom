@@ -1,11 +1,14 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/jordanhubbard/loom/internal/beads"
+	loominternal "github.com/jordanhubbard/loom/internal/loom"
 	"github.com/jordanhubbard/loom/pkg/models"
 )
 
@@ -142,7 +145,7 @@ func (s *Server) handleBead(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if err := s.app.ClaimBead(id, req.AgentID); err != nil {
-			if strings.Contains(err.Error(), "already claimed") {
+			if errors.Is(err, beads.ErrBeadAlreadyClaimed) {
 				s.respondError(w, http.StatusConflict, err.Error())
 			} else {
 				s.respondError(w, http.StatusInternalServerError, err.Error())
@@ -164,7 +167,10 @@ func (s *Server) handleBead(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			Reason string `json:"reason"`
 		}
-		_ = s.parseJSON(r, &req)
+		if err := s.parseJSON(r, &req); err != nil {
+			s.respondError(w, http.StatusBadRequest, "Invalid request body")
+			return
+		}
 
 		updates := map[string]interface{}{
 			"status": models.BeadStatusOpen,
@@ -177,7 +183,7 @@ func (s *Server) handleBead(w http.ResponseWriter, r *http.Request) {
 
 		bead, err := s.app.UpdateBead(id, updates)
 		if err != nil {
-			if strings.Contains(err.Error(), "not found") {
+			if errors.Is(err, beads.ErrBeadNotFound) {
 				s.respondError(w, http.StatusNotFound, err.Error())
 			} else {
 				s.respondError(w, http.StatusInternalServerError, err.Error())
@@ -199,11 +205,14 @@ func (s *Server) handleBead(w http.ResponseWriter, r *http.Request) {
 			Reason     string `json:"reason"`
 			ReturnedTo string `json:"returned_to"`
 		}
-		_ = s.parseJSON(r, &req)
+		if err := s.parseJSON(r, &req); err != nil {
+			s.respondError(w, http.StatusBadRequest, "Invalid request body")
+			return
+		}
 
 		decision, err := s.app.EscalateBeadToCEO(id, req.Reason, req.ReturnedTo)
 		if err != nil {
-			if strings.Contains(err.Error(), "not found") {
+			if errors.Is(err, beads.ErrBeadNotFound) {
 				s.respondError(w, http.StatusNotFound, err.Error())
 			} else {
 				s.respondError(w, http.StatusInternalServerError, err.Error())
@@ -292,7 +301,7 @@ func (s *Server) handleBead(w http.ResponseWriter, r *http.Request) {
 
 		bead, err := s.app.UpdateBead(id, updates)
 		if err != nil {
-			if strings.Contains(err.Error(), "not found") {
+			if errors.Is(err, beads.ErrBeadNotFound) {
 				s.respondError(w, http.StatusNotFound, err.Error())
 			} else {
 				s.respondError(w, http.StatusInternalServerError, err.Error())
@@ -421,7 +430,7 @@ func (s *Server) handleFileLocks(w http.ResponseWriter, r *http.Request) {
 
 		lock, err := s.app.RequestFileAccess(req.ProjectID, req.FilePath, req.AgentID, req.BeadID)
 		if err != nil {
-			if strings.Contains(err.Error(), "already locked") {
+			if errors.Is(err, loominternal.ErrFileLocked) {
 				s.respondError(w, http.StatusConflict, err.Error())
 			} else {
 				s.respondError(w, http.StatusInternalServerError, err.Error())

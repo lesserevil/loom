@@ -1,0 +1,54 @@
+connectors:
+    - id: prometheus
+      name: Prometheus
+      type: observability
+      mode: local
+      enabled: true
+      description: Metrics collection and monitoring
+      host: prometheus
+      port: 9090
+      scheme: http
+      tags:
+        - observability
+        - metrics
+        - built-in
+      health_check:
+        enabled: true
+        interval: 30s
+        timeout: 5s
+        path: /-/healthy
+    - id: grafana
+      name: Grafana
+      type: observability
+      mode: local
+      enabled: true
+      description: Metrics visualization and dashboards
+      host: grafana
+      port: 3000
+      scheme: http
+      tags:
+        - observability
+        - visualization
+        - built-in
+      health_check:
+        enabled: true
+        interval: 30s
+        timeout: 5s
+        path: /api/health
+    - id: jaeger
+      name: Jaeger
+      type: observability
+      mode: local
+      enabled: true
+      description: Distributed tracing
+      host: jaeger
+      port: 16686
+      scheme: http
+      tags:
+        - observability
+        - tracing
+        - built-in
+      health_check:
+        enabled: true
+        interval: 30s
+        timeout: 5s

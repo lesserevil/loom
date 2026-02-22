@@ -249,6 +249,7 @@ func (ld *LoopDetector) getErrorHistory(bead *models.Bead) []ErrorRecord {
 
 	var history []ErrorRecord
 	if err := json.Unmarshal([]byte(historyJSON), &history); err != nil {
+		log.Printf("[LoopDetector] Failed to unmarshal error_history for bead: %v", err)
 		return []ErrorRecord{}
 	}
 
@@ -384,6 +385,7 @@ func (ld *LoopDetector) hasRecentProgress(bead *models.Bead) bool {
 
 	var metrics ProgressMetrics
 	if err := json.Unmarshal([]byte(metricsJSON), &metrics); err != nil {
+		log.Printf("[LoopDetector] Failed to unmarshal progress_metrics for bead: %v", err)
 		return false
 	}
 

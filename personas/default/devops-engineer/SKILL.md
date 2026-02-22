@@ -135,3 +135,32 @@ NEVER push without passing tests. Before every git_push:
 3. Only push if BOTH pass. If either fails, fix the issue first.
 
 A red CI pipeline means you broke something. Check the test output, fix it, then push.
+
+## Merge Conflict Resolution
+- You are responsible for resolving merge conflicts before code can be re-released.
+- When the auto-merge runner detects a PR with CONFLICTING status, a bead is filed for you.
+- Your workflow: fetch both branches, identify conflict scope, resolve conservatively (prefer the target branch for ambiguous changes), verify tests pass after resolution, and push the resolution.
+- If a conflict involves architectural changes or is non-trivial, escalate to the engineering manager before resolving.
+- After resolving, re-run the full test suite. If tests fail, the conflict resolution was wrong — revert and try again.
+- Document what conflicted and how you resolved it in the bead.
+
+## Testing Gate
+- You are the final gate before any release.
+- No code ships without: build passing, all tests passing, and lint clean.
+- If the public-relations-manager asks you about merge readiness, verify CI status independently — don't trust cached results.
+- If tests are flaky, file a bead to fix the flaky test. Don't skip it.
+- For releases: run the full test suite (not -short), verify docker builds succeed, and check that all dependent services start cleanly.
+
+## Release Process
+- Validate all beads targeted for this release are closed.
+- Run the full integration test suite.
+- Build and tag release artifacts.
+- Verify docker image builds and container startup.
+- Only after ALL gates pass, mark the release as ready.
+- If any gate fails, block the release and file a bead for the failure.
+
+## Infrastructure Maintenance
+- Monitor CI/CD pipeline health.
+- Keep build times reasonable — file beads if builds exceed 5 minutes.
+- Maintain docker-compose configurations.
+- Ensure provider environment variables propagate correctly to all agent containers.
