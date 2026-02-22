@@ -408,12 +408,14 @@ func (d *Dispatcher) selectCandidate(
 				skippedReasons["dead_agent_cleared"]++
 			}
 		} else if skipAssigned {
-			if b.Status == models.BeadStatusInProgress {
-				skippedReasons["in_progress_agent_busy"]++
-				continue
-			}
-			// Assigned agent is busy but bead is open — fall through to find
-			// an alternative idle agent.
+			// Assigned agent is busy — skip regardless of bead status.
+			// An open bead assigned to a busy agent should not be reassigned
+			// to a different agent; doing so causes an infinite loop where
+			// every dispatch cycle selects this bead, attempts to claim it,
+			// fails (because the original agent is working on it), and never
+			// advances to other ready beads.
+			skippedReasons["assigned_agent_busy"]++
+			continue
 		} else if matched != nil {
 			return candidateSelection{Bead: b, Agent: matched, SkippedReasons: skippedReasons}
 		}
