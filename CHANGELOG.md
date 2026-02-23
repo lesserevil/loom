@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-02-23
+
+### Changed
+- GitHub Pages now built with MkDocs (Material theme) instead of a bespoke Python script that referenced the long-deleted `docs/USER_GUIDE.md`; Pages deployment re-enabled via GitHub Actions
+- Build gate: exit 127 (toolchain not found) now **blocks** commits instead of silently allowing them through; agent receives step-by-step instructions to detect and install the required toolchain then verify the build before retrying
+- Build gate: build failure message now explicitly says "DO NOT call done or git_commit until the build passes" and provides the full compiler/tool output — prevents agents from giving up without fixing the error
+
+### Fixed
+- `docs/archive/` broken links no longer cause `mkdocs build` warnings (excluded via `exclude_docs`)
+- `pymdownx` removed from Pages workflow pip install (it ships inside `mkdocs-material`, not as a standalone package)
+
 ## [0.1.7] - 2026-02-23
 
 ### Added
