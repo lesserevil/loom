@@ -601,7 +601,7 @@ func motivationToResponse(m *motivation.Motivation) MotivationResponse {
 		AgentID:         m.AgentID,
 		ProjectID:       m.ProjectID,
 		Parameters:      m.Parameters,
-		CooldownMinutes: int(m.CooldownPeriod.Minutes()),
+		CooldownMinutes: func() *int { v := int(m.CooldownPeriod.Minutes()); return &v }(),
 		LastTriggeredAt: m.LastTriggeredAt,
 		NextTriggerAt:   m.NextTriggerAt,
 		TriggerCount:    m.TriggerCount,

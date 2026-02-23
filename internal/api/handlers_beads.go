@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jordanhubbard/loom/internal/beads"
 	loominternal "github.com/jordanhubbard/loom/internal/loom"
 	"github.com/jordanhubbard/loom/pkg/models"
 )
@@ -75,7 +74,7 @@ func (s *Server) handleBeads(w http.ResponseWriter, r *http.Request) {
 			Tags        []string          `json:"tags"`
 			Context     map[string]string `json:"context"`
 		}
-		if err := s.parseJSON(r, &req); err != nil { s.respondError(w, http.StatusBadRequest, "Invalid request body"); return }
+		if err := s.parseJSON(r, &req); err != nil {
 			s.respondError(w, http.StatusBadRequest, "Invalid request body")
 			return
 		}
@@ -118,7 +117,7 @@ func (s *Server) handleBeads(w http.ResponseWriter, r *http.Request) {
 
 		s.respondError(w, http.StatusNotImplemented, "bulk update not implemented")
 
-default:
+	default:
 		s.respondError(w, http.StatusMethodNotAllowed, "Method not allowed")
 	}
 }
@@ -162,7 +161,7 @@ func (s *Server) handleBead(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if err := s.app.ClaimBead(id, req.AgentID); err != nil {
-			if errors.Is(err, ErrBeadAlreadyClaimed) {
+			if strings.Contains(err.Error(), "already claimed") || strings.Contains(err.Error(), "already assigned") {
 				s.respondError(w, http.StatusConflict, err.Error())
 			} else {
 				s.respondError(w, http.StatusInternalServerError, err.Error())
@@ -200,7 +199,7 @@ func (s *Server) handleBead(w http.ResponseWriter, r *http.Request) {
 
 		bead, err := s.app.UpdateBead(id, updates)
 		if err != nil {
-			if errors.Is(err, ErrBeadNotFound) {
+			if strings.Contains(err.Error(), "not found") {
 				s.respondError(w, http.StatusNotFound, err.Error())
 			} else {
 				s.respondError(w, http.StatusInternalServerError, err.Error())
@@ -229,7 +228,7 @@ func (s *Server) handleBead(w http.ResponseWriter, r *http.Request) {
 
 		decision, err := s.app.EscalateBeadToCEO(id, req.Reason, req.ReturnedTo)
 		if err != nil {
-			if errors.Is(err, ErrNotFound) {
+			if strings.Contains(err.Error(), "not found") {
 				s.respondError(w, http.StatusNotFound, err.Error())
 			} else {
 				s.respondError(w, http.StatusInternalServerError, err.Error())
@@ -318,7 +317,7 @@ func (s *Server) handleBead(w http.ResponseWriter, r *http.Request) {
 
 		bead, err := s.app.UpdateBead(id, updates)
 		if err != nil {
-			if errors.Is(err, ErrNotFound) {
+			if strings.Contains(err.Error(), "not found") {
 				s.respondError(w, http.StatusNotFound, err.Error())
 			} else {
 				s.respondError(w, http.StatusInternalServerError, err.Error())
