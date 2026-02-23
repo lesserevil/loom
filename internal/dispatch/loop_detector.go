@@ -38,7 +38,7 @@ type LoopDetector struct {
 // NewLoopDetector creates a new loop detector with default settings
 func NewLoopDetector() *LoopDetector {
 	return &LoopDetector{
-		repeatThreshold: 3, // Flag as loop after 3 identical sequences
+		repeatThreshold: 5, // Flag as loop after 3 identical sequences
 	}
 }
 
