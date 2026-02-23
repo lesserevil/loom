@@ -379,15 +379,29 @@ func (mb *NatsMessageBus) prefixConsumer(name string) string {
 	return name
 }
 
-// subscribe is the internal method to set up durable subscriptions
+// subscribe is the internal method to set up durable subscriptions.
+// If the durable consumer is still registered from a previous process (the
+// "already bound" error), it is deleted and the subscribe is retried once.
+// This prevents the cascade of context-canceled failures that occurs when the
+// PDA orchestrator cannot attach to its results consumer after a restart.
 func (mb *NatsMessageBus) subscribe(subject, consumerName string, handler nats.MsgHandler) error {
 	prefixed := mb.prefixConsumer(consumerName)
-	sub, err := mb.js.Subscribe(subject, handler,
+	opts := []nats.SubOpt{
 		nats.Durable(prefixed),
 		nats.AckExplicit(),
 		nats.MaxDeliver(3),
-		nats.AckWait(30*time.Second),
-	)
+		nats.AckWait(30 * time.Second),
+	}
+	sub, err := mb.js.Subscribe(subject, handler, opts...)
+	if err != nil && strings.Contains(err.Error(), "already bound") {
+		// Durable consumer was not cleaned up from the previous process.
+		// Delete it so this process can bind a fresh subscription.
+		log.Printf("[NATS] Consumer %s already bound from previous run, deleting and retrying", prefixed)
+		if delErr := mb.js.DeleteConsumer(mb.streamName, prefixed); delErr != nil {
+			log.Printf("[NATS] Warning: could not delete stale consumer %s: %v", prefixed, delErr)
+		}
+		sub, err = mb.js.Subscribe(subject, handler, opts...)
+	}
 	if err != nil {
 		return fmt.Errorf("failed to subscribe to %s: %w", subject, err)
 	}
@@ -413,15 +427,28 @@ func (mb *NatsMessageBus) Unsubscribe(subject string) error {
 	return nil
 }
 
-// Close closes all subscriptions and the NATS connection
+// Close drains and closes the NATS connection.
+// Drain flushes all pending messages on active subscriptions and causes NATS
+// to cleanly unbind the durable consumers before the TCP connection drops.
+// Without Drain, the consumers remain registered as "already bound" in NATS
+// and cause immediate context-canceled failures for all agent tasks on the
+// next startup. A 5-second deadline prevents blocking shutdown indefinitely.
 func (mb *NatsMessageBus) Close() error {
-	// Unsubscribe from all
-	for subject := range mb.subscriptions {
-		_ = mb.Unsubscribe(subject)
+	done := make(chan error, 1)
+	go func() { done <- mb.conn.Drain() }()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			log.Printf("[NATS] Drain warning: %v — forcing close", err)
+			mb.conn.Close()
+		}
+	case <-time.After(5 * time.Second):
+		log.Printf("[NATS] Drain timed out after 5s, forcing close")
+		mb.conn.Close()
 	}
 
-	// Close connection
-	mb.conn.Close()
+	mb.subscriptions = nil
 	log.Printf("Closed NATS connection")
 	return nil
 }
