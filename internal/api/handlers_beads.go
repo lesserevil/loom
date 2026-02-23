@@ -101,12 +101,35 @@ func (s *Server) handleBeads(w http.ResponseWriter, r *http.Request) {
 
 		s.respondJSON(w, http.StatusCreated, bead)
 
-	default:
+	case http.MethodPatch:
+		var req struct {
+			Filter map[string]interface{} `json:"filter"`
+			Updates map[string]interface{} `json:"updates"`
+		}
+		if err := s.parseJSON(r, &req); err != nil {
+			s.respondError(w, http.StatusBadRequest, "Invalid request body")
+			return
+		}
+
+		if len(req.Filter) == 0 || len(req.Updates) == 0 {
+			s.respondError(w, http.StatusBadRequest, "filter and updates are required")
+			return
+		}
+
+		updatedBeads, err := s.app.GetBeadsManager().BulkUpdateBeads(req.Filter, req.Updates)
+		if err != nil {
+			s.respondError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		s.respondJSON(w, http.StatusOK, updatedBeads)
+
+default:
 		s.respondError(w, http.StatusMethodNotAllowed, "Method not allowed")
 	}
 }
 
-// handleBead handles GET/PATCH /api/v1/beads/{id} and POST /api/v1/beads/{id}/claim
+// handleBead handles GET/PATCH /api/v1/beads/{id}, POST /api/v1/beads/{id}/claim, and PATCH /api/v1/beads for bulk operations
 func (s *Server) handleBead(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/v1/beads/")
 	parts := strings.Split(path, "/")

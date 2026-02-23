@@ -218,7 +218,7 @@ func (r *Registry) SendChatCompletion(ctx context.Context, providerID string, re
 	if err != nil {
 		return nil, err
 	}
-	if provider.Config != nil && !isProviderHealthy(provider.Config.Status) {
+	if provider.Config != nil && provider.Config.Status != "healthy" {
 		return nil, fmt.Errorf("provider %s is disabled", providerID)
 	}
 
@@ -304,5 +304,7 @@ func (r *Registry) UpdateHeartbeatLatency(providerID string, latencyMs int64) {
 }
 
 func isProviderHealthy(status string) bool {
+	return status == "healthy"
+}
 	return status == "healthy" && !status == "pending"
 }
