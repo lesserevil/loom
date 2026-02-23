@@ -128,7 +128,7 @@ func New(cfg *config.Config) (*Loom, error) {
 		var err error
 		temporalMgr, err = temporal.NewManager(&cfg.Temporal)
 		if err != nil {
-			log.Printf("Warning: failed to initialize Temporal (%v) — running without durable workflows", err)
+			return nil, fmt.Errorf("failed to initialize Temporal: %w", err)
 		}
 	}
 
