@@ -248,8 +248,14 @@
             <!-- CEO REPL -->
             <h3 style="margin-top: 2rem;">CEO REPL</h3>
             <div class="repl-container">
+                <div class="field" style="margin-bottom: 0.75rem;">
+                    <label for="ceo-repl-agent-select">Target Agent</label>
+                    <select id="ceo-repl-agent-select">
+                        <option value="">General Query (no specific agent)</option>
+                    </select>
+                </div>
                 <label for="ceo-repl-input">Ask Loom</label>
-                <textarea id="ceo-repl-input" rows="4" placeholder="Ask a question, or dispatch: agent name: task description"></textarea>
+                <textarea id="ceo-repl-input" rows="4" placeholder="Ask a question or describe a task"></textarea>
                 <div class="controls" style="display: flex; justify-content: space-between; align-items: center; gap: 1rem;">
                     <div style="display: flex; align-items: center; gap: 0.5rem;">
                         <input type="checkbox" id="ceo-repl-stream-toggle" checked>

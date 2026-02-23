@@ -2290,6 +2290,7 @@ async function sendCeoReplQuery() {
     const input = document.getElementById('ceo-repl-input');
     const responseEl = document.getElementById('ceo-repl-response');
     const sendBtn = document.getElementById('ceo-repl-send');
+    const agentSelect = document.getElementById('ceo-repl-agent-select');
     if (!input || !responseEl || !sendBtn) return;
 
     const message = (input.value || '').trim();
@@ -2298,7 +2299,17 @@ async function sendCeoReplQuery() {
         return;
     }
 
-    // Parse "agent: message" pattern for direct agent dispatch
+    // Check if an agent is selected from the dropdown
+    const selectedAgentId = agentSelect ? agentSelect.value : '';
+    if (selectedAgentId) {
+        // Find the selected agent and dispatch to them
+        const selectedAgent = (state.agents || []).find(a => a.id === selectedAgentId);
+        if (selectedAgent) {
+            return ceoReplDispatchToAgentById(selectedAgent, message, responseEl, sendBtn);
+        }
+    }
+
+    // Parse "agent: message" pattern for direct agent dispatch (legacy support)
     const agentMatch = message.match(/^([a-zA-Z][a-zA-Z0-9 _-]+):\s+(.+)/s);
     if (agentMatch) {
         const agentQuery = agentMatch[1].trim().toLowerCase();
@@ -2308,6 +2319,54 @@ async function sendCeoReplQuery() {
 
     // General query — use streaming chat completion
     return ceoReplStreamQuery(message, responseEl, sendBtn);
+}
+
+// Dispatch a task to a specific agent selected from the dropdown
+async function ceoReplDispatchToAgentById(agent, taskMessage, responseEl, sendBtn) {
+    const projectId = agent.project_id || uiState.project.selectedId || ((state.projects || [])[0] || {}).id || '';
+    if (!projectId) {
+        responseEl.innerHTML = '<span style="color:var(--danger-color)">No project selected. Select a project first.</span>';
+        return;
+    }
+
+    try {
+        setBusy('ceo-repl', true);
+        sendBtn.disabled = true;
+        sendBtn.textContent = 'Dispatching…';
+        responseEl.textContent = '';
+
+        // Create a bead with the task
+        const bead = await apiCall('/beads', {
+            method: 'POST',
+            skipAutoFile: true,
+            body: JSON.stringify({
+                title: taskMessage.substring(0, 100),
+                description: taskMessage,
+                type: 'task',
+                priority: 1,
+                project_id: projectId
+            })
+        });
+
+        // Assign to the selected agent
+        await apiCall(`/beads/${bead.id}`, {
+            method: 'PATCH',
+            skipAutoFile: true,
+            body: JSON.stringify({ assigned_to: agent.id })
+        });
+
+        const agentDisplay = agent.name || agent.role || agent.persona_name || agent.id;
+        responseEl.innerHTML = `<strong style="color:var(--success-color)">Task dispatched!</strong>\n\nBead: <code>${escapeHtml(bead.id)}</code>\nAssigned to: <strong>${escapeHtml(agentDisplay)}</strong>\nTitle: ${escapeHtml(bead.title)}\n\nThe dispatcher will pick this up on the next cycle.`;
+
+        // Refresh data
+        setTimeout(() => loadAll(), 1000);
+    } catch (e) {
+        responseEl.innerHTML = `<span style="color:var(--danger-color)">Failed to dispatch: ${escapeHtml(e.message)}</span>`;
+    } finally {
+        setBusy('ceo-repl', false);
+        sendBtn.disabled = false;
+        sendBtn.textContent = 'Send';
+    }
 }
 
 // Dispatch a task to a specific agent via "agent: message" syntax
@@ -2532,6 +2591,34 @@ function renderCeoDashboard() {
     const beads = state.beads || [];
     const agents = state.agents || [];
     const decisions = state.decisions || [];
+
+    // Populate the CEO REPL agent dropdown
+    const agentSelect = document.getElementById('ceo-repl-agent-select');
+    if (agentSelect) {
+        const projectId = uiState.project.selectedId || ((state.projects || [])[0] || {}).id || '';
+        const projectAgents = agents.filter(a => a.project_id === projectId);
+        const currentValue = agentSelect.value;
+        
+        // Clear existing options except the first one (General Query)
+        while (agentSelect.options.length > 1) {
+            agentSelect.remove(1);
+        }
+        
+        // Add agents from the current project
+        for (const agent of projectAgents) {
+            const option = document.createElement('option');
+            option.value = agent.id;
+            const displayName = agent.name || agent.role || agent.persona_name || agent.id;
+            const status = agent.status ? ` (${agent.status})` : '';
+            option.textContent = displayName + status;
+            agentSelect.appendChild(option);
+        }
+        
+        // Restore previous selection if still valid
+        if (currentValue && Array.from(agentSelect.options).some(o => o.value === currentValue)) {
+            agentSelect.value = currentValue;
+        }
+    }
 
     const beadCounts = {
         open: beads.filter((b) => b.status === 'open').length,
