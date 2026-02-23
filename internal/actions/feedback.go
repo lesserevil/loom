@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	maxFileContentLen = 16000
+	maxFileContentLen = 32000
 	maxBuildOutputLen = 4000
 	maxCommandOutput  = 6000
 )
