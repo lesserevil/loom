@@ -99,9 +99,7 @@ METAJSON
     return 0
 }
 
-# Dolt management is now handled by Loom's DoltCoordinator (per-project instances)
-# No longer starting Dolt from entrypoint to avoid port conflicts
-echo "[entrypoint] Dolt will be managed by Loom's DoltCoordinator"
+start_dolt
 
 # Start loom in background (not exec) so this shell stays PID 1 and reaps children
 cd /app
