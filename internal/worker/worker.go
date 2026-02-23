@@ -748,8 +748,8 @@ func (w *Worker) ExecuteTaskWithLoop(ctx context.Context, task *Task, config *Lo
 	var allActions []actions.Result
 	consecutiveParseFailures := 0
 	consecutiveValidationFailures := 0
-	actionHashes := make(map[string]int) // for inner loop detection
-	actionTypeCount := make(map[string]int) // for progress stagnation detection
+	var actionHashes sync.Map // for inner loop detection
+	var actionTypeCount sync.Map // for progress stagnation detection
 	treePaths := make(map[string]int)       // track repeated scope/tree calls per path
 
 	for iteration := 0; iteration < maxIter; iteration++ {
