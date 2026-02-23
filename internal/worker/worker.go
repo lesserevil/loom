@@ -175,7 +175,7 @@ func (w *Worker) ExecuteTask(ctx context.Context, task *Task) (*TaskResult, erro
 		messages = w.buildConversationMessages(conversationCtx, task)
 
 		// Handle token limits
-		messages = w.handleTokenLimits(messages)
+		messages = w.handleTokenLimits(messages, w.provider.Config.TokenLimit)
 	} else {
 		// Single-shot mode (backward compatibility)
 		messages = w.buildSingleShotMessages(task)
