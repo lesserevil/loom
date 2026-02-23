@@ -84,7 +84,7 @@ type Dispatcher struct {
 	loopDetector    *LoopDetector
 
 	// Commit serialization (Gap #2)
-	commitLock        sync.Mutex         // Global commit lock
+	commitLock        sync.RWMutex       // Global commit lock
 	commitQueue       chan commitRequest // Queue for waiting commits
 	commitLockTimeout time.Duration      // Max time to hold lock (5 min)
 	commitInProgress  *commitState       // Current commit state
