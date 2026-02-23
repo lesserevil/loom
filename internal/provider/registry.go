@@ -104,7 +104,10 @@ func (r *Registry) Upsert(config *ProviderConfig) error {
 func createProtocol(config *ProviderConfig) Protocol {
 	switch config.Type {
 	case "openai", "anthropic", "local", "custom", "vllm", "ollama", "tokenhub":
-		return NewOpenAIProvider(config.Endpoint, config.APIKey)
+		if config.APIKey == "" {
+		log.Printf("[Registry] Warning: API key is missing for provider %s", config.ID)
+	}
+	return NewOpenAIProvider(config.Endpoint, config.APIKey)
 	case "mock":
 		return NewMockProvider()
 	default:

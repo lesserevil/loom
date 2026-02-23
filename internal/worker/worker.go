@@ -455,7 +455,8 @@ func (w *Worker) callWithContextRetry(ctx context.Context, req *provider.ChatCom
 		}
 	}
 
-	return nil, minimal, fmt.Errorf("context length exceeded after all retry attempts: %w", err)
+	log.Printf("[ContextRetry] All retry attempts failed due to context length: %v", err)
+return nil, minimal, fmt.Errorf("context length exceeded after all retry attempts: %w", err)
 }
 
 // messageExists checks if a message with the same content already exists in history
