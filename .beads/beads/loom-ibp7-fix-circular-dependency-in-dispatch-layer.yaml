@@ -21,14 +21,13 @@ context:
     agent_id: agent-1771534515-CEO (Default)
     close_reason: ""
     conversation_session_id: 3678a482-8cc4-44b7-aa62-6cf7ba12f3ac
-    correlation_id: dispatch-loom-ibp7-1771815482137610596
-    dispatch_count: "2"
-    dispatch_history: '["agent-1771534515-CEO (Default)","agent-1771534515-CEO (Default)"]'
-    failed_at: "2026-02-23T02:58:02Z"
+    correlation_id: dispatch-loom-ibp7-1771815960770636683
+    dispatch_count: "12"
+    dispatch_history: '["agent-1771534515-CEO (Default)","agent-1771534515-CEO (Default)","agent-1771534515-CEO (Default)","agent-1771534515-CEO (Default)","agent-1771534515-CEO (Default)","agent-1771534515-CEO (Default)","agent-1771534515-CEO (Default)","agent-1771534515-CEO (Default)","agent-1771534515-CEO (Default)","agent-1771534515-CEO (Default)","agent-1771534515-CEO (Default)","agent-1771534515-CEO (Default)"]'
+    failed_at: "2026-02-23T03:07:28Z"
     last_error: command parameter required
-    last_run_at: "2026-02-23T02:58:02Z"
-    last_run_error: |
-        action loop failed: LLM call failed on iteration 1: unexpected status code 429: rate limit exceeded
+    last_run_at: "2026-02-23T03:07:12Z"
+    last_run_error: 'action loop failed: LLM call failed on iteration 1: failed to send request: Post "http://172.17.0.1:8090/v1/chat/completions": context canceled'
     loop_detected: "false"
     loop_detection_reason: ""
     provider_id: tokenhub
@@ -41,5 +40,5 @@ duedate: null
 milestoneid: ""
 estimatedtime: 0
 createdat: 2026-02-06T13:19:04Z
-updatedat: 2026-02-23T02:58:02.917528736Z
+updatedat: 2026-02-23T03:07:28.112993501Z
 closedat: null

@@ -248,7 +248,7 @@ func (ld *LoopDetector) getErrorHistory(bead *models.Bead) []ErrorRecord {
 	}
 
 	var history []ErrorRecord
-	if err := json.Unmarshal([]byte(historyJSON), &history); err != nil {
+	if err := json.Unmarshal([]byte(historyJSON), &history); err != nil { log.Printf("[LoopDetector] Failed to unmarshal error_history for bead: %v", err) }
 		log.Printf("[LoopDetector] Failed to unmarshal error_history for bead: %v", err)
 		return []ErrorRecord{}
 	}
