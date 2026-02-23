@@ -235,7 +235,7 @@ func (s *Server) handleBead(w http.ResponseWriter, r *http.Request) {
 
 		decision, err := s.app.EscalateBeadToCEO(id, req.Reason, req.ReturnedTo)
 		if err != nil {
-			if errors.Is(err, ErrBeadNotFound) {
+			if errors.Is(err, ErrNotFound) {
 				s.respondError(w, http.StatusNotFound, err.Error())
 			} else {
 				s.respondError(w, http.StatusInternalServerError, err.Error())
@@ -324,7 +324,7 @@ func (s *Server) handleBead(w http.ResponseWriter, r *http.Request) {
 
 		bead, err := s.app.UpdateBead(id, updates)
 		if err != nil {
-			if errors.Is(err, beads.ErrBeadNotFound) {
+			if errors.Is(err, ErrNotFound) {
 				s.respondError(w, http.StatusNotFound, err.Error())
 			} else {
 				s.respondError(w, http.StatusInternalServerError, err.Error())

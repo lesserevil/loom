@@ -52,6 +52,7 @@ rootCmd.AddCommand(newContainerCommand())
 	rootCmd.AddCommand(newCreateFileCommand())
 
 	if err := rootCmd.Execute(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 }
@@ -344,6 +345,12 @@ func newBeadListCommand() *cobra.Command {
 			}
 			if status != "" {
 				params.Set("status", status)
+if hasPriority {
+    params.Set("priority", fmt.Sprintf("%d", priority))
+}
+if assignedTo != "" {
+    params.Set("assigned_to", assignedTo)
+}
 			}
 			if beadType != "" {
 				params.Set("type", beadType)

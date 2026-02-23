@@ -16,10 +16,11 @@ func (s *Server) handlePersonas(w http.ResponseWriter, r *http.Request) {
 	}
 
 	personas, err := s.app.GetPersonaManager().ListPersonas()
-	if err != nil {
-		s.respondError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
+if err != nil {
+			if errors.Is(err, ErrNotFound) {
+				s.respondError(w, http.StatusNotFound, "Persona not found")
+				return
+			}
 
 	// Load full persona details
 	fullPersonas := make([]*models.Persona, 0, len(personas))
@@ -119,11 +120,12 @@ func (s *Server) handleAgents(w http.ResponseWriter, r *http.Request) {
 		}
 
 		agent, err := s.app.SpawnAgent(context.Background(), req.Name, personaName, req.ProjectID, req.ProviderID)
-		if err != nil {
-			if errors.Is(err, ErrMaxWorkers) {
-				s.respondError(w, http.StatusServiceUnavailable, err.Error())
-			} else {
-				s.respondError(w, http.StatusInternalServerError, err.Error())
+if err != nil {
+			if errors.Is(err, ErrNotFound) {
+				s.respondError(w, http.StatusNotFound, "Persona not found")
+				return
+			}
+			s.respondError(w, http.StatusInternalServerError, err.Error())
 			}
 			return
 		}
