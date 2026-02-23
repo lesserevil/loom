@@ -120,7 +120,7 @@ func (s *Server) handleAgents(w http.ResponseWriter, r *http.Request) {
 
 		agent, err := s.app.SpawnAgent(context.Background(), req.Name, personaName, req.ProjectID, req.ProviderID)
 		if err != nil {
-			if strings.Contains(err.Error(), "maximum number of workers") {
+			if errors.Is(err, ErrMaxWorkers) {
 				s.respondError(w, http.StatusServiceUnavailable, err.Error())
 			} else {
 				s.respondError(w, http.StatusInternalServerError, err.Error())

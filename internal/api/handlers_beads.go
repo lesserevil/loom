@@ -168,7 +168,7 @@ func (s *Server) handleBead(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if err := s.app.ClaimBead(id, req.AgentID); err != nil {
-			if errors.Is(err, beads.ErrBeadAlreadyClaimed) {
+			if errors.Is(err, ErrBeadAlreadyClaimed) {
 				s.respondError(w, http.StatusConflict, err.Error())
 			} else {
 				s.respondError(w, http.StatusInternalServerError, err.Error())

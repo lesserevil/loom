@@ -632,7 +632,7 @@ func buildDispatchHistory(bead *models.Bead, agentID string) (historyJSON string
 	history := make([]string, 0)
 	if bead != nil && bead.Context != nil {
 		if raw := bead.Context["dispatch_history"]; raw != "" {
-			_ = json.Unmarshal([]byte(raw), &history)
+			if err := json.Unmarshal([]byte(raw), &history)
 		}
 	}
 	history = append(history, agentID)
