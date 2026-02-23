@@ -1,0 +1,4 @@
+- [ ] All unit tests pass
+- [ ] Integration tests pass
+- [ ] Documentation builds successfully
+- [ ] User guide reviewed by personas (documentation-manager, project-manager, qa-engineer)
