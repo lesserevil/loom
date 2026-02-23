@@ -33,6 +33,14 @@ start_dolt() {
     dolt config --global --get user.email >/dev/null 2>&1 || \
         dolt config --global --add user.email "loom@localhost"
 
+    # Initialize beads database if it doesn't exist
+    if [ ! -d "$BEADS_DIR" ]; then
+        echo "[entrypoint] No beads directory found, initializing with bd init..."
+        cd /app
+        bd init 2>&1 || echo "[entrypoint] Warning: bd init had errors"
+        echo "[entrypoint] Beads database initialized"
+    fi
+
     # If the Dolt repo doesn't exist but the beads dir does, initialize it
     if [ -d "$BEADS_DIR" ] && [ ! -d "$BEADS_DOLT_DIR/.dolt" ]; then
         echo "[entrypoint] Initializing Dolt database at $BEADS_DOLT_DIR..."
