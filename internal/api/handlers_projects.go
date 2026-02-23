@@ -297,6 +297,33 @@ func (s *Server) handleProjectState(w http.ResponseWriter, r *http.Request, id s
 	s.respondJSON(w, http.StatusOK, state)
 }
 
+// handleProjectBeadsReset handles POST /api/v1/projects/{id}/beads/reset
+// It clears the in-memory bead state for the project and reloads from the
+// beads-sync branch on disk/git. Use this after a force-push, dolt recovery,
+// or any out-of-band change to the beads worktree.
+func (s *Server) handleProjectBeadsReset(w http.ResponseWriter, r *http.Request, id string) {
+	if r.Method != http.MethodPost {
+		s.respondError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	count, err := s.app.ReloadProjectBeads(r.Context(), id)
+	if err != nil {
+		if strings.Contains(err.Error(), "project not found") || strings.Contains(err.Error(), "no beads path") {
+			s.respondError(w, http.StatusNotFound, err.Error())
+		} else {
+			s.respondError(w, http.StatusInternalServerError, err.Error())
+		}
+		return
+	}
+
+	s.respondJSON(w, http.StatusOK, map[string]interface{}{
+		"project_id":   id,
+		"beads_loaded": count,
+		"status":       "reloaded",
+	})
+}
+
 // handleBootstrapProject handles POST /api/v1/projects/bootstrap
 func (s *Server) handleBootstrapProject(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {

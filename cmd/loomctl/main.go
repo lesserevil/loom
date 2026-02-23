@@ -1372,7 +1372,28 @@ func newProjectCommand() *cobra.Command {
 	}
 	cmd.AddCommand(newProjectListCommand())
 	cmd.AddCommand(newProjectShowCommand())
+	cmd.AddCommand(newProjectResetBeadsCommand())
 	return cmd
+}
+
+func newProjectResetBeadsCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "reset-beads <project-id>",
+		Short: "Reload a project's beads from its beads-sync branch",
+		Long: `Clears the server's in-memory bead state for a project and reloads it
+from the beads-sync branch on disk. Use this after a force-push, dolt
+recovery, or any out-of-band change to the project's beads worktree.`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client := newClient()
+			data, err := client.post(fmt.Sprintf("/api/v1/projects/%s/beads/reset", args[0]), nil)
+			if err != nil {
+				return err
+			}
+			outputJSON(data)
+			return nil
+		},
+	}
 }
 
 func newProjectListCommand() *cobra.Command {

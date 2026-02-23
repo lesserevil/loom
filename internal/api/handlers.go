@@ -323,6 +323,10 @@ func (s *Server) handleProject(w http.ResponseWriter, r *http.Request) {
 			s.handleProjectFiles(w, r, id, parts[2:])
 			return
 		}
+		if action == "beads" && len(parts) > 2 && parts[2] == "reset" {
+			s.handleProjectBeadsReset(w, r, id)
+			return
+		}
 		s.handleProjectStateEndpoints(w, r, id, action)
 		return
 	}

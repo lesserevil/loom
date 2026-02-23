@@ -123,6 +123,20 @@ func (m *Manager) buildBDCommand(args ...string) *exec.Cmd {
 }
 
 // Reset clears cached beads and work graph state.
+// ClearProjectBeads removes all in-memory beads for a specific project.
+// Call LoadBeadsFromFilesystem or LoadBeadsFromGit afterward to reload from disk.
+func (m *Manager) ClearProjectBeads(projectID string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for id, b := range m.beads {
+		if b.ProjectID == projectID {
+			delete(m.beads, id)
+			delete(m.beadFiles, id)
+			delete(m.workGraph.Beads, id)
+		}
+	}
+}
+
 func (m *Manager) Reset() {
 	m.mu.Lock()
 	defer m.mu.Unlock()

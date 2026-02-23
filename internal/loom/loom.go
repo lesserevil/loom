@@ -1439,6 +1439,30 @@ func (a *Loom) GetBeadsByProject(projectID string) ([]*models.Bead, error) {
 	return a.beadsManager.ListBeads(map[string]interface{}{"project_id": projectID})
 }
 
+// ReloadProjectBeads clears in-memory beads for a project and reloads from git/filesystem.
+// This is the "project reset" operation — use it after force-pushing new beads or recovering
+// from a corrupted beads store.
+func (a *Loom) ReloadProjectBeads(ctx context.Context, projectID string) (int, error) {
+	_, err := a.projectManager.GetProject(projectID)
+	if err != nil {
+		return 0, fmt.Errorf("project not found: %s", projectID)
+	}
+
+	beadsPath := a.beadsManager.GetProjectBeadsPath(projectID)
+	if beadsPath == "" {
+		return 0, fmt.Errorf("no beads path configured for project %s", projectID)
+	}
+
+	a.beadsManager.ClearProjectBeads(projectID)
+
+	if err := a.beadsManager.LoadBeadsFromGit(ctx, projectID, beadsPath); err != nil {
+		return 0, fmt.Errorf("reload failed: %w", err)
+	}
+
+	all, _ := a.beadsManager.ListBeads(map[string]interface{}{"project_id": projectID})
+	return len(all), nil
+}
+
 func (a *Loom) GetProjectWorkDir(projectID string) string {
 	p, err := a.projectManager.GetProject(projectID)
 	if err != nil || p == nil {
