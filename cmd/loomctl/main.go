@@ -50,6 +50,7 @@ All output is structured JSON by default (pipe through jq for human-readable for
 	rootCmd.AddCommand(newExportCommand())
 	rootCmd.AddCommand(newImportCommand())
 	rootCmd.AddCommand(newCreateFileCommand())
+	rootCmd.AddCommand(newProviderCommand())
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -319,6 +320,8 @@ func newBeadCommand() *cobra.Command {
 	cmd.AddCommand(newBeadPokeCommand())
 	cmd.AddCommand(newBeadUpdateCommand())
 	cmd.AddCommand(newBeadDeleteCommand())
+	cmd.AddCommand(newBeadErrorsCommand())
+	cmd.AddCommand(newBeadUnblockCommand())
 	return cmd
 }
 
@@ -541,6 +544,101 @@ func newBeadDeleteCommand() *cobra.Command {
 			return nil
 		},
 	}
+}
+
+func newBeadErrorsCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:     "errors <bead-id>",
+		Short:   "Show error history for a bead",
+		Args:    cobra.ExactArgs(1),
+		Example: `  loomctl bead errors loom-001`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client := newClient()
+			data, err := client.get(fmt.Sprintf("/api/v1/beads/%s", args[0]), nil)
+			if err != nil {
+				return err
+			}
+			var bead map[string]interface{}
+			if err := json.Unmarshal(data, &bead); err != nil {
+				return err
+			}
+			ctx, _ := bead["context"].(map[string]interface{})
+			if ctx == nil {
+				fmt.Println("(no context)")
+				return nil
+			}
+
+			// Print key diagnostic fields.
+			fmt.Printf("Bead:          %s\n", args[0])
+			fmt.Printf("Status:        %v\n", bead["status"])
+			if dc, ok := ctx["dispatch_count"]; ok {
+				fmt.Printf("Dispatches:    %v\n", dc)
+			}
+			if lre, ok := ctx["last_run_error"]; ok && lre != "" {
+				fmt.Printf("Last error:    %v\n", lre)
+			}
+			if rr, ok := ctx["ralph_blocked_reason"]; ok && rr != "" {
+				fmt.Printf("Blocked:       %v\n", rr)
+				fmt.Printf("Blocked at:    %v\n", ctx["ralph_blocked_at"])
+			}
+			if ld, ok := ctx["loop_detected"]; ok && ld == "true" {
+				fmt.Printf("Loop reason:   %v\n", ctx["loop_detected_reason"])
+			}
+
+			// Parse and display error_history JSON array.
+			histJSON, _ := ctx["error_history"].(string)
+			if histJSON == "" {
+				fmt.Println("\nNo error history recorded.")
+				return nil
+			}
+			var history []map[string]interface{}
+			if err := json.Unmarshal([]byte(histJSON), &history); err != nil {
+				fmt.Printf("\nRaw error_history: %s\n", histJSON)
+				return nil
+			}
+			fmt.Printf("\nError history (%d entries):\n", len(history))
+			for i, entry := range history {
+				ts, _ := entry["timestamp"].(string)
+				errMsg, _ := entry["error"].(string)
+				dc, _ := entry["dispatch"].(float64)
+				errMsg = strings.TrimSpace(errMsg)
+				if len(errMsg) > 100 {
+					errMsg = errMsg[:97] + "..."
+				}
+				fmt.Printf("  [%2d] dispatch=%-3.0f  %s\n       %s\n", i+1, dc, ts, errMsg)
+			}
+			return nil
+		},
+	}
+}
+
+func newBeadUnblockCommand() *cobra.Command {
+	var reason string
+	cmd := &cobra.Command{
+		Use:   "unblock <bead-id>",
+		Short: "Unblock a blocked bead and reset its error state",
+		Long: `Clears ralph_blocked_reason, error_history, and dispatch_count, then
+re-opens the bead so the task executor will pick it up again.`,
+		Args:    cobra.ExactArgs(1),
+		Example: `  loomctl bead unblock loom-001 --reason="provider fixed"`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client := newClient()
+			body := map[string]interface{}{
+				"reason": reason,
+			}
+			if reason == "" {
+				body["reason"] = "manually unblocked via loomctl"
+			}
+			data, err := client.post(fmt.Sprintf("/api/v1/beads/%s/redispatch", args[0]), body)
+			if err != nil {
+				return err
+			}
+			outputJSON(data)
+			return nil
+		},
+	}
+	cmd.Flags().StringVarP(&reason, "reason", "r", "", "Reason for unblocking")
+	return cmd
 }
 
 // --- Log commands ---
@@ -1361,6 +1459,117 @@ func newProjectShowCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client := newClient()
 			data, err := client.get(fmt.Sprintf("/api/v1/projects/%s", args[0]), nil)
+			if err != nil {
+				return err
+			}
+			outputJSON(data)
+			return nil
+		},
+	}
+}
+
+// --- Provider commands ---
+
+func newProviderCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "provider",
+		Short: "Manage LLM providers",
+	}
+	cmd.AddCommand(newProviderListCommand())
+	cmd.AddCommand(newProviderShowCommand())
+	cmd.AddCommand(newProviderRegisterCommand())
+	cmd.AddCommand(newProviderDeleteCommand())
+	return cmd
+}
+
+func newProviderListCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "list",
+		Short: "List all registered providers",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client := newClient()
+			data, err := client.get("/api/v1/providers", nil)
+			if err != nil {
+				return err
+			}
+			outputJSON(data)
+			return nil
+		},
+	}
+}
+
+func newProviderShowCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "show <provider-id>",
+		Short: "Show provider details",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client := newClient()
+			data, err := client.get(fmt.Sprintf("/api/v1/providers/%s", args[0]), nil)
+			if err != nil {
+				return err
+			}
+			outputJSON(data)
+			return nil
+		},
+	}
+}
+
+func newProviderRegisterCommand() *cobra.Command {
+	var (
+		name        string
+		provType    string
+		endpoint    string
+		model       string
+		apiKey      string
+		description string
+	)
+	cmd := &cobra.Command{
+		Use:   "register <id>",
+		Short: "Register or update a provider",
+		Args:  cobra.ExactArgs(1),
+		Example: `  loomctl provider register tokenhub --name="TokenHub" --type=openai \
+    --endpoint="http://172.17.0.1:8090/v1" --model="nvidia/openai/gpt-oss-20b" --api-key="sk-..."`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client := newClient()
+			body := map[string]interface{}{
+				"id":       args[0],
+				"name":     name,
+				"type":     provType,
+				"endpoint": endpoint,
+				"model":    model,
+			}
+			if apiKey != "" {
+				body["api_key"] = apiKey
+			}
+			if description != "" {
+				body["description"] = description
+			}
+			data, err := client.post("/api/v1/providers", body)
+			if err != nil {
+				return err
+			}
+			outputJSON(data)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&name, "name", "", "Display name")
+	cmd.Flags().StringVar(&provType, "type", "openai", "Provider type (openai, anthropic)")
+	cmd.Flags().StringVar(&endpoint, "endpoint", "", "API endpoint URL")
+	cmd.Flags().StringVar(&model, "model", "", "Default model ID")
+	cmd.Flags().StringVar(&apiKey, "api-key", "", "API key")
+	cmd.Flags().StringVar(&description, "description", "", "Description")
+	return cmd
+}
+
+func newProviderDeleteCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "delete <provider-id>",
+		Short: "Delete a provider",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client := newClient()
+			data, err := client.delete(fmt.Sprintf("/api/v1/providers/%s", args[0]))
 			if err != nil {
 				return err
 			}
