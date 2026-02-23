@@ -192,7 +192,7 @@ func (w *Worker) ExecuteTask(ctx context.Context, task *Task) (*TaskResult, erro
 	// Send request to provider (with automatic context-length retry)
 	resp, usedMessages, err := w.callWithContextRetry(ctx, req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get completion: %w", err)
+		return nil, fmt.Errorf("failed to get completion: %w. Please check provider credentials and network connectivity.", err)
 	}
 
 	// Extract result from response
