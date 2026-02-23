@@ -351,7 +351,7 @@ func newBeadListCommand() *cobra.Command {
 			if assignedTo != "" {
 				params.Set("assigned_to", assignedTo)
 			}
-			if hasPriority {
+			if hasPriority && priority >= 0 {
 				params.Set("priority", fmt.Sprintf("%d", priority))
 			}
 			data, err := client.get("/api/v1/beads", params)
