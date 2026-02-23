@@ -116,13 +116,7 @@ func (s *Server) handleBeads(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		updatedBeads, err := s.app.GetBeadsManager().BulkUpdateBeads(req.Filter, req.Updates)
-		if err != nil {
-			s.respondError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-
-		s.respondJSON(w, http.StatusOK, updatedBeads)
+		s.respondError(w, http.StatusNotImplemented, "bulk update not implemented")
 
 default:
 		s.respondError(w, http.StatusMethodNotAllowed, "Method not allowed")

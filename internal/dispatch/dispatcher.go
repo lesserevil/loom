@@ -1062,31 +1062,13 @@ func (d *Dispatcher) findDefaultTriageAgent(projectID string) string {
 	return ""
 }
 
-// createRemediationBead creates a P0 remediation bead when an agent gets stuck
-// Add provider-error detection to avoid creating remediation beads for specific errors
-func (d *Dispatcher) createRemediationBead(stuckBead *models.Bead, execErr error) {
-	if execErr != nil {
-		errMsg := execErr.Error()
-		if strings.Contains(errMsg, "connection_refused") || strings.Contains(errMsg, "429") || strings.Contains(errMsg, "502") {
-			log.Printf("[Remediation] Skipping remediation bead creation for provider error: %v", execErr)
-			return
-		}
-	}
-	// Existing logic for creating remediation beads
-}
+// createRemediationBead creates a P0 remediation bead when an agent gets stuck.
 func (d *Dispatcher) createRemediationBead(stuckBead *models.Bead, stuckAgent *models.Agent, result *worker.TaskResult) {
-    // Check for provider errors and skip remediation bead creation if detected
-    switch result.Error {
-    case "connection_refused", "429", "502":
-        log.Printf("Skipping remediation bead creation due to provider error: %s", result.Error)
-        return
-    }
-        log.Printf("Skipping remediation bead creation due to provider error: %s", result.Error)
-        return
-    }
-        log.Printf("Skipping remediation bead creation due to provider error: %s", result.Error)
-        return
-    }
+	// Skip remediation for provider errors that will resolve on their own
+	if result.Error == "connection_refused" || result.Error == "429" || result.Error == "502" {
+		log.Printf("[Remediation] Skipping remediation bead creation due to provider error: %s", result.Error)
+		return
+	}
 	if d.beads == nil {
 		log.Printf("[Remediation] Cannot create remediation bead: beads manager not available")
 		return
@@ -1270,16 +1252,6 @@ Work singlemindedly until the blocker is resolved. You have full access to:
 	)
 
 	// Create remediation bead using the manager's CreateBead method
-// Implement batch-closing of remediation beads whose root cause was a provider failure
-func (d *Dispatcher) batchCloseRemediationBeads(rootBeadID string, execErr error) {
-	if execErr != nil {
-		errMsg := execErr.Error()
-		if strings.Contains(errMsg, "connection_refused") || strings.Contains(errMsg, "429") || strings.Contains(errMsg, "502") {
-			log.Printf("[Remediation] Batch-closing remediation beads for root bead %s due to provider error: %v", rootBeadID, execErr)
-			// Logic to batch-close remediation beads
-		}
-	}
-}
 	title := fmt.Sprintf("Remediation: Fix agent stuck on %s", stuckBead.ID)
 	remediationBead, err := d.beads.CreateBead(
 		title,

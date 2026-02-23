@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"net"
 	"os"
 	"os/signal"
@@ -27,14 +27,14 @@ func main() {
 	healthInterval := envOrDefault("HEALTH_INTERVAL", "30s")
 	otelEndpoint := os.Getenv("OTEL_ENDPOINT")
 
-	log := slog.New(slog.NewJSONHandler(os.Stdout))
-log.Info("Starting ConnectorsService", slog.String("port", port), slog.String("config", configPath))
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	logger.Info("Starting ConnectorsService", slog.String("port", port), slog.String("config", configPath))
 
 	// Optionally initialise OTel tracing
 	if otelEndpoint != "" {
 		shutdown, err := telemetry.InitTelemetry(context.Background(), "connectors-service", otelEndpoint)
 		if err != nil {
-			log.Error("OTel init failed", slog.Error(err))
+			logger.Error("OTel init failed", "error", err)
 		} else {
 			defer shutdown(context.Background())
 		}
@@ -42,7 +42,7 @@ log.Info("Starting ConnectorsService", slog.String("port", port), slog.String("c
 
 	mgr := pkgconnectors.NewManager(configPath)
 	if err := mgr.LoadConfig(); err != nil {
-		log.Warn("Config load failed", slog.Error(err))
+		logger.Warn("Config load failed", "error", err)
 	}
 
 	interval, err := time.ParseDuration(healthInterval)
@@ -53,7 +53,7 @@ log.Info("Starting ConnectorsService", slog.String("port", port), slog.String("c
 
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", port))
 	if err != nil {
-		log.Error("Failed to listen on port", slog.String("port", port), slog.Error(err))
+		logger.Error("Failed to listen on port", slog.String("port", port), "error", err)
 	}
 
 	grpcServer := grpc.NewServer()
@@ -70,14 +70,14 @@ log.Info("Starting ConnectorsService", slog.String("port", port), slog.String("c
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		<-sigCh
-		log.Println("[ConnectorsService] Shutting down...")
+		logger.Info("[ConnectorsService] Shutting down...")
 		grpcServer.GracefulStop()
 		mgr.Close()
 	}()
 
-	log.Info("Serving gRPC", slog.String("port", port))
+	logger.Info("Serving gRPC", slog.String("port", port))
 	if err := grpcServer.Serve(lis); err != nil {
-		log.Error("gRPC serve error", slog.Error(err))
+		logger.Error("gRPC serve error", "error", err)
 	}
 }
 

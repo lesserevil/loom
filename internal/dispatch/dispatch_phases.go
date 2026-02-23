@@ -702,6 +702,7 @@ func (d *Dispatcher) processTaskSuccess(candidate *models.Bead, ag *models.Agent
 	} else if result.LoopTerminalReason == "completed" {
 		// Agent signaled "done" — close the bead so it won't be re-dispatched.
 		updates["status"] = models.BeadStatusClosed
+		updates["assigned_to"] = ""
 		log.Printf("[Dispatcher] Bead %s completed (agent signaled done), closing", candidate.ID)
 	} else if result.LoopTerminalReason == "inner_loop" || result.LoopTerminalReason == "progress_stagnant" {
 		// Agent is stuck — move bead back to open so it is not immediately re-dispatched.
@@ -750,7 +751,7 @@ func (d *Dispatcher) processTaskSuccess(candidate *models.Bead, ag *models.Agent
 // (iteration count, terminal reason, cooldown, remediation).
 func (d *Dispatcher) applyLoopMetadata(ctxUpdates map[string]string, candidate *models.Bead, ag *models.Agent, result *worker.TaskResult) {
 	// Check if the result contains a provider error
-	if isProviderError(result.Error) {
+	if result.Error != "" && isProviderError(fmt.Errorf("%s", result.Error)) {
 		log.Printf("[Dispatcher] Skipping loop metadata application for provider error: %v", result.Error)
 		return
 	}

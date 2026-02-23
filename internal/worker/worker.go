@@ -1005,7 +1005,9 @@ func (w *Worker) ExecuteTaskWithLoop(ctx context.Context, task *Task, config *Lo
 						log.Printf("[ActionLoop] Auto-push (container) succeeded for bead %s: %v", task.BeadID, pushResult.Output)
 					}
 				} else if config.Router.Git != nil {
-					pushResult, pushErr := config.Router.Git.Push(ctx, task.BeadID, "", false)
+					// Inject project ID into context so the git router can resolve the work dir
+					pushCtx := actions.WithProjectID(ctx, task.ProjectID)
+					pushResult, pushErr := config.Router.Git.Push(pushCtx, task.BeadID, "", false)
 					if pushErr != nil {
 						log.Printf("[ActionLoop] Auto-push after completion failed for bead %s: %v", task.BeadID, pushErr)
 					} else {

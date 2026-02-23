@@ -133,9 +133,16 @@ func (e *Executor) claimNextBead(ctx context.Context, projectID, workerID string
 		if b.Type == "decision" {
 			continue
 		}
-		// Skip in-progress beads that already have an assigned agent
+		// Skip in-progress beads that already have an assigned agent (being actively worked)
 		if b.Status == models.BeadStatusInProgress && b.AssignedTo != "" {
 			continue
+		}
+		// Fix inconsistent state: open bead with stale assignment — reset it
+		if b.Status == models.BeadStatusOpen && b.AssignedTo != "" {
+			_ = e.beadManager.UpdateBead(b.ID, map[string]interface{}{
+				"assigned_to": "",
+			})
+			b.AssignedTo = ""
 		}
 		// Try to claim; another worker goroutine may win the race
 		if err := e.beadManager.ClaimBead(b.ID, workerID); err != nil {
@@ -232,8 +239,14 @@ func (e *Executor) executeBead(ctx context.Context, bead *models.Bead, workerID 
 	log.Printf("[TaskExecutor] Bead %s finished: %s (%d iterations)",
 		bead.ID, result.TerminalReason, result.Iterations)
 
-	// If not closed by a done/close_bead action, reset to open for retry
-	if result.TerminalReason != "completed" {
+	if result.TerminalReason == "completed" {
+		// done/close_bead action signals success — explicitly mark closed
+		_ = e.beadManager.UpdateBead(bead.ID, map[string]interface{}{
+			"status":      models.BeadStatusClosed,
+			"assigned_to": "",
+		})
+	} else {
+		// Any non-successful terminal reason: reset to open for retry
 		_ = e.beadManager.UpdateBead(bead.ID, map[string]interface{}{
 			"status":      models.BeadStatusOpen,
 			"assigned_to": "",

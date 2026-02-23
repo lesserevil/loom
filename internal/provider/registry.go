@@ -52,18 +52,6 @@ func (r *Registry) Clear() {
 }
 
 func (r *Registry) Register(config *ProviderConfig) error {
-	// Run an immediate health check
-	if err := r.runHealthCheck(config); err != nil {
-		return fmt.Errorf("failed health check: %w", err)
-	}
-	// Run an immediate health check
-	if err := r.runHealthCheck(config); err != nil {
-		return fmt.Errorf("failed health check: %w", err)
-	}
-	// Run an immediate health check
-	if err := r.runHealthCheck(config); err != nil {
-		return fmt.Errorf("failed health check: %w", err)
-	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if config.Status == "" {
@@ -305,6 +293,4 @@ func (r *Registry) UpdateHeartbeatLatency(providerID string, latencyMs int64) {
 
 func isProviderHealthy(status string) bool {
 	return status == "healthy"
-}
-	return status == "healthy" && !status == "pending"
 }

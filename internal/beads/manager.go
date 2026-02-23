@@ -378,6 +378,12 @@ func (m *Manager) UpdateBead(id string, updates map[string]interface{}) error {
 		if status != models.BeadStatusClosed {
 			bead.ClosedAt = nil
 		}
+		// When resetting to open, clear any stale assignment unless explicitly overridden
+		if status == models.BeadStatusOpen {
+			if _, hasAssigned := updates["assigned_to"]; !hasAssigned {
+				bead.AssignedTo = ""
+			}
+		}
 	}
 	if priority, ok := updates["priority"].(models.BeadPriority); ok {
 		bead.Priority = priority
