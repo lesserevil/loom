@@ -560,7 +560,7 @@ func (m *WorkerManager) ExecuteTask(ctx context.Context, agentID string, task *w
 	if m.actionLoopEnabled && router != nil {
 		workerInstance, workerErr := m.workerPool.GetWorker(agentID)
 		if workerErr != nil {
-			return nil, fmt.Errorf("failed to get worker for loop: %w. Please ensure the worker is properly initialized and available.", workerErr)
+			return nil, fmt.Errorf("failed to get worker for loop: %w. Please ensure the worker is properly initialized and available. Consider checking worker pool initialization and provider assignment.", workerErr)
 		}
 
 		// Check if worker is stuck in "working" state - if so, respawn it
