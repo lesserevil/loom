@@ -1059,11 +1059,6 @@ footer a:hover {
     nav {
         flex-direction: column;
     }
-
-    .nav-list {
-        flex-direction: column;
-        gap: 0.5rem;
-    }
 }
 
 @media (max-width: 480px) {
