@@ -258,5 +258,5 @@ func defaultProjectID(projectID string) string {
 	if projectID != "" {
 		return projectID
 	}
-	return "loom-self"
+	return "loom"
 }

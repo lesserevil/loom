@@ -197,7 +197,7 @@ func (w *Worker) ExecuteTask(ctx context.Context, task *Task) (*TaskResult, erro
 
 	// Extract result from response
 	if len(resp.Choices) == 0 {
-		return nil, fmt.Errorf("no response from provider")
+		return nil, fmt.Errorf("no response from provider, please check provider configuration and network connectivity")
 	}
 
 	// Store assistant response in conversation context
