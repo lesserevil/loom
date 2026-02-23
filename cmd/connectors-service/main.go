@@ -34,7 +34,7 @@ log.Info("Starting ConnectorsService", slog.String("port", port), slog.String("c
 	if otelEndpoint != "" {
 		shutdown, err := telemetry.InitTelemetry(context.Background(), "connectors-service", otelEndpoint)
 		if err != nil {
-			log.Printf("[ConnectorsService] OTel init failed (non-fatal): %v", err)
+			log.Error("OTel init failed", slog.Error(err))
 		} else {
 			defer shutdown(context.Background())
 		}

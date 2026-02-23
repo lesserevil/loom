@@ -179,7 +179,7 @@ func (r *Registry) IsActive(providerID string) bool {
 	if !exists || provider == nil || provider.Config == nil {
 		return false
 	}
-	return isProviderHealthy(provider.Config.Status)
+	return provider.Config.Status == "healthy"
 }
 
 func (r *Registry) SetMetricsCallback(callback MetricsCallback) {
