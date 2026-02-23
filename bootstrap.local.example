@@ -25,7 +25,7 @@ LOOM_PROVIDER_API_KEY="${LOOM_PROVIDER_API_KEY:-}"
 # TokenHub-specific vars — only needed if using embedded/standalone TokenHub.
 export TOKENHUB_URL="${TOKENHUB_URL:-$LOOM_PROVIDER_URL}"
 export TOKENHUB_ADMIN_TOKEN="${TOKENHUB_ADMIN_TOKEN:-}"
-TOKENHUBCTL="${TOKENHUBCTL:-tokenhubctl}"
+TOKENHUBCTL="tokenhubctl"
 
 # === Phase 1: Configure your LLM provider ===
 #

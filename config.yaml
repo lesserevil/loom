@@ -116,7 +116,7 @@ models:
       tier: complex
       min_vram_gb: 0
       notes: "Excellent balance of capability and speed"
-    - name: "Qwen/Qwen2.5-Coder-32B-Instruct"
+    - name: "Qwen/Qwen3-Coder-480B-A35B-Instruct"
       rank: 11
       tier: complex
       min_vram_gb: 64

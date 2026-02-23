@@ -609,6 +609,11 @@ func (d *Dispatcher) publishDispatchedTask(ctx context.Context, candidate *model
 // processTaskError handles the aftermath of a failed task execution,
 // including bead context updates, loop detection, and workflow failure.
 func (d *Dispatcher) processTaskError(candidate *models.Bead, ag *models.Agent, selectedProjectID string, execErr error) {
+	// Check if the error is a provider error
+	if isProviderError(execErr) {
+		log.Printf("[Dispatcher] Skipping remediation bead creation for provider error: %v", execErr)
+		return
+	}
 	d.setStatus(StatusParked, "execution failed")
 	observability.Error("dispatch.execute", map[string]interface{}{
 		"agent_id":    ag.ID,
@@ -744,6 +749,11 @@ func (d *Dispatcher) processTaskSuccess(candidate *models.Bead, ag *models.Agent
 // applyLoopMetadata enriches context updates with action loop metadata
 // (iteration count, terminal reason, cooldown, remediation).
 func (d *Dispatcher) applyLoopMetadata(ctxUpdates map[string]string, candidate *models.Bead, ag *models.Agent, result *worker.TaskResult) {
+	// Check if the result contains a provider error
+	if isProviderError(result.Error) {
+		log.Printf("[Dispatcher] Skipping loop metadata application for provider error: %v", result.Error)
+		return
+	}
 	if result.LoopIterations <= 0 {
 		return
 	}
