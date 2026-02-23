@@ -1286,6 +1286,8 @@ func hashActions(acts []actions.Action) string {
 		sb.WriteString("|")
 		sb.WriteString(a.Command)
 		sb.WriteString("|")
+		sb.WriteString(a.Query)
+		sb.WriteString("|")
 	}
 	h := sha256.Sum256([]byte(sb.String()))
 	return hex.EncodeToString(h[:8])

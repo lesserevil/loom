@@ -693,17 +693,21 @@ func (d *Dispatcher) processTaskSuccess(candidate *models.Bead, ag *models.Agent
 	}
 
 	updates := map[string]interface{}{"context": ctxUpdates}
-	if loopDetected {
+	// Check for successful completion FIRST — if the agent signaled done, close the bead
+	// regardless of dispatch history. The agent completed its work successfully.
+	if result.LoopTerminalReason == "completed" {
+		// Agent signaled "done" — close the bead so it won't be re-dispatched.
+		updates["status"] = models.BeadStatusClosed
+		updates["assigned_to"] = ""
+		log.Printf("[Dispatcher] Bead %s completed (agent signaled done), closing", candidate.ID)
+	} else if loopDetected {
+		// Dispatch-level loop detected (alternating agents) — reassign to triage.
+		// This only triggers if the agent did NOT complete successfully.
 		triageAgent := d.findDefaultTriageAgent(candidate.ProjectID)
 		updates["priority"] = models.BeadPriorityP0
 		updates["status"] = models.BeadStatusOpen
 		updates["assigned_to"] = triageAgent
 		log.Printf("[Dispatcher] Task failure loop for bead %s, reassigning to triage agent %s", candidate.ID, triageAgent)
-	} else if result.LoopTerminalReason == "completed" {
-		// Agent signaled "done" — close the bead so it won't be re-dispatched.
-		updates["status"] = models.BeadStatusClosed
-		updates["assigned_to"] = ""
-		log.Printf("[Dispatcher] Bead %s completed (agent signaled done), closing", candidate.ID)
 	} else if result.LoopTerminalReason == "inner_loop" || result.LoopTerminalReason == "progress_stagnant" {
 		// Agent is stuck — move bead back to open so it is not immediately re-dispatched.
 		// A remediation bead has already been created by applyLoopMetadata; the original
@@ -722,10 +726,11 @@ func (d *Dispatcher) processTaskSuccess(candidate *models.Bead, ag *models.Agent
 
 	if d.eventBus != nil {
 		status := string(models.BeadStatusInProgress)
-		if loopDetected {
-			status = string(models.BeadStatusOpen)
-		} else if result.LoopTerminalReason == "completed" {
+		// Mirror the condition order above: completed takes precedence over loopDetected
+		if result.LoopTerminalReason == "completed" {
 			status = string(models.BeadStatusClosed)
+		} else if loopDetected {
+			status = string(models.BeadStatusOpen)
 		} else if result.LoopTerminalReason == "inner_loop" || result.LoopTerminalReason == "progress_stagnant" {
 			status = string(models.BeadStatusOpen)
 		}
@@ -733,7 +738,9 @@ func (d *Dispatcher) processTaskSuccess(candidate *models.Bead, ag *models.Agent
 			map[string]interface{}{"status": status})
 	}
 
-	if !loopDetected {
+	// Advance workflow only if not in a dispatch loop AND not completed
+	// (completed beads don't need workflow advancement)
+	if !loopDetected && result.LoopTerminalReason != "completed" {
 		d.advanceWorkflowOnSuccess(candidate, ag.ID, result)
 	}
 
