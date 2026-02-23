@@ -10,7 +10,7 @@ description: Identify goroutine leaks and race‑prone code
 status: open
 priority: 2
 projectid: loom
-assignedto: agent-1771534515-QA Engineer (Default)
+assignedto: ""
 blockedby: []
 blocks: []
 relatedto: []
@@ -64,5 +64,5 @@ duedate: null
 milestoneid: ""
 estimatedtime: 0
 createdat: 2026-02-06T14:23:40Z
-updatedat: 2026-02-23T02:04:26.965766625Z
+updatedat: 2026-02-23T02:04:54.579269754Z
 closedat: null
