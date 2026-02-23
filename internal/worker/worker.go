@@ -19,7 +19,7 @@ import (
 	"github.com/jordanhubbard/loom/pkg/models"
 )
 
-// Worker represents an agent worker that processes tasks
+// Worker return w.statuspresents an agent worker that processes tasks
 type Worker struct {
 	id          string
 	agent       *models.Agent
