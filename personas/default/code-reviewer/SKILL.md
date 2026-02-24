@@ -102,6 +102,7 @@ Bead: <bead-id>
 3. **Atomic commits**: Each commit should represent one logical change.
 4. **Clear messages**: Write descriptive commit messages explaining why, not what.
 5. **Reference beads**: Always include bead ID in commits.
+6. **No stray scripts**: Throwaway helper scripts must never be left in a source package (`package main` in the root is the real binary). Delete them after use or place them under `cmd/<name>/` if they need to persist.
 
 ### Security Considerations
 
