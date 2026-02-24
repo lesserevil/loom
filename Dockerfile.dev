@@ -1,0 +1,8 @@
+# Lightweight builder image for development operations (build, test, lint, fmt).
+# Matches the builder stage of the production Dockerfile minus the source copy
+# and compile steps, so it can be used with a bind-mounted working directory.
+FROM golang:1.25-alpine
+
+RUN apk add --no-cache git ca-certificates tzdata gcc g++ musl-dev openssh-client icu-dev bash bc
+
+WORKDIR /build
