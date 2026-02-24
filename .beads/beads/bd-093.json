@@ -1,0 +1,10 @@
+{
+  "id": "bd-093",
+  "title": "P0: Provider endpoint points to Docker hostname http://tokenhub:8080/v1 instead of http://localhost:8090/v1",
+  "status": "closed",
+  "priority": 0,
+  "resolution": "invalid",
+  "resolution_notes": "This is not a bug. The Docker internal hostname (tokenhub:8080) is correct for containerized services, while localhost:8090 is correct for host-side access. Both are working as designed. The bead was ill-defined.",
+  "closed_at": "2026-02-24T00:00:00Z",
+  "closed_by": "remediation-agent"
+}

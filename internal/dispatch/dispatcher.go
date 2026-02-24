@@ -1120,6 +1120,13 @@ func (d *Dispatcher) createRemediationBead(stuckBead *models.Bead, stuckAgent *m
 		log.Printf("[Remediation] Skipping remediation bead creation due to provider/infrastructure error: %s", result.Error)
 		return
 	}
+	// Also check bead context for provider errors - the result.Error may contain
+	// generic messages like "detected stuck inner loop" while the actual provider
+	// errors are recorded in the bead context (last_run_error, error_history).
+	if beadHasProviderErrors(stuckBead.Context) {
+		log.Printf("[Remediation] Skipping remediation bead creation - bead context indicates provider/infrastructure errors")
+		return
+	}
 	if d.beads == nil {
 		log.Printf("[Remediation] Cannot create remediation bead: beads manager not available")
 		return
