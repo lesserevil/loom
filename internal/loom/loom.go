@@ -3818,9 +3818,17 @@ func (a *Loom) resetInconsistentAgents() int {
 	return count
 }
 
+// debugWrite writes debug output to a file, logging any errors.
+// This ensures diagnostic data loss is visible when /tmp is unavailable or disk is full.
+func debugWrite(path string, data []byte) {
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		log.Printf("[DispatchLoop] debug write to %s failed: %v", path, err)
+	}
+}
+
 // StartDispatchLoop runs a periodic dispatcher that fills all idle agents with work.
 func (a *Loom) StartDispatchLoop(ctx context.Context, interval time.Duration) {
-	os.WriteFile("/tmp/dispatch-loop-entered.txt", []byte(fmt.Sprintf("a=%v dispatcher=%v\n", a != nil, a != nil && a.dispatcher != nil)), 0644)
+	debugWrite("/tmp/dispatch-loop-entered.txt", []byte(fmt.Sprintf("a=%v dispatcher=%v\n", a != nil, a != nil && a.dispatcher != nil)))
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("[DispatchLoop] PANIC recovered: %v", r)
@@ -3828,11 +3836,11 @@ func (a *Loom) StartDispatchLoop(ctx context.Context, interval time.Duration) {
 	}()
 
 	if a == nil || a.dispatcher == nil {
-		os.WriteFile("/tmp/dispatch-loop-nil-dispatcher.txt", []byte("DISPATCHER IS NIL\n"), 0644)
+		debugWrite("/tmp/dispatch-loop-nil-dispatcher.txt", []byte("DISPATCHER IS NIL\n"))
 		log.Printf("[DispatchLoop] No dispatcher configured, skipping")
 		return
 	}
-	os.WriteFile("/tmp/dispatch-loop-past-nil-check.txt", []byte("PAST NIL CHECK\n"), 0644)
+	debugWrite("/tmp/dispatch-loop-past-nil-check.txt", []byte("PAST NIL CHECK\n"))
 	if interval <= 0 {
 		interval = 10 * time.Second
 	}
@@ -3846,7 +3854,7 @@ func (a *Loom) StartDispatchLoop(ctx context.Context, interval time.Duration) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			os.WriteFile("/tmp/dispatch-loop-tick.txt", []byte(fmt.Sprintf("TICK at %s\n", time.Now())), 0644)
+			debugWrite("/tmp/dispatch-loop-tick.txt", []byte(fmt.Sprintf("TICK at %s\n", time.Now())))
 
 			// Phase 1: Reset agents stuck in "working" state (similar to Ralph Loop)
 			// Using 10 minute timeout — context cancellation handles premature kills;
@@ -3857,7 +3865,7 @@ func (a *Loom) StartDispatchLoop(ctx context.Context, interval time.Duration) {
 				// Then reset agents stuck for too long
 				timeoutReset := a.agentManager.ResetStuckAgents(10 * time.Minute)
 				totalReset := inconsistentReset + timeoutReset
-				os.WriteFile("/tmp/dispatch-agents-reset.txt", []byte(fmt.Sprintf("reset=%d (inconsistent=%d timeout=%d)\n", totalReset, inconsistentReset, timeoutReset)), 0644)
+				debugWrite("/tmp/dispatch-agents-reset.txt", []byte(fmt.Sprintf("reset=%d (inconsistent=%d timeout=%d)\n", totalReset, inconsistentReset, timeoutReset)))
 				if totalReset > 0 {
 					log.Printf("[DispatchLoop] Reset %d stuck agent(s) (inconsistent=%d, timeout=%d)", totalReset, inconsistentReset, timeoutReset)
 				}
@@ -3868,7 +3876,7 @@ func (a *Loom) StartDispatchLoop(ctx context.Context, interval time.Duration) {
 			for i := 0; i < 50; i++ {
 				dr, err := a.dispatcher.DispatchOnce(ctx, "")
 				if err != nil || dr == nil || !dr.Dispatched {
-					os.WriteFile("/tmp/dispatch-loop-result.txt", []byte(fmt.Sprintf("dispatched=%d err=%v dr=%v\n", dispatched, err, dr != nil && dr.Dispatched)), 0644)
+					debugWrite("/tmp/dispatch-loop-result.txt", []byte(fmt.Sprintf("dispatched=%d err=%v dr=%v\n", dispatched, err, dr != nil && dr.Dispatched)))
 					break
 				}
 				dispatched++
