@@ -45,6 +45,7 @@ agents:
     - qa-engineer
     - devops-engineer
     - remediation-specialist
+    - public-relations-manager
 
 dispatch:
   max_hops: 20
