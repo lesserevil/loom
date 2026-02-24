@@ -352,6 +352,26 @@ func (d *Dispatcher) SetReadinessMode(mode ReadinessMode) {
 	d.readinessMode = mode
 }
 
+// SetLifecycleContext sets the dispatcher's lifecycle context for graceful shutdown.
+// Task goroutines derive their context from this, enabling cancellation propagation
+// when Loom is shutting down.
+func (d *Dispatcher) SetLifecycleContext(ctx context.Context) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.lifecycleCtx = ctx
+}
+
+// SetTaskTimeout sets the maximum duration for a single task execution.
+// If not set, defaults to 30 minutes.
+func (d *Dispatcher) SetTaskTimeout(timeout time.Duration) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.taskTimeout = timeout
+}
+
+// DefaultTaskTimeout is the default maximum duration for task execution.
+const DefaultTaskTimeout = 30 * time.Minute
+
 // processCommitQueue processes commit requests sequentially to prevent git conflicts
 func (d *Dispatcher) processCommitQueue() {
 	for req := range d.commitQueue {
@@ -598,7 +618,20 @@ func (d *Dispatcher) DispatchOnce(ctx context.Context, projectID string) (*Dispa
 			d.inflightMu.Unlock()
 		}()
 
-		taskCtx := ctx
+		// Use lifecycle context with task timeout instead of request context.
+		// This enables graceful shutdown cancellation and prevents goroutine leaks.
+		d.mu.RLock()
+		baseCtx := d.lifecycleCtx
+		timeout := d.taskTimeout
+		d.mu.RUnlock()
+		if baseCtx == nil {
+			baseCtx = context.Background()
+		}
+		if timeout == 0 {
+			timeout = DefaultTaskTimeout
+		}
+		taskCtx, cancel := context.WithTimeout(baseCtx, timeout)
+		defer cancel()
 
 		if d.workflowEngine != nil {
 			execution, err := d.workflowEngine.GetDatabase().GetWorkflowExecutionByBeadID(candidate.ID)
