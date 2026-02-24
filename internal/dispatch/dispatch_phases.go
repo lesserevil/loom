@@ -272,7 +272,7 @@ func (d *Dispatcher) matchAgentForBead(b *models.Bead, idleAgents []*models.Agen
 			if fallbackAgent == nil {
 				fallbackAgent = a
 			}
-			if normalizeRoleName(a.Role) == "engineering-manager" {
+			if rolesMatch(a.Role, "engineering-manager") {
 				matchedAgent = a
 				break
 			}
@@ -445,9 +445,8 @@ func (d *Dispatcher) selectCandidate(
 
 				workflowRole := d.getWorkflowRoleRequirement(execution)
 				if workflowRole != "" {
-					requiredRoleKey := normalizeRoleName(workflowRole)
 					for _, agent := range idleAgents {
-						if agent != nil && normalizeRoleName(agent.Role) == requiredRoleKey {
+						if agent != nil && rolesMatch(agent.Role, workflowRole) {
 							return candidateSelection{Bead: b, Agent: agent, SkippedReasons: skippedReasons}
 						}
 					}

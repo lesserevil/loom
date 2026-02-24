@@ -998,6 +998,12 @@ func normalizeRoleName(role string) string {
 	return role
 }
 
+// rolesMatch compares two role names after normalization.
+// Use this instead of direct string comparison to ensure consistent role matching.
+func rolesMatch(a, b string) bool {
+	return normalizeRoleName(a) == normalizeRoleName(b)
+}
+
 // inferAgentRole determines the NATS role subject based on the agent and bead.
 func (d *Dispatcher) inferAgentRole(ag *models.Agent, bead *models.Bead) string {
 	role := normalizeRoleName(ag.Role)
