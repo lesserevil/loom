@@ -907,6 +907,28 @@ func (a *Loom) Initialize(ctx context.Context) error {
 				return fmt.Errorf("failed to reload providers: %w", err)
 			}
 		}
+
+		// Auto-bootstrap provider from LOOM_PROVIDER_URL environment variable
+		// when no providers exist in database or config. This enables zero-config
+		// startup in Docker environments where these env vars are set.
+		if len(providers) == 0 {
+			if envURL := os.Getenv("LOOM_PROVIDER_URL"); envURL != "" {
+				log.Printf("[Loom] No providers configured — bootstrapping from LOOM_PROVIDER_URL: %s", envURL)
+				envAPIKey := os.Getenv("LOOM_PROVIDER_API_KEY")
+				seed := &internalmodels.Provider{
+					ID:          "tokenhub",
+					Name:        "TokenHub",
+					Type:        "openai",
+					Endpoint:    envURL,
+					RequiresKey: envAPIKey != "",
+					Status:      "pending",
+				}
+				if _, regErr := a.RegisterProvider(ctx, seed, envAPIKey); regErr != nil {
+					log.Printf("[Loom] Failed to bootstrap provider from env: %v", regErr)
+				}
+				providers, _ = a.database.ListProviders()
+			}
+		}
 		for _, p := range providers {
 			selected := p.SelectedModel
 			if selected == "" {
