@@ -1098,8 +1098,37 @@ func (m *Manager) SaveBeadToGit(ctx context.Context, bead *models.Bead, beadsPat
 		return fmt.Errorf("worktree manager does not support GetWorktreePath")
 	}
 
-	// Build path relative to beads worktree
-	beadFile := filepath.Join(".beads", "beads", fmt.Sprintf("%s-%s.yaml", bead.ID, sanitizeFilename(bead.Title)))
+	// Derive the relative path from the actual saved file location.
+	// Beads may have been loaded from the main worktree (m.beadFiles points there),
+	// so we cannot assume the file is already in the beads worktree.
+	m.mu.RLock()
+	actualPath := m.beadFiles[bead.ID]
+	m.mu.RUnlock()
+
+	var beadFile string
+	if rel, err := filepath.Rel(beadsWorktree, actualPath); err == nil && !strings.HasPrefix(rel, "..") {
+		// File is already inside the beads worktree — use its relative path.
+		beadFile = rel
+	} else {
+		// File is outside the beads worktree (e.g., loaded from main worktree).
+		// Write a copy into the beads worktree so it can be staged.
+		beadFile = filepath.Join(".beads", "beads", filepath.Base(actualPath))
+		dest := filepath.Join(beadsWorktree, beadFile)
+		if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
+			return fmt.Errorf("failed to create beads dir in worktree: %w", err)
+		}
+		data, err := os.ReadFile(actualPath)
+		if err != nil {
+			return fmt.Errorf("failed to read bead file for copy: %w", err)
+		}
+		if err := os.WriteFile(dest, data, 0644); err != nil {
+			return fmt.Errorf("failed to copy bead to beads worktree: %w", err)
+		}
+		// Update m.beadFiles to point to the beads worktree going forward.
+		m.mu.Lock()
+		m.beadFiles[bead.ID] = dest
+		m.mu.Unlock()
+	}
 
 	// Auto-recover from a stuck rebase before doing anything else.
 	rebaseMerge := filepath.Join(beadsWorktree, ".git", "rebase-merge")
