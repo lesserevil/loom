@@ -34,7 +34,9 @@ type Manager struct {
 	projectBeadsPaths map[string]string // Project ID -> beads worktree path (avoids last-writer-wins)
 
 	// Git-centric storage fields (per-project)
-	gitConfigs map[string]*GitConfig // Project ID -> git configuration
+	gitConfigs  map[string]*GitConfig   // Project ID -> git configuration
+	gitMu       sync.Mutex              // Protects gitLocks map
+	gitLocks    map[string]*sync.Mutex  // Per-project mutex to serialize git operations
 }
 
 // GitConfig stores git storage configuration for a project
@@ -64,7 +66,21 @@ func NewManager(bdPath string) *Manager {
 		projectNextIDs:    make(map[string]int),
 		projectBeadsPaths: make(map[string]string),
 		gitConfigs:        make(map[string]*GitConfig),
+		gitLocks:          make(map[string]*sync.Mutex),
 	}
+}
+
+// projectGitLock returns (and lazily creates) the per-project mutex that
+// serializes git operations on a given beads worktree.
+func (m *Manager) projectGitLock(projectID string) *sync.Mutex {
+	m.gitMu.Lock()
+	defer m.gitMu.Unlock()
+	if mu, ok := m.gitLocks[projectID]; ok {
+		return mu
+	}
+	mu := &sync.Mutex{}
+	m.gitLocks[projectID] = mu
+	return mu
 }
 
 // SetGitStorage configures git-centric bead storage for a project
@@ -1086,6 +1102,12 @@ func (m *Manager) SaveBeadToGit(ctx context.Context, bead *models.Bead, beadsPat
 	if !ok || gitConfig == nil || !gitConfig.UseGitStorage || gitConfig.WorktreeManager == nil {
 		return nil // No git operations if disabled or not configured for this project
 	}
+
+	// Serialize all git operations for this project to prevent concurrent
+	// git processes from leaving index.lock files.
+	gitLock := m.projectGitLock(bead.ProjectID)
+	gitLock.Lock()
+	defer gitLock.Unlock()
 
 	// Get beads worktree path
 	type pathGetter interface {
