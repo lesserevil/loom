@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.12] - 2026-02-24
+
+### Fixed
+- resolve CI lint and test failures
+- correct port mapping in docker-compose — loom listens on 8081 not 8080
+
 ## [0.1.11] - 2026-02-24
 
 ### Added
