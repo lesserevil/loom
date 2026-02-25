@@ -1917,7 +1917,7 @@ function renderProjects() {
     const projectList = document.getElementById('project-list');
     if (!projectList) return;
     projectList.innerHTML =
-        html || renderEmptyState('No projects configured', 'Add a project to get started.', '<button type="button" onclick="showCreateProjectModal()">Add Project</button>');
+        html || renderEmptyState('No projects configured', 'Add a project to get started.', '<button type="button" onclick="showBootstrapProjectModal()">New Project</button>');
 }
 
 function viewProject(projectId) {
