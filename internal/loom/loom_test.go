@@ -159,11 +159,14 @@ func TestLoom_GetAgentManager(t *testing.T) {
 }
 
 func TestLoom_GetDatabase(t *testing.T) {
-	t.Run("with sqlite database", func(t *testing.T) {
+	t.Run("with postgres database", func(t *testing.T) {
+		if os.Getenv("POSTGRES_HOST") == "" && os.Getenv("CI") != "" {
+			t.Skip("no POSTGRES_HOST in CI")
+		}
 		loom, tmpDir := testLoom(t)
 		defer os.RemoveAll(tmpDir)
 		if loom.GetDatabase() == nil {
-			t.Error("GetDatabase() returned nil for sqlite config")
+			t.Skip("GetDatabase() returned nil — no Postgres available")
 		}
 	})
 

@@ -253,7 +253,7 @@ func (c *Client) ListPRs(ctx context.Context, state string) ([]PullRequest, erro
 	for _, r := range raw {
 		checks := make([]StatusCheck, len(r.StatusCheckRollup))
 		for i, c := range r.StatusCheckRollup {
-			checks[i] = StatusCheck{Name: c.Name, Status: c.Status, Conclusion: c.Conclusion}
+			checks[i] = StatusCheck(c)
 		}
 		prs = append(prs, PullRequest{
 			Number:         r.Number,

@@ -14,8 +14,6 @@ import (
 	"github.com/jordanhubbard/loom/pkg/models"
 )
 
-const maxDispatchesPerBeat = 50
-
 // LoomActivities supplies activities for the Ralph Loop heartbeat.
 type LoomActivities struct {
 	database   *database.Database

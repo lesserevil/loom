@@ -845,8 +845,8 @@ func TestSelectCandidate_AssignedBusyAgent(t *testing.T) {
 	idleAgents := []*models.Agent{altAgent}
 
 	sel2 := d.selectCandidate(context.Background(), beads, idleAgents, idleByID2, allByID2)
-	if sel2.Bead == nil {
-		t.Error("Expected bead to be dispatched to alternative idle agent when assigned agent is busy")
+	if sel2.Bead != nil {
+		t.Error("Expected bead to be skipped: assigned agent is busy and reassigning causes infinite dispatch loops")
 	}
 }
 

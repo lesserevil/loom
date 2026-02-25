@@ -165,12 +165,6 @@ func (p *Parser) ParseGoLint(output string) []Finding {
 	// JSON: {"from":"file.go:10:5","severity":"error","message":"error message","source":"rule-name"}
 	// Plain: file.go:10:5: error message (rule-name)
 
-	// Try JSON first
-	if strings.HasPrefix(strings.TrimSpace(output), "[") {
-		// For now, fall through to plain parsing
-		// Could add JSON parsing here if needed
-	}
-
 	// Plain text pattern: path/to/file.go:line:col: message (rule)
 	re := regexp.MustCompile(`([^:]+):(\d+):(\d+)?:?\s*(.+?)(?:\s+\(([^)]+)\))?$`)
 

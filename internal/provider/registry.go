@@ -60,19 +60,23 @@ func (r *Registry) Register(config *ProviderConfig) error {
 		return fmt.Errorf("unsupported provider type: %s", config.Type)
 	}
 
-	// Run immediate health check before accepting the provider
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	// Run immediate health check before accepting the provider.
+	// Skip for mock providers — they always succeed and would bypass the
+	// "starts as pending" invariant that tests and callers depend on.
+	if config.Type != "mock" {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
 
-	_, err := protocol.GetModels(ctx)
-	if err != nil {
-		log.Printf("[Registry] Health check failed for provider %s: %v", config.ID, err)
-		// Still register but keep status as pending
-	} else {
-		// Health check passed - promote to healthy
-		config.Status = "healthy"
-		config.LastHeartbeatAt = time.Now()
-		log.Printf("[Registry] Provider %s passed health check, status: healthy", config.ID)
+		_, err := protocol.GetModels(ctx)
+		if err != nil {
+			log.Printf("[Registry] Health check failed for provider %s: %v", config.ID, err)
+			// Still register but keep status as pending
+		} else {
+			// Health check passed - promote to healthy
+			config.Status = "healthy"
+			config.LastHeartbeatAt = time.Now()
+			log.Printf("[Registry] Provider %s passed health check, status: healthy", config.ID)
+		}
 	}
 
 	r.mu.Lock()
@@ -168,7 +172,7 @@ func (r *Registry) ListActive() []*RegisteredProvider {
 
 	providers := make([]*RegisteredProvider, 0, len(r.providers))
 	for _, provider := range r.providers {
-		if provider != nil && provider.Config != nil && provider.Config.Status == "healthy" {
+		if provider != nil && provider.Config != nil && isProviderHealthy(provider.Config.Status) {
 			providers = append(providers, provider)
 		}
 	}
@@ -183,7 +187,7 @@ func (r *Registry) IsActive(providerID string) bool {
 	if !exists || provider == nil || provider.Config == nil {
 		return false
 	}
-	return provider.Config.Status == "healthy"
+	return isProviderHealthy(provider.Config.Status)
 }
 
 func (r *Registry) SetMetricsCallback(callback MetricsCallback) {
@@ -308,5 +312,5 @@ func (r *Registry) UpdateHeartbeatLatency(providerID string, latencyMs int64) {
 }
 
 func isProviderHealthy(status string) bool {
-	return status == "healthy"
+	return status == "healthy" || status == "active"
 }
