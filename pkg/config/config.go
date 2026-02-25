@@ -29,24 +29,24 @@ type Provider struct {
 // and JSON-based configuration (for user-specific config using LoadConfig).
 type Config struct {
 	// YAML/File-based configuration fields
-	Server    ServerConfig    `yaml:"server" json:"server,omitempty"`
-	Database  DatabaseConfig  `yaml:"database" json:"database,omitempty"`
-	Beads     BeadsConfig     `yaml:"beads" json:"beads,omitempty"`
-	Agents    AgentsConfig    `yaml:"agents" json:"agents,omitempty"`
-	Security  SecurityConfig  `yaml:"security" json:"security,omitempty"`
-	Cache     CacheConfig     `yaml:"cache" json:"cache,omitempty"`
-	Readiness ReadinessConfig `yaml:"readiness" json:"readiness,omitempty"`
-	Dispatch  DispatchConfig  `yaml:"dispatch" json:"dispatch,omitempty"`
-	Git       GitConfig       `yaml:"git" json:"git,omitempty"`
-	Models    ModelsConfig    `yaml:"models" json:"models,omitempty"`
-	Projects       []ProjectConfig `yaml:"projects" json:"projects,omitempty"`
-	SelfProjectID  string          `yaml:"self_project_id" json:"self_project_id,omitempty"`
-	WebUI     WebUIConfig     `yaml:"web_ui" json:"web_ui,omitempty"`
-	Temporal  TemporalConfig  `yaml:"temporal" json:"temporal,omitempty"`
-	HotReload HotReloadConfig `yaml:"hot_reload" json:"hot_reload,omitempty"`
-	OpenClaw  OpenClawConfig  `yaml:"openclaw" json:"openclaw,omitempty"`
-	PDA       PDAConfig       `yaml:"pda" json:"pda,omitempty"`
-	Swarm     SwarmConfig     `yaml:"swarm" json:"swarm,omitempty"`
+	Server        ServerConfig    `yaml:"server" json:"server,omitempty"`
+	Database      DatabaseConfig  `yaml:"database" json:"database,omitempty"`
+	Beads         BeadsConfig     `yaml:"beads" json:"beads,omitempty"`
+	Agents        AgentsConfig    `yaml:"agents" json:"agents,omitempty"`
+	Security      SecurityConfig  `yaml:"security" json:"security,omitempty"`
+	Cache         CacheConfig     `yaml:"cache" json:"cache,omitempty"`
+	Readiness     ReadinessConfig `yaml:"readiness" json:"readiness,omitempty"`
+	Dispatch      DispatchConfig  `yaml:"dispatch" json:"dispatch,omitempty"`
+	Git           GitConfig       `yaml:"git" json:"git,omitempty"`
+	Models        ModelsConfig    `yaml:"models" json:"models,omitempty"`
+	Projects      []ProjectConfig `yaml:"projects" json:"projects,omitempty"`
+	SelfProjectID string          `yaml:"self_project_id" json:"self_project_id,omitempty"`
+	WebUI         WebUIConfig     `yaml:"web_ui" json:"web_ui,omitempty"`
+	Temporal      TemporalConfig  `yaml:"temporal" json:"temporal,omitempty"`
+	HotReload     HotReloadConfig `yaml:"hot_reload" json:"hot_reload,omitempty"`
+	OpenClaw      OpenClawConfig  `yaml:"openclaw" json:"openclaw,omitempty"`
+	PDA           PDAConfig       `yaml:"pda" json:"pda,omitempty"`
+	Swarm         SwarmConfig     `yaml:"swarm" json:"swarm,omitempty"`
 
 	// JSON/User-specific configuration fields
 	Providers   []Provider     `yaml:"providers,omitempty" json:"providers"`
