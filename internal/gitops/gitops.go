@@ -22,7 +22,8 @@ type Manager struct {
 	projectKeyDir    string                 // Base directory for per-project SSH keys
 	db               *database.Database     // Database for credential persistence (optional)
 	keyManager       *keymanager.KeyManager // Key manager for encryption (optional)
-	workDirOverrides map[string]string      // Per-project workdir overrides (e.g., loom-self → ".")
+	workDirOverrides map[string]string      // Per-project workdir overrides (e.g., self project → ".")
+	selfProjectID    string                 // Project ID for loom's self-managed repo (from config)
 }
 
 func logGitEvent(event string, project *models.Project, fields map[string]interface{}) {
@@ -100,6 +101,12 @@ func NewManager(baseWorkDir, projectKeyDir string, db *database.Database, km *ke
 		db:            db,
 		keyManager:    km,
 	}, nil
+}
+
+// SetSelfProjectID sets the project ID for loom's self-managed repository.
+// Must be called after construction before Commit is used.
+func (m *Manager) SetSelfProjectID(id string) {
+	m.selfProjectID = id
 }
 
 // GetProjectKeyDir returns the base directory for per-project SSH keys.
@@ -611,7 +618,7 @@ func (m *Manager) GetCurrentCommit(workDir string) (string, error) {
 
 // SetProjectWorkDir sets an explicit working directory for a project,
 // overriding the default baseWorkDir/projectID path.
-// Use this for projects that run from their own source tree (e.g., loom-self).
+// Use this for projects that run from their own source tree (e.g., the self project).
 func (m *Manager) SetProjectWorkDir(projectID, workDir string) {
 	if m.workDirOverrides == nil {
 		m.workDirOverrides = make(map[string]string)
@@ -1131,9 +1138,9 @@ func (m *Manager) CreateBranch(ctx context.Context, beadID, description, baseBra
 // Commit creates a git commit for a bead's changes with agent attribution
 func (m *Manager) Commit(ctx context.Context, beadID, agentID, message string, files []string, allowAll bool) (map[string]interface{}, error) {
 	// TODO: Get project from bead context
-	// For now, assume loom-self project (current directory)
+	// For now, assume self project (current directory)
 	project := &models.Project{
-		ID:            "loom-self",
+		ID:            m.selfProjectID,
 		GitRepo:       ".",
 		Branch:        "main",
 		GitAuthMethod: models.GitAuthNone,

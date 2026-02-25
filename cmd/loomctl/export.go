@@ -39,7 +39,7 @@ The export can be used for backups, migrations, or disaster recovery.`,
   loomctl export --include core,workflow --output partial.json
 
   # Export data for a specific project
-  loomctl export --project loom-self --output project-backup.json
+  loomctl export --project loom --output project-backup.json
 
   # Export only data created/updated since a date
   loomctl export --since 2026-02-01T00:00:00Z --output incremental.json

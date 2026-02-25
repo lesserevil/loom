@@ -1389,12 +1389,16 @@ func TestHandleLogsExport_MethodNotAllowed(t *testing.T) {
 // Pair/streaming helper function tests
 // ============================================================
 
-func TestDefaultProjectID(t *testing.T) {
-	if defaultProjectID("my-proj") != "my-proj" {
+func TestResolveProjectID(t *testing.T) {
+	s := &Server{
+		config:         &config.Config{SelfProjectID: "loom"},
+		apiFailureLast: make(map[string]time.Time),
+	}
+	if s.resolveProjectID("my-proj") != "my-proj" {
 		t.Error("expected my-proj")
 	}
-	if defaultProjectID("") != "loom-self" {
-		t.Error("expected loom-self for empty")
+	if s.resolveProjectID("") != "loom" {
+		t.Errorf("expected loom for empty, got %q", s.resolveProjectID(""))
 	}
 }
 

@@ -93,7 +93,7 @@ func (s *Server) handlePairChat(w http.ResponseWriter, r *http.Request) {
 		// No existing conversation, create new one
 		projectID := agent.ProjectID
 		if projectID == "" {
-			projectID = "loom-self"
+			projectID = s.defaultProjectID()
 		}
 		conversationCtx = models.NewConversationContext(
 			uuid.New().String(),

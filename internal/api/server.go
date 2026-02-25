@@ -555,13 +555,13 @@ func (s *Server) shouldThrottleFailure(key string, window time.Duration) bool {
 }
 
 func (s *Server) defaultProjectID() string {
+	if s.config != nil && s.config.GetSelfProjectID() != "" {
+		return s.config.GetSelfProjectID()
+	}
 	if s.app == nil {
 		return ""
 	}
 	if pm := s.app.GetProjectManager(); pm != nil {
-		if project, err := pm.GetProject("loom"); err == nil && project != nil {
-			return project.ID
-		}
 		if projects := pm.ListProjects(); len(projects) > 0 && projects[0] != nil {
 			return projects[0].ID
 		}

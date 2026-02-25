@@ -39,7 +39,8 @@ type Config struct {
 	Dispatch  DispatchConfig  `yaml:"dispatch" json:"dispatch,omitempty"`
 	Git       GitConfig       `yaml:"git" json:"git,omitempty"`
 	Models    ModelsConfig    `yaml:"models" json:"models,omitempty"`
-	Projects  []ProjectConfig `yaml:"projects" json:"projects,omitempty"`
+	Projects       []ProjectConfig `yaml:"projects" json:"projects,omitempty"`
+	SelfProjectID  string          `yaml:"self_project_id" json:"self_project_id,omitempty"`
 	WebUI     WebUIConfig     `yaml:"web_ui" json:"web_ui,omitempty"`
 	Temporal  TemporalConfig  `yaml:"temporal" json:"temporal,omitempty"`
 	HotReload HotReloadConfig `yaml:"hot_reload" json:"hot_reload,omitempty"`
@@ -51,6 +52,19 @@ type Config struct {
 	Providers   []Provider     `yaml:"providers,omitempty" json:"providers"`
 	ServerPort  int            `yaml:"server_port,omitempty" json:"server_port"`
 	SecretStore *secrets.Store `yaml:"-" json:"-"`
+}
+
+// GetSelfProjectID returns the project ID for loom's own self-managed project.
+// Uses the explicit self_project_id config field if set, otherwise falls back
+// to the first configured project's ID.
+func (c *Config) GetSelfProjectID() string {
+	if c.SelfProjectID != "" {
+		return c.SelfProjectID
+	}
+	if len(c.Projects) > 0 {
+		return c.Projects[0].ID
+	}
+	return ""
 }
 
 // ServerConfig configures the HTTP/HTTPS server

@@ -9,7 +9,7 @@ title: Test
 description: Desc
 status: open
 priority: 3
-projectid: loom-self
+projectid: loom
 assignedto: ""
 blockedby: []
 blocks: []
@@ -21,6 +21,6 @@ context: {}
 duedate: null
 milestoneid: ""
 estimatedtime: 0
-createdat: 2026-02-22T15:38:33.07180487-08:00
-updatedat: 2026-02-22T15:38:33.071804918-08:00
+createdat: 2026-02-24T21:18:14.443487267-08:00
+updatedat: 2026-02-24T21:18:14.443487315-08:00
 closedat: null

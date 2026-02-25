@@ -8,7 +8,7 @@ import (
 
 // TestNewDoltCoordinator tests coordinator creation
 func TestNewDoltCoordinator(t *testing.T) {
-	masterID := "loom-self"
+	masterID := "loom"
 	bdPath := "/usr/local/bin/bd"
 	basePort := 3307
 
@@ -87,7 +87,7 @@ func TestDoltCoordinator_GetInstance(t *testing.T) {
 
 // TestDoltCoordinator_GetMasterInstance tests getting master instance
 func TestDoltCoordinator_GetMasterInstance(t *testing.T) {
-	masterID := "loom-self"
+	masterID := "loom"
 	coord := NewDoltCoordinator(masterID, "/bin/bd", 3307)
 
 	// No master yet
@@ -192,7 +192,7 @@ func TestDoltCoordinator_StopInstance(t *testing.T) {
 
 // TestDoltCoordinator_Status tests status reporting
 func TestDoltCoordinator_Status(t *testing.T) {
-	masterID := "loom-self"
+	masterID := "loom"
 	coord := NewDoltCoordinator(masterID, "/bin/bd", 3307)
 
 	// Empty status

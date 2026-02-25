@@ -86,7 +86,7 @@ func TestCreateApplyFixBead(t *testing.T) {
 		Title:       "[CEO] Code Fix Approval: Fix duplicate API_BASE",
 		Description: "## Code Fix Proposal\n\n**Original Bug:** ac-js-error-001\n\n### Root Cause\nDuplicate declaration\n",
 		Type:        "decision",
-		ProjectID:   "loom-self",
+		ProjectID:   "loom",
 		AssignedTo:  "agent-web-designer-001",
 		Context: map[string]string{
 			"agent_id": "agent-web-designer-001",

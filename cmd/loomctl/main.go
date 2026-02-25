@@ -399,7 +399,7 @@ func newBeadCreateCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "create",
 		Short:   "Create a new bead",
-		Example: `  loomctl bead create --title="Fix bug" --project=loom-self`,
+		Example: `  loomctl bead create --title="Fix bug" --project=loom`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client := newClient()
 			body := map[string]interface{}{
@@ -1294,7 +1294,7 @@ func newWorkflowStartCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "start",
 		Short:   "Start a workflow execution",
-		Example: `  loomctl workflow start --workflow=wf-ui-default --bead=loom-001 --project=loom-self`,
+		Example: `  loomctl workflow start --workflow=wf-ui-default --bead=loom-001 --project=loom`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client := newClient()
 			data, err := client.post("/api/v1/workflows/start", map[string]interface{}{

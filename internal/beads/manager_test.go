@@ -172,7 +172,7 @@ func TestManager_CreateBead(t *testing.T) {
 // TestManager_CreateBead_WithPrefix tests bead creation with custom prefix
 func TestManager_CreateBead_WithPrefix(t *testing.T) {
 	manager := NewManager("")
-	projectID := "loom-self"
+	projectID := "loom"
 
 	manager.SetProjectPrefix(projectID, "ac")
 

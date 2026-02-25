@@ -612,9 +612,9 @@ func TestCreateBranch_Placeholder(t *testing.T) {
 	}
 }
 
-// TestCommit_NoLoomSelfDir covers Commit when the loom-self project directory
+// TestCommit_NoLoomSelfDir covers Commit when the self project directory
 // does not exist. Commit is now a real implementation (not a placeholder) that
-// operates on the "loom-self" project. When the working directory is missing it
+// operates on the self project. When the working directory is missing it
 // must return an error and a nil result map.
 func TestCommit_NoLoomSelfDir(t *testing.T) {
 	tmpDir := t.TempDir()
@@ -625,9 +625,9 @@ func TestCommit_NoLoomSelfDir(t *testing.T) {
 
 	ctx := context.Background()
 	result, err := mgr.Commit(ctx, "bead-1", "agent-1", "test commit msg", []string{"file.go"}, true)
-	// loom-self directory does not exist → CommitChanges fails → Commit returns error
+	// self project directory does not exist → CommitChanges fails → Commit returns error
 	if err == nil {
-		t.Error("Commit should return error when loom-self directory does not exist")
+		t.Error("Commit should return error when self project directory does not exist")
 	}
 	// On failure the result map is nil
 	if result != nil {

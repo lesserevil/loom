@@ -165,7 +165,7 @@ Available in bead context (key: ui_capture)
 		description,
 		models.BeadPriorityP0,
 		"bug",
-		"loom-self", // TODO: Get from capture.URL or config
+		s.defaultProjectID(),
 	)
 	if err != nil {
 		http.Error(w, "Failed to create bead: "+err.Error(), http.StatusInternalServerError)

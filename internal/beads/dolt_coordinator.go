@@ -36,7 +36,7 @@ type DoltInstance struct {
 type DoltCoordinator struct {
 	mu           sync.RWMutex
 	instances    map[string]*DoltInstance // projectID -> instance
-	masterID     string                   // Project ID of the master (usually "loom-self")
+	masterID     string                   // Project ID of the master (from config self_project_id)
 	basePort     int                      // Starting port for Dolt instances
 	nextPort     int                      // Next available port
 	bdPath       string                   // Path to bd CLI

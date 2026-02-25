@@ -143,7 +143,7 @@ func (s *Server) handleStreamChatCompletion(w http.ResponseWriter, r *http.Reque
 		actx := actions.ActionContext{
 			AgentID:   req.AgentID,
 			BeadID:    req.BeadID,
-			ProjectID: defaultProjectID(req.ProjectID),
+			ProjectID: s.resolveProjectID(req.ProjectID),
 		}
 		env, parseErr := actions.DecodeLenient([]byte(raw))
 		if parseErr != nil {
@@ -232,7 +232,7 @@ func (s *Server) handleChatCompletion(w http.ResponseWriter, r *http.Request) {
 		actx := actions.ActionContext{
 			AgentID:   req.AgentID,
 			BeadID:    req.BeadID,
-			ProjectID: defaultProjectID(req.ProjectID),
+			ProjectID: s.resolveProjectID(req.ProjectID),
 		}
 		env, parseErr := actions.DecodeLenient([]byte(raw))
 		if parseErr != nil {
@@ -254,9 +254,9 @@ func appendActionPrompt(messages []provider.ChatMessage) []provider.ChatMessage 
 	return append([]provider.ChatMessage{{Role: "system", Content: prompt}}, messages...)
 }
 
-func defaultProjectID(projectID string) string {
+func (s *Server) resolveProjectID(projectID string) string {
 	if projectID != "" {
 		return projectID
 	}
-	return "loom-self"
+	return s.defaultProjectID()
 }

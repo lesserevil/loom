@@ -1,5 +1,8 @@
 # Loom Configuration
 
+# The project ID for loom's own self-managed repository (the project loom uses to track its own work)
+self_project_id: loom
+
 server:
   http_port: 8081
   https_port: 8443

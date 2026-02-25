@@ -245,6 +245,7 @@ func New(cfg *config.Config) (*Loom, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize gitops manager: %w", err)
 	}
+	gitopsMgr.SetSelfProjectID(cfg.GetSelfProjectID())
 
 	// All projects are cloned consistently - no special workdir handling
 
@@ -304,7 +305,7 @@ func New(cfg *config.Config) (*Loom, error) {
 	// DISABLED: Let bd CLI manage Dolt in embedded mode to avoid lock conflicts
 	var doltCoord *beads.DoltCoordinator
 	// if cfg.Beads.Backend == "dolt" {
-	// 	masterProject := "loom-self"
+	// 	masterProject := cfg.GetSelfProjectID()
 	// 	if len(cfg.Projects) > 0 {
 	// 		masterProject = cfg.Projects[0].ID
 	// 	}
@@ -674,7 +675,7 @@ func (a *Loom) Initialize(ctx context.Context) error {
 		}
 
 		// All projects are now treated consistently - clone from git
-		// No special case for loom-self
+		// No special case for self project
 
 		// Set default auth method if not specified
 		if p.GitAuthMethod == "" {
@@ -2688,7 +2689,7 @@ func (a *Loom) RunReplQuery(ctx context.Context, message string) (*ReplResult, e
 		beadTitle = fmt.Sprintf("CEO: %s", cleanMessage)
 	}
 
-	bead, err := a.beadsManager.CreateBead(beadTitle, cleanMessage, models.BeadPriorityP0, "task", "loom-self")
+	bead, err := a.beadsManager.CreateBead(beadTitle, cleanMessage, models.BeadPriorityP0, "task", a.config.GetSelfProjectID())
 	if err != nil {
 		// If bead creation fails, continue anyway but log it
 		log.Printf("Warning: Failed to create CEO query bead: %v", err)
@@ -2750,7 +2751,7 @@ func (a *Loom) RunReplQuery(ctx context.Context, message string) (*ReplResult, e
 		actx := actions.ActionContext{
 			AgentID:   "ceo",
 			BeadID:    beadID,
-			ProjectID: "loom-self",
+			ProjectID: a.config.GetSelfProjectID(),
 		}
 		env, parseErr := actions.DecodeLenient([]byte(result.Response))
 		if parseErr != nil {
@@ -3193,7 +3194,7 @@ func (a *Loom) createApplyFixBead(approvalBead *models.Bead, closeReason string)
 
 	projectID := approvalBead.ProjectID
 	if projectID == "" {
-		projectID = "loom-self"
+		projectID = a.config.GetSelfProjectID()
 	}
 
 	// Create apply-fix bead
