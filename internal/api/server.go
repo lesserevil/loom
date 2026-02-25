@@ -82,16 +82,22 @@ var standardDebugPatterns = []debugPattern{
 	{"POST", regexp.MustCompile(`^/api/v1/projects/[^/]+/close$`), "project_event", "project closed"},
 }
 
-// streamingPaths are SSE/streaming paths whose response bodies must NOT be buffered.
-var streamingPaths = []string{
-	"/api/v1/events/stream",
+// streamingPrefixes are path prefixes whose responses are SSE/chunked streams
+// and must NOT have their body buffered.
+var streamingPrefixes = []string{
 	"/api/v1/events",
+	"/api/v1/logs/stream",
 	"/api/v1/pair",
 	"/api/v1/chat/completions",
+	"/api/v1/streaming",
 }
 
 func isStreamingPath(path string) bool {
-	for _, p := range streamingPaths {
+	// Catch any path ending in /stream regardless of prefix
+	if strings.HasSuffix(path, "/stream") || strings.Contains(path, "/stream?") {
+		return true
+	}
+	for _, p := range streamingPrefixes {
 		if strings.HasPrefix(path, p) {
 			return true
 		}
@@ -644,12 +650,19 @@ func (r *statusRecorder) Flush() {
 	}
 }
 
+const debugBodyCap = 64 * 1024 // 64 KB max capture per response
+
 func (r *statusRecorder) Write(b []byte) (int, error) {
 	if r.statusCode == 0 {
 		r.statusCode = http.StatusOK
 	}
-	if r.captureBody {
-		r.body.Write(b)
+	if r.captureBody && r.body.Len() < debugBodyCap {
+		remaining := debugBodyCap - r.body.Len()
+		if len(b) > remaining {
+			r.body.Write(b[:remaining])
+		} else {
+			r.body.Write(b)
+		}
 	}
 	return r.ResponseWriter.Write(b)
 }
