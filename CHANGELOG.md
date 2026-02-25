@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.13] - 2026-02-24
+
+### Changed
+- go fmt pkg/config/config.go
+- replace all hardcoded "loom-self" with config-driven self_project_id
+
+### Fixed
+- resolve three UI errors on page load
+
 ## [0.1.12] - 2026-02-24
 
 ### Fixed
