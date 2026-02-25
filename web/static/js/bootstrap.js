@@ -29,41 +29,12 @@ async function showBootstrapProjectModal() {
                         </div>
 
                         <div class="form-group">
-                            <label>Product Requirements Document (PRD) *</label>
-                            <div class="prd-input-tabs">
-                                <button type="button" class="prd-tab active" data-tab="text" onclick="switchPRDTab('text')">Enter Text</button>
-                                <button type="button" class="prd-tab" data-tab="file" onclick="switchPRDTab('file')">Upload File</button>
-                            </div>
+                            <label for="bootstrap-description">Project Description *</label>
+                            <textarea id="bootstrap-description" name="prd_text" rows="5" required
+                                      placeholder="Describe your project in a few sentences. The Product Manager will expand this into a full PRD.
 
-                            <div id="prd-text-input" class="prd-input-panel active">
-                                <textarea id="bootstrap-prd-text" name="prd_text" rows="12"
-                                          placeholder="Describe your project requirements...
-
-Example:
-# Project: Task Manager App
-
-## Overview
-A simple task management web application for personal productivity.
-
-## Features
-- User authentication (email/password)
-- Create, edit, delete tasks
-- Mark tasks as complete
-- Filter by status (all, active, completed)
-- Responsive design for mobile and desktop
-
-## Technical Requirements
-- Frontend: React with TypeScript
-- Backend: Node.js with Express
-- Database: PostgreSQL
-- Authentication: JWT tokens"></textarea>
-                            </div>
-
-                            <div id="prd-file-input" class="prd-input-panel">
-                                <input type="file" id="bootstrap-prd-file" name="prd_file"
-                                       accept=".md,.txt,.pdf,.doc,.docx" />
-                                <small>Supported formats: Markdown (.md), Text (.txt), PDF, Word docs</small>
-                            </div>
+Example: A task management web app for personal productivity. Users can create, edit, and complete tasks, filter by status, and sync across devices. It should be responsive and support email/password authentication."></textarea>
+                            <small>Keep it brief — 2–6 sentences is ideal. The PM agent will flesh out the full requirements.</small>
                         </div>
 
                         <div class="form-actions">
@@ -111,40 +82,17 @@ function closeBootstrapModal() {
     }
 }
 
-function switchPRDTab(tab) {
-    // Update tab buttons
-    document.querySelectorAll('.prd-tab').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.tab === tab);
-    });
-
-    // Update panels
-    document.getElementById('prd-text-input').classList.toggle('active', tab === 'text');
-    document.getElementById('prd-file-input').classList.toggle('active', tab === 'file');
-
-    // Clear the inactive input
-    if (tab === 'text') {
-        document.getElementById('bootstrap-prd-file').value = '';
-    } else {
-        document.getElementById('bootstrap-prd-text').value = '';
-    }
-}
 
 async function submitBootstrapForm(form) {
     const formData = new FormData(form);
 
-    // Get PRD content
-    let prdText = formData.get('prd_text') || '';
-    const prdFile = document.getElementById('bootstrap-prd-file').files[0];
+    // Get description content
+    const description = (formData.get('prd_text') || '').trim();
 
     // Validate
-    if (!prdText && !prdFile) {
-        showToast('Please provide a PRD (either text or file)', 'error');
+    if (!description) {
+        showToast('Please provide a project description', 'error');
         return;
-    }
-
-    // If file is provided, read it
-    if (prdFile) {
-        prdText = await readFileAsText(prdFile);
     }
 
     // Build request payload
@@ -152,7 +100,7 @@ async function submitBootstrapForm(form) {
         github_url: formData.get('github_url'),
         name: formData.get('name'),
         branch: formData.get('branch') || 'main',
-        prd_text: prdText
+        prd_text: description
     };
 
     // Show status
@@ -176,7 +124,7 @@ async function submitBootstrapForm(form) {
             <p><strong>Project ID:</strong> ${response.project_id}</p>
             <p><strong>Status:</strong> ${response.status}</p>
             <p><strong>Initial Bead:</strong> ${response.initial_bead_id || 'Creating...'}</p>
-            <p>The Project Manager will now expand your PRD and create work breakdown.</p>
+            <p>The Product Manager will expand your description into a full PRD, then kick off the engineering chain.</p>
         `;
 
         // Auto-close after delay
@@ -212,14 +160,6 @@ function updateBootstrapStatus(text, icon) {
     statusDiv.querySelector('.status-text').textContent = text;
 }
 
-function readFileAsText(file) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (e) => resolve(e.target.result);
-        reader.onerror = (e) => reject(new Error('Failed to read file'));
-        reader.readAsText(file);
-    });
-}
 
 // Modify the existing "Add Project" button to show options
 function showProjectOptionsMenu() {

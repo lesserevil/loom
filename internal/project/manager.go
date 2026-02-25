@@ -32,7 +32,7 @@ func (m *Manager) Clear() {
 	m.projects = make(map[string]*models.Project)
 }
 
-// CreateProject creates a new project
+// CreateProject creates a new project with an auto-generated ID (proj-N).
 func (m *Manager) CreateProject(name, gitRepo, branch, beadsPath string, context map[string]string) (*models.Project, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -62,6 +62,42 @@ func (m *Manager) CreateProject(name, gitRepo, branch, beadsPath string, context
 
 	m.projects[projectID] = project
 
+	return project, nil
+}
+
+// CreateProjectWithID creates a new project with an explicit ID.
+// Returns an error if the ID is already in use.
+func (m *Manager) CreateProjectWithID(id, name, gitRepo, branch, beadsPath string, context map[string]string) (*models.Project, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if id == "" {
+		return nil, fmt.Errorf("project ID cannot be empty")
+	}
+	if _, exists := m.projects[id]; exists {
+		return nil, fmt.Errorf("project ID %q already in use", id)
+	}
+	if beadsPath == "" {
+		beadsPath = ".beads"
+	}
+
+	project := &models.Project{
+		ID:          id,
+		Name:        name,
+		GitRepo:     gitRepo,
+		Branch:      branch,
+		BeadsPath:   beadsPath,
+		Context:     context,
+		Status:      models.ProjectStatusOpen,
+		IsPerpetual: false,
+		IsSticky:    false,
+		Comments:    []models.ProjectComment{},
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+		Agents:      []string{},
+	}
+
+	m.projects[id] = project
 	return project, nil
 }
 

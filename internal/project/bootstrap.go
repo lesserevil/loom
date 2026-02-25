@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -52,7 +53,41 @@ func NewBootstrapService(pm *Manager, templateDir, workspaceDir string, gitopsMg
 	}
 }
 
-// Bootstrap creates a new project from a PRD
+// uniqueSlug returns a project ID based on the slug, appending -2, -3, etc. if
+// a project or workspace directory with that name already exists.
+func (bs *BootstrapService) uniqueSlug(base string) string {
+	candidate := base
+	for i := 2; ; i++ {
+		// Check workspace directory
+		if _, err := os.Stat(filepath.Join(bs.workspaceDir, candidate)); os.IsNotExist(err) {
+			// Also check in-memory project manager
+			if _, err := bs.projectManager.GetProject(candidate); err != nil {
+				return candidate
+			}
+		}
+		candidate = fmt.Sprintf("%s-%d", base, i)
+	}
+}
+
+// slugifyName converts a project name into a URL/filesystem-safe slug.
+// "My Awesome Project" → "my-awesome-project"
+var nonAlphanumRE = regexp.MustCompile(`[^a-z0-9]+`)
+
+func slugifyName(name string) string {
+	s := strings.ToLower(strings.TrimSpace(name))
+	s = nonAlphanumRE.ReplaceAllString(s, "-")
+	s = strings.Trim(s, "-")
+	if len(s) > 48 {
+		s = s[:48]
+		s = strings.TrimRight(s, "-")
+	}
+	if s == "" {
+		s = fmt.Sprintf("project-%d", time.Now().Unix())
+	}
+	return s
+}
+
+// Bootstrap creates a new project from a short description
 func (bs *BootstrapService) Bootstrap(ctx context.Context, req BootstrapRequest) (*BootstrapResult, error) {
 	// Validate request
 	if req.GitHubURL == "" || req.Name == "" || req.Branch == "" {
@@ -62,14 +97,15 @@ func (bs *BootstrapService) Bootstrap(ctx context.Context, req BootstrapRequest)
 		return nil, fmt.Errorf("either prd_text or prd_file must be provided")
 	}
 
-	// Extract PRD content
+	// Extract description content (the short description / initial PRD)
 	prdContent := req.PRDText
 	if prdContent == "" {
 		prdContent = string(req.PRDFile)
 	}
 
-	// Generate project ID
-	projectID := fmt.Sprintf("proj-%d", time.Now().Unix())
+	// Generate project ID from the project name slug
+	baseSlug := slugifyName(req.Name)
+	projectID := bs.uniqueSlug(baseSlug)
 
 	// Create project directory in workspace
 	projectPath := filepath.Join(bs.workspaceDir, projectID)
@@ -97,11 +133,11 @@ func (bs *BootstrapService) Bootstrap(ctx context.Context, req BootstrapRequest)
 		return nil, fmt.Errorf("failed to commit initial structure: %w", err)
 	}
 
-	// Register project with Loom
-	project, err := bs.projectManager.CreateProject(req.Name, projectPath, req.Branch, ".beads", map[string]string{
+	// Register project with Loom using the slug as the project ID
+	project, err := bs.projectManager.CreateProjectWithID(projectID, req.Name, projectPath, req.Branch, ".beads", map[string]string{
 		"bootstrap":   "true",
 		"github_url":  req.GitHubURL,
-		"description": "Bootstrapped project from PRD",
+		"description": prdContent,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to register project: %w", err)
@@ -268,12 +304,51 @@ func (bs *BootstrapService) commitInitialStructure(ctx context.Context, projectP
 
 // createPMExpandPRDBead creates the initial PM bead for PRD expansion
 func (bs *BootstrapService) createPMExpandPRDBead(ctx context.Context, projectPath, projectID string) (string, error) {
+	description := `Transform the short project description into a comprehensive, professional PRD and kick off the engineering chain.
+
+## Your Inputs
+- Short project description: plans/BOOTSTRAP.md
+
+## Tasks
+1. Read the short project description in plans/BOOTSTRAP.md
+2. Expand it into a full, professional Product Requirements Document (PRD) with:
+   - Executive summary and project vision
+   - User personas and target audience
+   - Core features and detailed user stories
+   - Technical requirements and constraints
+   - Architecture considerations
+   - MVP scope definition (P1 = must-have, P2 = nice-to-have, P3 = future)
+   - Non-functional requirements (performance, security, scalability)
+   - Acceptance criteria for each feature
+3. Save the full PRD to plans/ORIGINAL_PRD.md
+4. Commit to the repository: "docs: add full PRD expanded from initial description"
+5. Create a new bead for the Engineering Manager:
+   - Title: "[Bootstrap] Write System Requirements Document"
+   - Type: task
+   - Priority: P0
+   - Description: |
+       Based on the full PRD at plans/ORIGINAL_PRD.md, write a detailed System Requirements Document (SRD).
+       The SRD must cover: system architecture, data models, API contracts, integration points,
+       infrastructure requirements, security requirements, and implementation constraints.
+       Save to plans/SRD.md and commit. Then create a bead for the Technical Project Manager
+       titled "[Bootstrap] Decompose SRD into Epics, Stories, and Tasks" assigned to
+       technical-project-manager, instructing them to create the full bead hierarchy from the SRD.
+
+## Deliverables
+- plans/ORIGINAL_PRD.md (complete PRD)
+- A new bead for the Engineering Manager to write the SRD
+
+## Guidelines
+- Be thorough but practical — define clear MVP boundaries
+- Use clear, unambiguous language with measurable success criteria
+- Document technical constraints and risks`
+
 	// Create bead using bd CLI
 	cmd := exec.CommandContext(ctx, "bd", "create",
-		"--title", "[Bootstrap] Expand PRD with Best Practices",
+		"--title", "[Bootstrap] Expand Description into Full PRD",
 		"--type", "task",
 		"--priority", "0",
-		"--description", "Transform the initial PRD into a comprehensive, actionable PRD",
+		"--description", description,
 	)
 	cmd.Dir = projectPath
 
