@@ -443,7 +443,7 @@ func (a *Loom) setupProviderMetrics() {
 		return
 	}
 
-	a.providerRegistry.SetMetricsCallback(func(providerID string, success bool, latencyMs int64, totalTokens int64) {
+	a.providerRegistry.SetMetricsCallback(func(providerID string, success bool, latencyMs int64, totalTokens int64, errorCount int64) {
 		if a.metrics != nil {
 			a.metrics.RecordProviderRequest(providerID, "", success, latencyMs, totalTokens)
 		}
@@ -1070,21 +1070,6 @@ go func() {
 		}
 	}
 
-	// FIX #1: Start motivation engine evaluation loop
-	// The motivation engine creates beads automatically based on conditions
-	// (idle detection, deadline monitoring, budget thresholds, etc.)
-	if a.motivationEngine == nil {
-		// Initialize the motivation engine if not already initialized
-		a.motivationEngine = motivation.NewEngine(motivation.DefaultConfig())
-	}
-	if err := a.motivationEngine.Start(ctx); err != nil {
-			log.Printf("[Loom] Warning: Failed to start motivation engine: %v", err)
-		} else {
-			log.Printf("[Loom] Motivation engine started successfully")
-		}
-	} else {
-		log.Printf("[Loom] Warning: Motivation engine not initialized")
-	}
 
 	// FIX #4: Ensure at least one project has beads for work to flow
 	// If no beads exist across all projects, create a diagnostic bead
@@ -3639,9 +3624,31 @@ func (a *Loom) resetZombieBeads() int {
 		return 0
 	}
 
+	// Build a set of known live agent IDs so we can detect beads assigned to
+	// named agents that no longer exist or are permanently idle.
+	liveAgentIDs := make(map[string]bool)
+	if a.agentManager != nil {
+		for _, ag := range a.agentManager.ListAgents() {
+			if ag != nil {
+				liveAgentIDs[ag.ID] = true
+			}
+		}
+	}
+
 	count := 0
 	for _, b := range inProgressBeads {
-		if b == nil || !strings.HasPrefix(b.AssignedTo, "exec-") {
+		if b == nil || b.AssignedTo == "" {
+			continue
+		}
+		isZombie := false
+		if strings.HasPrefix(b.AssignedTo, "exec-") {
+			// Ephemeral goroutine ID — never survives restart
+			isZombie = true
+		} else if !liveAgentIDs[b.AssignedTo] {
+			// Named agent ID that is not registered in the current run
+			isZombie = true
+		}
+		if !isZombie {
 			continue
 		}
 		if err := a.beadsManager.UpdateBead(b.ID, map[string]interface{}{
@@ -3651,7 +3658,7 @@ func (a *Loom) resetZombieBeads() int {
 			log.Printf("[Loom] resetZombieBeads: could not reset bead %s: %v", b.ID, err)
 			continue
 		}
-		log.Printf("[Loom] Recovered zombie bead %s [%s] (was held by stale executor %s)",
+		log.Printf("[Loom] Recovered zombie bead %s [%s] (was held by stale assignee %s)",
 			b.ID, b.Title, b.AssignedTo)
 		count++
 	}

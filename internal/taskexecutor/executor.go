@@ -567,8 +567,12 @@ func (e *Executor) handleBeadError(bead *models.Bead, execErr error) {
 		log.Printf("[TaskExecutor] Loop detected for bead %s: %s", bead.ID, loopReason)
 	}
 
+	newStatus := models.BeadStatusOpen
+	if isStuck {
+		newStatus = models.BeadStatusBlocked
+	}
 	_ = e.beadManager.UpdateBead(bead.ID, map[string]interface{}{
-		"status":      models.BeadStatusOpen,
+		"status":      newStatus,
 		"assigned_to": "",
 		"context":     ctxUpdate,
 	})
