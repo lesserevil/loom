@@ -43,5 +43,36 @@ func (h *HealthReportGenerator) GenerateDailyReport(ctx context.Context) (string
 
 	// Additional metrics and anomalies to be added here
 
+	// Example: Beads closed in last 24h per project
+	// Placeholder for actual implementation
+	// beadsClosed := fetchBeadsClosedInLast24h()
+	// report += fmt.Sprintf("Beads closed in last 24h: %d\n", len(beadsClosed))
+
+	// Example: Beads stuck/blocked per project
+	// Placeholder for actual implementation
+	// beadsStuck := fetchBeadsStuck()
+	// report += fmt.Sprintf("Beads stuck/blocked: %d\n", len(beadsStuck))
+
+	// Example: Agent performance metrics
+	// Placeholder for actual implementation
+	// agentPerformance := calculateAgentPerformance()
+	// report += fmt.Sprintf("Agent performance: %v\n", agentPerformance)
+
+	// Example: Provider health and token budget status
+	// Placeholder for actual implementation
+	// providerHealth := checkProviderHealth()
+	// report += fmt.Sprintf("Provider health: %v\n", providerHealth)
+
+	// Example: Key decisions made by agents
+	// Placeholder for actual implementation
+	// keyDecisions := fetchKeyDecisions()
+	// report += fmt.Sprintf("Key decisions: %v\n", keyDecisions)
+
+	// Example: Anomalies detection
+	// Placeholder for actual implementation
+	// anomalies := detectAnomalies()
+	// report += fmt.Sprintf("Anomalies: %v\n", anomalies)
+
+
 	return report, nil
 }

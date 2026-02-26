@@ -149,7 +149,7 @@ func (m *WorkerManager) CreateAgent(ctx context.Context, name, personaName, proj
 
 	log.Printf("Created paused agent %s (role: %s) - waiting for provider", agent.Name, role)
 	if m.eventBus != nil {
-		if err := m.eventBus.PublishAgentEvent(eventbus.EventTypeAgentSpawned, agent.ID, projectID, map[string]interface{}{
+		_ = m.eventBus.PublishAgentEvent(eventbus.EventTypeAgentSpawned, agent.ID, projectID, map[string]interface{}{
 			"name":         agent.Name,
 			"role":         role,
 			"persona_name": personaName,
@@ -201,7 +201,7 @@ func (m *WorkerManager) SpawnAgentWorker(ctx context.Context, name, personaName,
 
 	log.Printf("Spawned agent %s with worker using provider %s", agent.Name, providerID)
 	if m.eventBus != nil {
-		if err := m.eventBus.PublishAgentEvent(eventbus.EventTypeAgentSpawned, agent.ID, projectID, map[string]interface{}{
+		_ = m.eventBus.PublishAgentEvent(eventbus.EventTypeAgentSpawned, agent.ID, projectID, map[string]interface{}{
 			"name":         agent.Name,
 			"persona_name": personaName,
 			"provider_id":  providerID,
