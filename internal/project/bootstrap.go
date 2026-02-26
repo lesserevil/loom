@@ -115,7 +115,7 @@ func (bs *BootstrapService) Bootstrap(ctx context.Context, req BootstrapRequest)
 
 	// Clone or initialize repository
 	if err := bs.cloneRepository(ctx, req.GitHubURL, req.Branch, projectPath); err != nil {
-		return nil, fmt.Errorf("failed to clone repository: %w", err)
+		return nil, fmt.Errorf("failed to clone repository: %w", err.Error())
 	}
 
 	// Initialize project structure

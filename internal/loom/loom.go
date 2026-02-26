@@ -233,7 +233,8 @@ func New(cfg *config.Config) (*Loom, error) {
 	if db != nil {
 		agentMgr.SetAgentPersister(db)
 		// Enable conversation context support for multi-turn conversations
-		agentMgr.GetWorkerPool().SetDatabase(db)
+		// Deprecated: WorkerPool is deprecated in favor of taskexecutor workers.
+	// agentMgr.GetWorkerPool().SetDatabase(db)
 	}
 
 	// Initialize shell executor if database is available

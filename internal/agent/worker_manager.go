@@ -1007,6 +1007,7 @@ func (m *WorkerManager) GetIdleAgents() []*models.Agent {
 }
 
 // GetWorkerPool returns the worker pool
+// Deprecated: WorkerPool is deprecated in favor of taskexecutor workers.
 func (m *WorkerManager) GetWorkerPool() *worker.Pool {
 	return m.workerPool
 }
