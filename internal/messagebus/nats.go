@@ -392,7 +392,7 @@ func (mb *NatsMessageBus) subscribe(subject, consumerName string, handler nats.M
 		nats.MaxDeliver(3),
 		nats.AckWait(30 * time.Second),
 	}
-	sub, err := mb.js.Subscribe(subject, handler, opts...)
+	sub, err := mb.js.Subscribe(subject, handler, append(opts, nats.DeliverNew())...)
 	if err != nil && strings.Contains(err.Error(), "already bound") {
 		// Durable consumer was not cleaned up from the previous process.
 		// Delete it so this process can bind a fresh subscription.
