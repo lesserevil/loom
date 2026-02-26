@@ -1,5 +1,44 @@
 package github
 
+// PullRequest represents a GitHub pull request.
+type PullRequest struct {
+	Number         int
+	Title          string
+	Body           string
+	State          string
+	URL            string
+	Author         string
+	HeadRef        string
+	BaseRef        string
+	Mergeable      string
+	ReviewDecision string
+	IsDraft        bool
+	StatusChecks   []StatusCheck
+}
+
+// StatusCheck represents a single CI status check on a PR.
+type StatusCheck struct {
+	Name       string `json:"name"`
+	Status     string `json:"status"`
+	Conclusion string `json:"conclusion"`
+}
+
+// CreateIssueRequest holds parameters for creating a GitHub issue.
+type CreateIssueRequest struct {
+	Title  string
+	Body   string
+	Labels []string
+}
+
+// CreatePRRequest holds parameters for creating a pull request.
+type CreatePRRequest struct {
+	Title string
+	Body  string
+	Base  string
+	Head  string
+	Draft bool
+}
+
 // WorkflowRun represents a GitHub Actions workflow run.
 type WorkflowRun struct {
 	ID         int64

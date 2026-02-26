@@ -123,66 +123,6 @@ func PerpetualTaskMotivations() []*Motivation {
 				"task_type": "perpetual",
 			},
 			IsBuiltIn: true,
-			Execute: func(ctx context.Context, client *github.Client) error {
-				// Import necessary packages
-				import (
-					"context"
-					"fmt"
-					"strings"
-					"github.com/google/go-github/v33/github"
-				)
-
-				// Define Bead struct
-				type Bead struct {
-					Type        string
-					Priority    string
-					Title       string
-					Description string
-					AssignedRole string
-				}
-
-				// Implement the logic
-
-				failedRuns, err := client.ListFailedWorkflowRuns(ctx)
-				if err != nil {
-					return fmt.Errorf("failed to list workflow runs: %w", err)
-				}
-
-				for _, run := range failedRuns {
-					// Check for existing open bead with the same title prefix
-					// If not found, file a new bead
-					// Implement deduplication logic here
-					// Check for existing open bead with the same title prefix
-					openBeads, err := client.ListOpenBeads(ctx, "CI/CD pipeline failing")
-					if err != nil {
-						return fmt.Errorf("failed to list open beads: %w", err)
-					}
-
-					for _, bead := range openBeads {
-						if strings.HasPrefix(bead.Title, "CI/CD pipeline failing: "+run.Name) {
-							// Bead already exists, skip filing
-							continue
-						}
-					}
-
-					// File a new bead
-					bead := &Bead{
-						Type:        "task",
-						Priority:    "P1",
-						Title:       "CI/CD pipeline failing: " + run.Name,
-						Description: fmt.Sprintf("Failed workflow URL: %s", run.URL),
-						AssignedRole: "devops-engineer",
-					}
-					if err := client.FileBead(ctx, bead); err != nil {
-						return fmt.Errorf("failed to file bead: %w", err)
-					}
-
-				}
-
-				return nil
-			},
-		}, 
-			IsBuiltIn: true,
 		},
 		{
 			Name:                "CI/CD Pipeline Monitoring",

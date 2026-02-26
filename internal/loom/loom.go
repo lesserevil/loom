@@ -3823,16 +3823,7 @@ func (a *Loom) StartDispatchLoop(ctx context.Context, interval time.Duration) {
 				}
 			}
 
-			// Phase 2: Dispatch work to idle agents
-			dispatched := 0
-			for i := 0; i < 50; i++ {
-				a.taskExecutor.Start(ctx, projectID)
-				if err != nil || dr == nil || !dr.Dispatched {
-					debugWrite("/tmp/dispatch-loop-result.txt", []byte(fmt.Sprintf("dispatched=%d err=%v dr=%v\n", dispatched, err, dr != nil && dr.Dispatched)))
-					break
-				}
-				dispatched++
-			}
+
 		}
 	}
 }
@@ -3994,11 +3985,6 @@ func (a *Loom) ResumeAgentsWaitingForProvider(ctx context.Context, providerID st
 		if err := a.agentManager.UpdateAgentStatus(agent.ID, "idle"); err != nil {
 			fmt.Printf("Warning: failed to update agent %s status in memory: %v\n", agent.ID, err)
 		}
-	}
-
-	// Trigger dispatch to pick up any waiting beads
-	if a.dispatcher != nil {
-	a.taskExecutor.Start(ctx, projectID)
 	}
 
 	return nil

@@ -222,20 +222,6 @@ func (d *Database) GetConfigValue(key string) (string, bool, error) {
 	return value, true, nil
 }
 
-// Conversations
-
-func (d *Database) InjectMessageIntoConversation(sessionID string, message string) error {
-	query := `
-		INSERT INTO conversation_messages (session_id, message, created_at)
-		VALUES ($1, $2, $3)
-	`
-	_, err := d.db.Exec(query, sessionID, message, time.Now())
-	if err != nil {
-		return fmt.Errorf("failed to inject message into conversation: %w", err)
-	}
-	return nil
-}
-
 // Projects
 
 func (d *Database) UpsertProject(project *models.Project) error {

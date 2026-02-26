@@ -5,7 +5,6 @@ import (
 	"go/parser"
 	"go/token"
 	"os"
-	"path/filepath"
 )
 
 // DetectCircularDependencies checks for circular dependencies in Go packages

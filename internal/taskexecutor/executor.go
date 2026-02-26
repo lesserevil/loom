@@ -600,7 +600,8 @@ func buildBeadDescription(bead *models.Bead) string {
 	return fmt.Sprintf("Work on bead %s: %s\n\n%s", bead.ID, bead.Title, bead.Description)
 }
 
-// buildBeadContext builds the context string for a bead, including project info.
+// buildBeadContext builds the context string for a bead, including project info,
+// architecture reference, and lessons learned from past executions.
 func buildBeadContext(bead *models.Bead, proj *models.Project) string {
 	var sb strings.Builder
 
@@ -617,9 +618,26 @@ func buildBeadContext(bead *models.Bead, proj *models.Project) string {
 		if workDir == "" {
 			workDir = filepath.Join("data", "projects", proj.ID)
 		}
+
+		// Architecture reference: gives agents system-level context about how
+		// Loom works, bead lifecycle, deadlock patterns, and key invariants.
+		// Injected before AGENTS.md so it provides baseline system understanding.
+		if archMD := readSystemArchitecture(); archMD != "" {
+			sb.WriteString("## Loom System Architecture\n\n")
+			sb.WriteString(archMD)
+			sb.WriteString("\n\n")
+		}
+
 		if agentsMD := readProjectFile(workDir, "AGENTS.md", 4000); agentsMD != "" {
 			sb.WriteString("## Project Instructions (AGENTS.md)\n\n")
 			sb.WriteString(agentsMD)
+			sb.WriteString("\n\n")
+		}
+
+		// Project lessons: accumulated lessons from past executions in this project.
+		if lessonsMD := readProjectFile(workDir, "LESSONS.md", 3000); lessonsMD != "" {
+			sb.WriteString("## Lessons Learned (LESSONS.md)\n\n")
+			sb.WriteString(lessonsMD)
 			sb.WriteString("\n\n")
 		}
 	}
@@ -627,6 +645,12 @@ func buildBeadContext(bead *models.Bead, proj *models.Project) string {
 	sb.WriteString(fmt.Sprintf("Bead: %s (P%d %s)\n", bead.ID, bead.Priority, bead.Type))
 	if len(bead.Context) > 0 {
 		for k, v := range bead.Context {
+			// Skip internal executor fields from the prompt to reduce noise.
+			switch k {
+			case "dispatch_count", "error_history", "loop_detected",
+				"loop_detected_reason", "loop_detected_at", "ralph_blocked_reason":
+				continue
+			}
 			sb.WriteString(fmt.Sprintf("- %s: %s\n", k, v))
 		}
 	}
@@ -637,19 +661,44 @@ func buildBeadContext(bead *models.Bead, proj *models.Project) string {
 You are an autonomous coding agent. Your job is to MAKE CHANGES, COMMIT, and PUSH.
 
 WORKFLOW:
-1. Locate: scope + read relevant files (iterations 1-3)
+1. Locate: read AGENTS.md, LESSONS.md, relevant files (iterations 1-3)
 2. Change: edit or write files (iterations 4-15)
 3. Verify: build and test (iterations 16-18)
-4. Land: git_commit, git_push, done (iterations 19-21)
+4. Land: git_commit, git_push, close_bead/done (iterations 19-21)
 
 CRITICAL RULES:
 - You have 100 iterations. Use them.
 - ALWAYS git_commit after making changes.
 - ALWAYS git_push after committing.
-- Use the 'done' action when the task is complete.
+- ALWAYS close_bead or done when the task is complete.
+- See "Loom System Architecture" above for deadlock patterns and escape strategies.
 `)
 
 	return sb.String()
+}
+
+// readSystemArchitecture reads the global LOOM_ARCHITECTURE.md document from the
+// loom server's docs directory. Returns empty string if not found.
+// This document is injected into every agent's context to provide system-level
+// awareness: bead lifecycle, deadlock patterns, agent roles, key invariants.
+func readSystemArchitecture() string {
+	// Try paths relative to the binary location and common deployment paths.
+	candidates := []string{
+		"docs/LOOM_ARCHITECTURE.md",
+		"/app/docs/LOOM_ARCHITECTURE.md",
+		filepath.Join(os.Getenv("HOME"), "docs/LOOM_ARCHITECTURE.md"),
+	}
+	for _, p := range candidates {
+		data, err := os.ReadFile(p)
+		if err == nil {
+			content := string(data)
+			if len(content) > 6000 {
+				content = content[:6000] + "\n... (see full docs/LOOM_ARCHITECTURE.md)"
+			}
+			return content
+		}
+	}
+	return ""
 }
 
 // readProjectFile reads a file from a project work directory, capped at maxLen bytes.
