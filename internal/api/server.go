@@ -843,7 +843,8 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 			r.URL.Path == "/api/v1/pair" ||
 			r.URL.Path == "/api/v1/webhooks/openclaw" ||
 			strings.HasPrefix(r.URL.Path, "/api/v1/project-agents/") ||
-			strings.HasPrefix(r.URL.Path, "/static/") {
+			strings.HasPrefix(r.URL.Path, "/static/") ||
+			strings.HasPrefix(r.URL.Path, "/api/v1/motivations/") {
 			next.ServeHTTP(w, r)
 			return
 		}
