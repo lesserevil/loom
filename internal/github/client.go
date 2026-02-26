@@ -352,6 +352,42 @@ func (c *Client) ListWorkflowRuns(ctx context.Context, workflow string) ([]Workf
 	return runs, nil
 }
 
+// ListFailedWorkflowRuns returns the last N failed runs for a workflow file (e.g. "ci.yml").
+func (c *Client) ListFailedWorkflowRuns(ctx context.Context, workflow string) ([]WorkflowRun, error) {
+	args := []string{"run", "list", "--limit", "10",
+		"--json", "databaseId,displayTitle,status,conclusion,url,createdAt,updatedAt",
+		"--status", "failure"}
+	if workflow != "" {
+		args = append(args, "--workflow", workflow)
+	}
+	out, err := c.gh(ctx, args...)
+	if err != nil {
+		return nil, err
+	}
+	type ghRun struct {
+		DatabaseID   int64  `json:"databaseId"`
+		DisplayTitle string `json:"displayTitle"`
+		Status       string `json:"status"`
+		Conclusion   string `json:"conclusion"`
+		URL          string `json:"url"`
+	}
+	var raw []ghRun
+	if err := json.Unmarshal(out, &raw); err != nil {
+		return nil, fmt.Errorf("parse run list: %w", err)
+	}
+	runs := make([]WorkflowRun, 0, len(raw))
+	for _, r := range raw {
+		runs = append(runs, WorkflowRun{
+			ID:         r.DatabaseID,
+			Name:       r.DisplayTitle,
+			Status:     r.Status,
+			Conclusion: r.Conclusion,
+			URL:        r.URL,
+		})
+	}
+	return runs, nil
+}
+
 // ListFailedWorkflowRuns returns workflow runs with failure or action_required status on the default branch.
 func (c *Client) ListFailedWorkflowRuns(ctx context.Context) ([]WorkflowRun, error) {
 	args := []string{"run", "list", "--limit", "20",
