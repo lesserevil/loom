@@ -133,6 +133,31 @@ func PerpetualTaskMotivations() []*Motivation {
 					// Check for existing open bead with the same title prefix
 					// If not found, file a new bead
 					// Implement deduplication logic here
+					// Check for existing open bead with the same title prefix
+					openBeads, err := client.ListOpenBeads(ctx, "CI/CD pipeline failing")
+					if err != nil {
+						return fmt.Errorf("failed to list open beads: %w", err)
+					}
+
+					for _, bead := range openBeads {
+						if strings.HasPrefix(bead.Title, "CI/CD pipeline failing: "+run.Name) {
+							// Bead already exists, skip filing
+							continue
+						}
+					}
+
+					// File a new bead
+					bead := &Bead{
+						Type:        "task",
+						Priority:    "P1",
+						Title:       "CI/CD pipeline failing: " + run.Name,
+						Description: fmt.Sprintf("Failed workflow URL: %s", run.URL),
+						AssignedRole: "devops-engineer",
+					}
+					if err := client.FileBead(ctx, bead); err != nil {
+						return fmt.Errorf("failed to file bead: %w", err)
+					}
+
 				}
 
 				return nil
