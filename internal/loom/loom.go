@@ -2359,7 +2359,7 @@ func (a *Loom) SpawnAgent(ctx context.Context, name, personaName, projectID stri
 	if providerID == "" {
 		providers := a.providerRegistry.ListActive()
 		if len(providers) == 0 {
-			return nil, fmt.Errorf("no active providers registered")
+			return nil, fmt.Errorf("no active providers registered. Please register a provider before spawning an agent.")
 		}
 		providerID = providers[0].Config.ID
 	}

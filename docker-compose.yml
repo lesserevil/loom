@@ -43,7 +43,7 @@ services:
       - path: ${HOME}/.loom/config.env
         required: false
     environment:
-      - TOKENHUB_LISTEN_ADDR=:8080
+      - TOKENHUB_LISTEN_ADDR=:8090
       - TOKENHUB_LOG_LEVEL=info
       - TOKENHUB_DB_DSN=file:/data/tokenhub.sqlite?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)
       # Vault: enabled with headless auto-unlock. Password comes from ~/.loom/config.env.
