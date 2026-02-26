@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.19] - 2026-02-26
+
+### Fixed
+- Agent-generated build errors (third pass): duplicate `newBeadUnblockCommand` body outside function in `cmd/loomctl/main.go`, unused `"log"` import in `cmd/connectors-service/main.go`, orphaned code block outside `checkRalphBlockage` in `internal/health/watchdog.go`, agent-created `fix_loom.go` causing `main` redeclaration
+
 ## [0.1.18] - 2026-02-26
 
 ### Added
