@@ -67,6 +67,7 @@ type Executor struct {
 	lessonsProvider  worker.LessonsProvider
 	numWorkers       int
 	projectStates    map[string]*projectState
+	semaphore        chan struct{}
 	mu               sync.Mutex
 }
 
@@ -86,6 +87,7 @@ func New(
 		db:               db,
 		numWorkers:       defaultNumWorkers,
 		projectStates:    make(map[string]*projectState),
+		semaphore:        make(chan struct{}, maxConcurrentRequests),
 	}
 }
 
