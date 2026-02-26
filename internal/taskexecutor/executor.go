@@ -489,8 +489,24 @@ func (e *Executor) executeBead(ctx context.Context, bead *models.Bead, workerID 
 			"status":      models.BeadStatusClosed,
 			"assigned_to": "",
 		})
+	} else if result.TerminalReason == "parse_failures" {
+		// Model failed to produce valid actions repeatedly. Accumulated conversation
+		// history is usually the cause (model gets confused by prior failed attempts).
+		// Clear the conversation context so the next attempt starts fresh, then
+		// treat as a retryable error so loop detection tracks repeated failures.
+		if e.db != nil {
+			if _, err := e.db.DB().Exec(
+				"DELETE FROM conversation_contexts WHERE bead_id = $1", bead.ID,
+			); err != nil {
+				log.Printf("[TaskExecutor] Failed to clear conversation for bead %s: %v", bead.ID, err)
+			} else {
+				log.Printf("[TaskExecutor] Cleared stale conversation history for bead %s (parse_failures)", bead.ID)
+			}
+		}
+		e.handleBeadError(bead, fmt.Errorf("parse_failures: model failed to produce valid actions after %d iterations", result.Iterations))
+		return true // back off before next attempt
 	} else {
-		// Any non-successful terminal reason: reset to open for retry
+		// Any other non-successful terminal reason: reset to open for retry
 		_ = e.beadManager.UpdateBead(bead.ID, map[string]interface{}{
 			"status":      models.BeadStatusOpen,
 			"assigned_to": "",

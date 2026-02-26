@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -191,12 +192,30 @@ func (s *Server) handleBead(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// Clear loop detection state and reset error history so the bead
+		// gets a clean slate. Also delete accumulated conversation history
+		// which can confuse the model if it grew large across prior failed runs.
+		if db := s.app.GetDatabase(); db != nil {
+			if _, dbErr := db.DB().Exec(
+				"DELETE FROM conversation_contexts WHERE bead_id = $1", id,
+			); dbErr != nil {
+				log.Printf("[API] Failed to clear conversation history for bead %s: %v", id, dbErr)
+			}
+		}
+
 		updates := map[string]interface{}{
 			"status": models.BeadStatusOpen,
 			"context": map[string]string{
 				"redispatch_requested":    "true",
 				"redispatch_requested_at": time.Now().UTC().Format(time.RFC3339),
 				"redispatch_reason":       req.Reason,
+				"loop_detected":           "false",
+				"loop_detected_reason":    "",
+				"loop_detected_at":        "",
+				"error_history":           "[]",
+				"dispatch_count":          "0",
+				"ralph_blocked_at":        "",
+				"ralph_blocked_reason":    "",
 			},
 		}
 
