@@ -96,7 +96,60 @@ func (s *Server) handleDeleteConversation(w http.ResponseWriter, r *http.Request
 }
 
 // handleResetConversation clears conversation history but keeps the session
-func (s *Server) handleResetConversation(w http.ResponseWriter, r *http.Request, sessionID string, db *database.Database) {
+func (s *Server) handleResetConversation(w http.ResponseWriter, r *http.Request, sessionID string, db *database.Database) {}
+
+// handleInjectMessage injects a message into the conversation
+func (s *Server) handleInjectMessage(w http.ResponseWriter, r *http.Request, sessionID string, db *database.Database) {
+	var req struct {
+		Message string `json:"message"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.respondError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	if req.Message == "" {
+		s.respondError(w, http.StatusBadRequest, "Message cannot be empty")
+		return
+	}
+
+	err := db.InjectMessageIntoConversation(sessionID, req.Message)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			s.respondError(w, http.StatusNotFound, fmt.Sprintf("Conversation session not found: %s", sessionID))
+			return
+		}
+		s.respondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to inject message: %v", err))
+		return
+	}
+
+	s.respondJSON(w, http.StatusOK, map[string]interface{}{
+		"message":    "Message injected successfully",
+		"session_id": sessionID,
+	})
+}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Message == "" {
+		s.respondError(w, http.StatusBadRequest, "Invalid message payload")
+		return
+	}
+
+	err := db.InjectMessageIntoConversation(sessionID, req.Message)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			s.respondError(w, http.StatusNotFound, fmt.Sprintf("Conversation session not found: %s", sessionID))
+			return
+		}
+		s.respondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to inject message: %v", err))
+		return
+	}
+
+	s.respondJSON(w, http.StatusOK, map[string]interface{}{
+		"message":    "Message injected successfully",
+		"session_id": sessionID,
+	})
+}
 	// Parse request body for options
 	var req struct {
 		KeepSystemMessage bool `json:"keep_system_message"`
