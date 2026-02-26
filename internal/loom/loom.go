@@ -941,17 +941,23 @@ go func() {
 			})
 		}
 
-		// Count providers ready for dispatch
+		// Count providers ready for dispatch; re-probe any that aren't healthy.
+		// checkProviderHealthAndActivate is normally called when a provider is first
+		// registered. On restart, providers are loaded from DB via Upsert (no probe),
+		// so we must re-probe them here to promote unhealthy/pending ones to active.
 		healthyCount := 0
 		for _, p := range providers {
-			if p.Status == "healthy" {
+			if p.Status == "healthy" || p.Status == "active" {
 				healthyCount++
+			} else {
+				pID := p.ID
+				go a.checkProviderHealthAndActivate(pID)
 			}
 		}
 		if healthyCount > 0 {
 			log.Printf("[Loom] %d providers already healthy, dispatch ready", healthyCount)
 		} else {
-			log.Printf("[Loom] No providers healthy yet — heartbeat will activate them shortly")
+			log.Printf("[Loom] No providers healthy yet — probing all providers now")
 		}
 
 		// Restore agents from database (best-effort).
@@ -1662,6 +1668,12 @@ func (a *Loom) CreateProject(name, gitRepo, branch, beadsPath string, ctxMap map
 
 func (a *Loom) ensureDefaultAgents(ctx context.Context, projectID string) error {
 	return a.ensureOrgChart(ctx, projectID)
+}
+
+// EnsureDefaultAgents is the public API for ensureDefaultAgents, used by the
+// bootstrap handler and any other caller outside the loom package.
+func (a *Loom) EnsureDefaultAgents(ctx context.Context, projectID string) error {
+	return a.ensureDefaultAgents(ctx, projectID)
 }
 
 // ensureOrgChart creates an org chart for a project and fills all positions with agents
@@ -2561,6 +2573,10 @@ func (a *Loom) UpdateProvider(ctx context.Context, p *internalmodels.Provider) (
 		LastHeartbeatAt:        p.LastHeartbeatAt,
 		LastHeartbeatLatencyMs: p.LastHeartbeatLatencyMs,
 	})
+	// Re-probe health whenever a provider is updated so status refreshes
+	// immediately rather than waiting for the next restart.
+	go a.checkProviderHealthAndActivate(p.ID)
+
 	if a.eventBus != nil {
 		_ = a.eventBus.Publish(&eventbus.Event{
 			Type:   eventbus.EventTypeProviderUpdated,

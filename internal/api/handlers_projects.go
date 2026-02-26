@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -361,6 +362,15 @@ func (s *Server) handleBootstrapProject(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		s.respondError(w, http.StatusInternalServerError, fmt.Sprintf("Bootstrap failed: %v", err))
 		return
+	}
+
+	// Create default agents (org chart) for the new project.
+	// Bootstrap uses project.Manager.CreateProjectWithID directly, bypassing
+	// Loom.CreateProject which normally calls ensureDefaultAgents.
+	if result.ProjectID != "" {
+		if agentErr := s.app.EnsureDefaultAgents(r.Context(), result.ProjectID); agentErr != nil {
+			log.Printf("[Bootstrap] Warning: failed to create default agents for %s: %v", result.ProjectID, agentErr)
+		}
 	}
 
 	s.respondJSON(w, http.StatusCreated, result)
