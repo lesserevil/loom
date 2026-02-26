@@ -679,33 +679,6 @@ func newBeadBulkUpdateCommand() *cobra.Command {
 	cmd.Flags().StringVar(&title, "title", "", "New title")
 	return cmd
 }
-	var reason string
-	cmd := &cobra.Command{
-		Use:   "unblock <bead-id>",
-		Short: "Unblock a blocked bead and reset its error state",
-		Long: `Clears ralph_blocked_reason, error_history, and dispatch_count, then
-re-opens the bead so the task executor will pick it up again.`,
-		Args:    cobra.ExactArgs(1),
-		Example: `  loomctl bead unblock loom-001 --reason="provider fixed"`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			client := newClient()
-			body := map[string]interface{}{
-				"reason": reason,
-			}
-			if reason == "" {
-				body["reason"] = "manually unblocked via loomctl"
-			}
-			data, err := client.post(fmt.Sprintf("/api/v1/beads/%s/redispatch", args[0]), body)
-			if err != nil {
-				return err
-			}
-			outputJSON(data)
-			return nil
-		},
-	}
-	cmd.Flags().StringVarP(&reason, "reason", "r", "", "Reason for unblocking")
-	return cmd
-}
 
 // --- Log commands ---
 
