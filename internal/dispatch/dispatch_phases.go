@@ -721,7 +721,7 @@ func (d *Dispatcher) processTaskSuccess(candidate *models.Bead, ag *models.Agent
 	updates := map[string]interface{}{"context": ctxUpdates}
 	// Check for successful completion FIRST — if the agent signaled done, close the bead
 	// regardless of dispatch history. The agent completed its work successfully.
-	if result.LoopTerminalReason == "completed" || result.LoopTerminalReason == "done" || result.LoopTerminalReason == "skip" {
+	if result.LoopTerminalReason == "completed" || result.LoopTerminalReason == "done" {
 		// Agent signaled "done" — close the bead so it won't be re-dispatched.
 		updates["status"] = models.BeadStatusClosed
 		updates["assigned_to"] = ""
