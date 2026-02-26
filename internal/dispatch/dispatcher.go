@@ -625,7 +625,7 @@ func (d *Dispatcher) DispatchOnce(ctx context.Context, projectID string) (*Dispa
 		timeout := d.taskTimeout
 		d.mu.RUnlock()
 		if baseCtx == nil {
-			baseCtx = context.Background()
+			baseCtx = ctx
 		}
 		if timeout == 0 {
 			timeout = DefaultTaskTimeout
