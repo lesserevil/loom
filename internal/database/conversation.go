@@ -131,6 +131,26 @@ func (d *Database) GetConversationContextByBeadID(beadID string) (*models.Conver
 	return ctx, nil
 }
 
+// InjectMessageIntoConversation injects a message into an existing conversation context
+func (d *Database) InjectMessageIntoConversation(sessionID string, message string) error {
+	ctx, err := d.GetConversationContext(sessionID)
+	if err != nil {
+		return err
+	}
+
+	newMessage := models.ChatMessage{
+		Role:      "user",
+		Content:   message,
+		Timestamp: time.Now(),
+	}
+
+	ctx.Messages = append(ctx.Messages, newMessage)
+	ctx.TokenCount += newMessage.TokenCount
+	ctx.UpdatedAt = time.Now()
+
+	return d.UpdateConversationContext(ctx)
+}
+
 // UpdateConversationContext updates an existing conversation context
 func (d *Database) UpdateConversationContext(ctx *models.ConversationContext) error {
 	messagesJSON, err := ctx.MessagesJSON()
