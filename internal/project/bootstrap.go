@@ -179,7 +179,7 @@ func (bs *BootstrapService) Bootstrap(ctx context.Context, req BootstrapRequest)
 // cloneRepository clones or initializes a git repository
 func (bs *BootstrapService) cloneRepository(ctx context.Context, gitURL, branch, destPath string) error {
 	// Try to clone the repository
-	cmd := exec.CommandContext(ctx, "git", "clone", "--branch", branch, gitURL, destPath)
+	cmd := exec.CommandContext(ctx, "git", "clone", "--branch", branch, "--single-branch", gitURL, destPath)
 	if err := cmd.Run(); err != nil {
 		// If clone fails, try to initialize and set remote
 		cmd = exec.CommandContext(ctx, "git", "init", destPath)

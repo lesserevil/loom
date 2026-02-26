@@ -43,6 +43,13 @@ func (h *HealthReportGenerator) GenerateDailyReport(ctx context.Context) (string
 
 	// Additional metrics and anomalies to be added here
 
+	// Placeholder for beads closed in last 24h per project
+	// Placeholder for beads stuck/blocked per project
+	// Placeholder for agent performance metrics
+	// Placeholder for provider health and token budget status
+	// Placeholder for key decisions made by agents
+	// Placeholder for anomalies detection
+
 	// Example: Beads closed in last 24h per project
 	// Placeholder for actual implementation
 	// beadsClosed := fetchBeadsClosedInLast24h()

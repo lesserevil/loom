@@ -50,12 +50,40 @@ func (w *Watchdog) checkHealth(ctx context.Context) {
 	// Check for zombie beads
 	// Check if Ralph is blocking >50% of a project's beads
 
-	// Placeholder for actual implementation
-	// This is where the logic for each health check will be implemented
+	// Implement health checks
+	projects, err := w.beadsMgr.ListProjects()
+	if err != nil {
+		log.Printf("[Watchdog] Error listing projects: %v", err)
+		return
+	}
 
-	// Example: Log a message if a health issue is detected
-	log.Println("[Watchdog] Health issue detected: Example issue")
+	for _, project := range projects {
+		openBeads, err := w.beadsMgr.ListBeads(map[string]interface{}{"status": "open", "project_id": project.ID})
+		if err != nil {
+			log.Printf("[Watchdog] Error listing open beads for project %s: %v", project.ID, err)
+			continue
+		}
 
-	// Create a P0 bead assigned to the CEO if an issue is detected
+		inProgressBeads, err := w.beadsMgr.ListBeads(map[string]interface{}{"status": "in_progress", "project_id": project.ID})
+		if err != nil {
+			log.Printf("[Watchdog] Error listing in-progress beads for project %s: %v", project.ID, err)
+			continue
+		}
+
+		// Check for projects with 0 in_progress beads and N+ open beads for >30 minutes
+		if len(inProgressBeads) == 0 && len(openBeads) > 5 {
+			log.Printf("[Watchdog] Project %s has 0 in-progress beads and %d open beads", project.ID, len(openBeads))
+			// Create a P0 bead assigned to the CEO
+			w.createAlertBead(project.ID, "No progress on open beads")
+		}
+	}
+
+	// Placeholder for additional health checks
+}
+
+// createAlertBead creates a P0 bead assigned to the CEO
+func (w *Watchdog) createAlertBead(projectID, reason string) {
+	log.Printf("[Watchdog] Creating alert bead for project %s: %s", projectID, reason)
 	// Placeholder for bead creation logic
+}
 }

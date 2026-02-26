@@ -144,7 +144,7 @@ services:
       # profile and may not be present. Loom's heartbeat loop retries provider
       # health — if tokenhub isn't up yet (or is external), Loom handles it.
     ports:
-      - "8080:8081"
+      - "8081:8081"
       - "3307:3307"
     environment:
       - LOOM_PASSWORD=${LOOM_PASSWORD}
