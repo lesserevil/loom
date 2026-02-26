@@ -4628,7 +4628,7 @@ async function loadMotivations() {
 
         renderMotivationsDashboard();
     } catch (error) {
-        console.error('Error loading motivations:', error);
+        console.error('Error loading motivations:', error); alert('Failed to load motivations. Please check your network connection and try again.');
         showToast('Failed to load motivations: ' + error.message, 'error');
     }
 }
