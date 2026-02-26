@@ -124,6 +124,25 @@ func PerpetualTaskMotivations() []*Motivation {
 			},
 			IsBuiltIn: true,
 			Execute: func(ctx context.Context, client *github.Client) error {
+				// Import necessary packages
+				import (
+					"context"
+					"fmt"
+					"strings"
+					"github.com/google/go-github/v33/github"
+				)
+
+				// Define Bead struct
+				type Bead struct {
+					Type        string
+					Priority    string
+					Title       string
+					Description string
+					AssignedRole string
+				}
+
+				// Implement the logic
+
 				failedRuns, err := client.ListFailedWorkflowRuns(ctx)
 				if err != nil {
 					return fmt.Errorf("failed to list workflow runs: %w", err)
