@@ -223,7 +223,7 @@ func New(cfg *config.Config) (*Loom, error) {
 	sshKeyDir := filepath.Join(filepath.Dir(projectKeyDir), "keys")
 	gitopsMgr, err := gitops.NewManager(projectKeyDir, sshKeyDir, db, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize gitops manager: %w", err)
+		log.Printf("Warning: failed to initialize gitops manager: %v", err)
 	}
 	gitopsMgr.SetSelfProjectID(cfg.GetSelfProjectID())
 

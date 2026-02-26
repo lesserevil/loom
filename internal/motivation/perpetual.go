@@ -105,24 +105,39 @@ func PerpetualTaskMotivations() []*Motivation {
 		},
 
 		// ============================================
-		// PR Manager Perpetual Tasks
+// PR Manager Perpetual Tasks
 		// ============================================
 		{
-			Name:                "Hourly GitHub Activity Check",
-			Description:         "PR Manager polls GitHub for new issues, PRs, and comments every hour",
+			Name:                "CI/CD Pipeline Monitoring",
+			Description:         "PR Manager checks CI/CD pipeline status and files devops beads on failure",
 			Type:                MotivationTypeCalendar,
 			Condition:           ConditionScheduledInterval,
 			AgentRole:           "public-relations-manager",
 			WakeAgent:           true,
 			CreateBeadOnTrigger: true,
-			BeadTemplate:        "github-activity-check",
-			Priority:            60,
-			CooldownPeriod:      55 * time.Minute,
+			BeadTemplate:        "cicd-pipeline-monitoring",
+			Priority:            65,
+			CooldownPeriod:      1 * time.Hour,
 			Parameters: map[string]interface{}{
 				"interval":  "1h",
 				"task_type": "perpetual",
-				"sources":   []string{"issues", "pull_requests", "comments"},
 			},
+			IsBuiltIn: true,
+			Execute: func(ctx context.Context, client *github.Client) error {
+				failedRuns, err := client.ListFailedWorkflowRuns(ctx)
+				if err != nil {
+					return fmt.Errorf("failed to list workflow runs: %w", err)
+				}
+
+				for _, run := range failedRuns {
+					// Check for existing open bead with the same title prefix
+					// If not found, file a new bead
+					// Implement deduplication logic here
+				}
+
+				return nil
+			},
+		}, 
 			IsBuiltIn: true,
 		},
 		{
