@@ -148,10 +148,11 @@ func (eb *EventBus) Unsubscribe(subscriberID string) {
 	eb.mu.Lock()
 	defer eb.mu.Unlock()
 
-	if sub, exists := eb.subscribers[subscriberID]; exists {
-		close(sub.Channel)
-		delete(eb.subscribers, subscriberID)
-	}
+	// Don't close the channel here — distributeEvent may still be
+	// sending on it outside the lock. The channel will be collected
+	// once all references are gone. Consumers should select on
+	// ctx.Done() to detect shutdown.
+	delete(eb.subscribers, subscriberID)
 }
 
 // processEvents processes events from the buffer and distributes to subscribers

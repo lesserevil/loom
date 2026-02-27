@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"go/parser"
 	"go/token"
-	"os"
 )
 
 // DetectCircularDependencies checks for circular dependencies in Go packages
@@ -58,14 +57,4 @@ func DetectCircularDependencies(root string) error {
 	}
 
 	return nil
-}
-
-func main() {
-	root := "."
-	err := DetectCircularDependencies(root)
-	if err != nil {
-		fmt.Println("Error:", err)
-		os.Exit(1)
-	}
-	fmt.Println("No circular dependencies detected.")
 }

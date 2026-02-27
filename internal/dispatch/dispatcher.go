@@ -375,9 +375,7 @@ const DefaultTaskTimeout = 30 * time.Minute
 // processCommitQueue processes commit requests sequentially to prevent git conflicts
 func (d *Dispatcher) processCommitQueue() {
 	for req := range d.commitQueue {
-		// Acquire global commit lock
 		d.commitLock.Lock()
-		defer d.commitLock.Unlock()
 
 		// Set commit state
 		d.commitStateMutex.Lock()
