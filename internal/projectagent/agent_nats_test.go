@@ -2,6 +2,7 @@ package projectagent
 
 import (
 	"context"
+	"net"
 	"testing"
 	"time"
 
@@ -10,25 +11,39 @@ import (
 
 // TestAgentNATSConfiguration tests that agent can be configured with NATS
 func TestAgentNATSConfiguration(t *testing.T) {
+	natsReachable := false
+	conn, err := net.DialTimeout("tcp", "localhost:4222", 2*time.Second)
+	if err == nil {
+		conn.Close()
+		natsReachable = true
+	}
+
 	tests := []struct {
 		name         string
 		natsURL      string
 		shouldHaveMB bool
+		needsNATS    bool
 	}{
 		{
 			name:         "With NATS URL",
 			natsURL:      "nats://localhost:4222",
 			shouldHaveMB: true,
+			needsNATS:    true,
 		},
 		{
 			name:         "Without NATS URL",
 			natsURL:      "",
 			shouldHaveMB: false,
+			needsNATS:    false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.needsNATS && !natsReachable {
+				t.Skip("NATS not reachable at localhost:4222")
+			}
+
 			config := Config{
 				ProjectID:       "test-project",
 				ControlPlaneURL: "http://localhost:8080",

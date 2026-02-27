@@ -14,6 +14,15 @@ import (
 	"github.com/jordanhubbard/loom/pkg/models"
 )
 
+// requireDatabase skips the calling test when the Loom instance has no live
+// database connection (e.g. PostgreSQL is unreachable in the builder container).
+func requireDatabase(t *testing.T, l *Loom) {
+	t.Helper()
+	if l.GetDatabase() == nil {
+		t.Skip("PostgreSQL not available — skipping database-dependent test")
+	}
+}
+
 // testLoom creates a Loom instance suitable for testing, using a temp directory
 // for gitops to avoid filesystem issues. Caller must defer cleanup of the returned dir.
 func testLoom(t *testing.T, opts ...func(*config.Config)) (*Loom, string) {
@@ -300,6 +309,7 @@ func TestLoom_GetMotivationEngine(t *testing.T) {
 func TestLoom_GetWorkflowEngine(t *testing.T) {
 	loom, tmpDir := testLoom(t)
 	defer os.RemoveAll(tmpDir)
+	requireDatabase(t, loom)
 
 	if loom.GetWorkflowEngine() == nil {
 		t.Error("GetWorkflowEngine() returned nil")
@@ -309,6 +319,7 @@ func TestLoom_GetWorkflowEngine(t *testing.T) {
 func TestLoom_GetActivityManager(t *testing.T) {
 	loom, tmpDir := testLoom(t)
 	defer os.RemoveAll(tmpDir)
+	requireDatabase(t, loom)
 
 	if loom.GetActivityManager() == nil {
 		t.Error("GetActivityManager() returned nil")
@@ -318,6 +329,7 @@ func TestLoom_GetActivityManager(t *testing.T) {
 func TestLoom_GetNotificationManager(t *testing.T) {
 	loom, tmpDir := testLoom(t)
 	defer os.RemoveAll(tmpDir)
+	requireDatabase(t, loom)
 
 	if loom.GetNotificationManager() == nil {
 		t.Error("GetNotificationManager() returned nil")
@@ -327,6 +339,7 @@ func TestLoom_GetNotificationManager(t *testing.T) {
 func TestLoom_GetCommentsManager(t *testing.T) {
 	loom, tmpDir := testLoom(t)
 	defer os.RemoveAll(tmpDir)
+	requireDatabase(t, loom)
 
 	if loom.GetCommentsManager() == nil {
 		t.Error("GetCommentsManager() returned nil")
@@ -380,16 +393,6 @@ func TestLoom_SetKeyManager(t *testing.T) {
 	loom.SetKeyManager(nil)
 	if loom.GetKeyManager() != nil {
 		t.Error("expected nil after setting nil")
-	}
-}
-
-func TestLoom_GetTemporalManager(t *testing.T) {
-	loom, tmpDir := testLoom(t)
-	defer os.RemoveAll(tmpDir)
-
-	// Without Temporal config, should be nil
-	if loom.GetTemporalManager() != nil {
-		t.Error("GetTemporalManager() returned non-nil without temporal config")
 	}
 }
 

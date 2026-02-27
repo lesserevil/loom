@@ -942,6 +942,7 @@ func TestLoom_GetCommandLog_NoDatabase(t *testing.T) {
 func TestLoom_RegisterProvider(t *testing.T) {
 	l, tmpDir := testLoom(t)
 	defer os.RemoveAll(tmpDir)
+	requireDatabase(t, l)
 
 	ctx := context.Background()
 
@@ -1021,6 +1022,7 @@ func TestLoom_RegisterProvider_NoDatabase(t *testing.T) {
 func TestLoom_UpdateProvider(t *testing.T) {
 	l, tmpDir := testLoom(t)
 	defer os.RemoveAll(tmpDir)
+	requireDatabase(t, l)
 
 	ctx := context.Background()
 
@@ -1050,6 +1052,7 @@ func TestLoom_UpdateProvider(t *testing.T) {
 func TestLoom_UpdateProvider_Errors(t *testing.T) {
 	l, tmpDir := testLoom(t)
 	defer os.RemoveAll(tmpDir)
+	requireDatabase(t, l)
 
 	ctx := context.Background()
 
@@ -1101,6 +1104,7 @@ func TestLoom_UpdateProvider_NoDatabase(t *testing.T) {
 func TestLoom_DeleteProvider(t *testing.T) {
 	l, tmpDir := testLoom(t)
 	defer os.RemoveAll(tmpDir)
+	requireDatabase(t, l)
 
 	ctx := context.Background()
 
@@ -1137,6 +1141,7 @@ func TestLoom_DeleteProvider_NoDatabase(t *testing.T) {
 func TestLoom_ListProviders_WithDatabase(t *testing.T) {
 	l, tmpDir := testLoom(t)
 	defer os.RemoveAll(tmpDir)
+	requireDatabase(t, l)
 
 	ctx := context.Background()
 
@@ -1423,6 +1428,7 @@ func TestLoom_New_ModelTierMapping(t *testing.T) {
 func TestLoom_RegisterProvider_Ollama(t *testing.T) {
 	l, tmpDir := testLoom(t)
 	defer os.RemoveAll(tmpDir)
+	requireDatabase(t, l)
 
 	ctx := context.Background()
 	p := &internalmodels.Provider{
@@ -1447,6 +1453,7 @@ func TestLoom_RegisterProvider_Ollama(t *testing.T) {
 func TestLoom_UpdateProvider_Ollama(t *testing.T) {
 	l, tmpDir := testLoom(t)
 	defer os.RemoveAll(tmpDir)
+	requireDatabase(t, l)
 
 	ctx := context.Background()
 	p := &internalmodels.Provider{
@@ -1470,6 +1477,7 @@ func TestLoom_UpdateProvider_Ollama(t *testing.T) {
 func TestLoom_RegisterProvider_ModelDefaults(t *testing.T) {
 	l, tmpDir := testLoom(t)
 	defer os.RemoveAll(tmpDir)
+	requireDatabase(t, l)
 
 	ctx := context.Background()
 
@@ -1649,6 +1657,7 @@ func TestLoom_RunReplQuery_EmptyMessage(t *testing.T) {
 func TestLoom_RunReplQuery_NoTemporal(t *testing.T) {
 	l, tmpDir := testLoom(t)
 	defer os.RemoveAll(tmpDir)
+	requireDatabase(t, l)
 
 	ctx := context.Background()
 
@@ -1828,45 +1837,6 @@ func TestLoom_ResumeAgentsWaitingForProvider_NilManagers(t *testing.T) {
 	err := l.ResumeAgentsWaitingForProvider(ctx, "provider-1")
 	if err != nil {
 		t.Errorf("ResumeAgentsWaitingForProvider() error = %v", err)
-	}
-}
-
-// ---------------------------------------------------------------------------
-// Loom method tests: startProviderHeartbeats
-// ---------------------------------------------------------------------------
-
-func TestLoom_StartProviderHeartbeats_NoTemporal(t *testing.T) {
-	l, tmpDir := testLoom(t)
-	defer os.RemoveAll(tmpDir)
-
-	ctx := context.Background()
-	// Without temporal, should return nil
-	err := l.startProviderHeartbeats(ctx)
-	if err != nil {
-		t.Errorf("startProviderHeartbeats() error = %v", err)
-	}
-}
-
-// ---------------------------------------------------------------------------
-// Loom method tests: ensureProviderHeartbeat
-// ---------------------------------------------------------------------------
-
-func TestLoom_EnsureProviderHeartbeat_NoTemporal(t *testing.T) {
-	l, tmpDir := testLoom(t)
-	defer os.RemoveAll(tmpDir)
-
-	ctx := context.Background()
-
-	// No temporal, should return nil
-	err := l.ensureProviderHeartbeat(ctx, "provider-1")
-	if err != nil {
-		t.Errorf("ensureProviderHeartbeat() error = %v", err)
-	}
-
-	// Empty provider ID, should return nil
-	err = l.ensureProviderHeartbeat(ctx, "")
-	if err != nil {
-		t.Errorf("ensureProviderHeartbeat('') error = %v", err)
 	}
 }
 

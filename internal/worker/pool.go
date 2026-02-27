@@ -114,9 +114,7 @@ func (p *Pool) GetWorker(agentID string) (*Worker, error) {
 
 	worker, exists := p.workers[agentID]
 	if !exists {
-		log.Printf("Worker not found for agent %s. Attempting to respawn.", agentID)
-		log.Printf("Worker not found for agent %s. Attempting to respawn.", agentID)
-		return p.SpawnWorker(&models.Agent{ID: agentID}, "default-provider")
+		return nil, fmt.Errorf("worker not found for agent %s", agentID)
 	}
 
 	return worker, nil

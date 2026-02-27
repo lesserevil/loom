@@ -232,7 +232,7 @@ func TestRegistrySendChatCompletion_MetricsCallback(t *testing.T) {
 	var cbProviderID string
 	var cbSuccess bool
 
-	r.SetMetricsCallback(func(providerID string, success bool, latencyMs int64, totalTokens int64) {
+	r.SetMetricsCallback(func(providerID string, success bool, latencyMs int64, totalTokens int64, errorCount int64) {
 		called = true
 		cbProviderID = providerID
 		cbSuccess = success
@@ -295,7 +295,7 @@ func TestRegistrySendChatCompletionStream_MetricsCallback(t *testing.T) {
 	})
 
 	var called bool
-	r.SetMetricsCallback(func(providerID string, success bool, latencyMs int64, totalTokens int64) {
+	r.SetMetricsCallback(func(providerID string, success bool, latencyMs int64, totalTokens int64, errorCount int64) {
 		called = true
 	})
 

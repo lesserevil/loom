@@ -130,46 +130,46 @@ func TestResponseFormatSerialization(t *testing.T) {
 func TestListActiveIncludesActiveAndHealthy(t *testing.T) {
 	registry := provider.NewRegistry()
 
-	// Register provider with "active" status (set by health check on startup)
+	// Use Upsert so that the caller-supplied Status is preserved.
+	// Register() forces Status="pending" and runs a health check that
+	// would fail in CI (no real endpoint), defeating the purpose of this test.
 	activeConfig := &provider.ProviderConfig{
 		ID:       "prov-active",
 		Name:     "Active Provider",
-		Type:     "openai",
+		Type:     "mock",
 		Endpoint: "http://localhost:8000/v1",
 		APIKey:   "key",
 		Model:    "model",
 		Status:   "active",
 	}
-	if err := registry.Register(activeConfig); err != nil {
-		t.Fatalf("Register active: %v", err)
+	if err := registry.Upsert(activeConfig); err != nil {
+		t.Fatalf("Upsert active: %v", err)
 	}
 
-	// Register provider with "healthy" status (set by heartbeat workflow)
 	healthyConfig := &provider.ProviderConfig{
 		ID:       "prov-healthy",
 		Name:     "Healthy Provider",
-		Type:     "openai",
+		Type:     "mock",
 		Endpoint: "http://localhost:8000/v1",
 		APIKey:   "key",
 		Model:    "model",
 		Status:   "healthy",
 	}
-	if err := registry.Register(healthyConfig); err != nil {
-		t.Fatalf("Register healthy: %v", err)
+	if err := registry.Upsert(healthyConfig); err != nil {
+		t.Fatalf("Upsert healthy: %v", err)
 	}
 
-	// Register provider with "pending" status (should NOT be active)
 	pendingConfig := &provider.ProviderConfig{
 		ID:       "prov-pending",
 		Name:     "Pending Provider",
-		Type:     "openai",
+		Type:     "mock",
 		Endpoint: "http://localhost:8000/v1",
 		APIKey:   "key",
 		Model:    "model",
 		Status:   "pending",
 	}
-	if err := registry.Register(pendingConfig); err != nil {
-		t.Fatalf("Register pending: %v", err)
+	if err := registry.Upsert(pendingConfig); err != nil {
+		t.Fatalf("Upsert pending: %v", err)
 	}
 
 	active := registry.ListActive()
