@@ -862,58 +862,9 @@ func TestCanAutoDecide(t *testing.T) {
 		wantReason string
 	}{
 		{
-			name:       "P0 with full autonomy requires human",
+			name:       "full autonomy can make P0 decisions",
 			priority:   models.BeadPriorityP0,
 			autonomy:   models.AutonomyFull,
-			wantResult: false,
-			wantReason: "P0 decisions require human intervention",
-		},
-		{
-			name:       "P0 with semi autonomy requires human",
-			priority:   models.BeadPriorityP0,
-			autonomy:   models.AutonomySemi,
-			wantResult: false,
-			wantReason: "P0 decisions require human intervention",
-		},
-		{
-			name:       "P0 with supervised autonomy requires human",
-			priority:   models.BeadPriorityP0,
-			autonomy:   models.AutonomySupervised,
-			wantResult: false,
-			wantReason: "P0 decisions require human intervention",
-		},
-		{
-			name:       "supervised cannot make any decisions",
-			priority:   models.BeadPriorityP3,
-			autonomy:   models.AutonomySupervised,
-			wantResult: false,
-			wantReason: "supervised agents cannot make decisions",
-		},
-		{
-			name:       "supervised cannot make P2 decisions",
-			priority:   models.BeadPriorityP2,
-			autonomy:   models.AutonomySupervised,
-			wantResult: false,
-			wantReason: "supervised agents cannot make decisions",
-		},
-		{
-			name:       "semi cannot make P1 decisions",
-			priority:   models.BeadPriorityP1,
-			autonomy:   models.AutonomySemi,
-			wantResult: false,
-			wantReason: "semi-autonomous agents cannot make P0/P1 decisions",
-		},
-		{
-			name:       "semi can make P2 decisions",
-			priority:   models.BeadPriorityP2,
-			autonomy:   models.AutonomySemi,
-			wantResult: true,
-			wantReason: "",
-		},
-		{
-			name:       "semi can make P3 decisions",
-			priority:   models.BeadPriorityP3,
-			autonomy:   models.AutonomySemi,
 			wantResult: true,
 			wantReason: "",
 		},
@@ -937,6 +888,48 @@ func TestCanAutoDecide(t *testing.T) {
 			autonomy:   models.AutonomyFull,
 			wantResult: true,
 			wantReason: "",
+		},
+		{
+			name:       "semi can make P2 decisions",
+			priority:   models.BeadPriorityP2,
+			autonomy:   models.AutonomySemi,
+			wantResult: true,
+			wantReason: "",
+		},
+		{
+			name:       "semi can make P3 decisions",
+			priority:   models.BeadPriorityP3,
+			autonomy:   models.AutonomySemi,
+			wantResult: true,
+			wantReason: "",
+		},
+		{
+			name:       "semi cannot make P0 decisions",
+			priority:   models.BeadPriorityP0,
+			autonomy:   models.AutonomySemi,
+			wantResult: false,
+			wantReason: "semi-autonomous agents cannot make P0/P1 decisions",
+		},
+		{
+			name:       "semi cannot make P1 decisions",
+			priority:   models.BeadPriorityP1,
+			autonomy:   models.AutonomySemi,
+			wantResult: false,
+			wantReason: "semi-autonomous agents cannot make P0/P1 decisions",
+		},
+		{
+			name:       "supervised cannot make any decisions",
+			priority:   models.BeadPriorityP3,
+			autonomy:   models.AutonomySupervised,
+			wantResult: false,
+			wantReason: "supervised agents cannot make decisions",
+		},
+		{
+			name:       "supervised cannot make P2 decisions",
+			priority:   models.BeadPriorityP2,
+			autonomy:   models.AutonomySupervised,
+			wantResult: false,
+			wantReason: "supervised agents cannot make decisions",
 		},
 	}
 
@@ -964,6 +957,27 @@ func TestCanAutoDecide(t *testing.T) {
 			t.Errorf("CanAutoDecide() reason = %q, want 'decision not found'", reason)
 		}
 	})
+}
+
+func TestCanAutoDecide_RequiresHuman(t *testing.T) {
+	m, d := createTestDecision(t, withPriority(models.BeadPriorityP2))
+
+	// Without the flag, full autonomy decides freely
+	canAuto, _ := m.CanAutoDecide(d.ID, models.AutonomyFull)
+	if !canAuto {
+		t.Error("Full autonomy should auto-decide without requires_human flag")
+	}
+
+	// Tag it as requiring human authority
+	_ = m.UpdateDecisionContext(d.ID, map[string]string{"requires_human": "true"})
+
+	canAuto, reason := m.CanAutoDecide(d.ID, models.AutonomyFull)
+	if canAuto {
+		t.Error("Should not auto-decide when requires_human is set")
+	}
+	if reason != "decision requires human authority" {
+		t.Errorf("Expected human authority reason, got %q", reason)
+	}
 }
 
 func TestUpdateDecisionContext(t *testing.T) {
@@ -1268,13 +1282,10 @@ func TestManagerEscalationWorkflow(t *testing.T) {
 		t.Error("Escalated decision should appear in P0 list")
 	}
 
-	// Auto-decide should fail for P0 even with full autonomy
-	canAuto, reason := m.CanAutoDecide(d.ID, models.AutonomyFull)
-	if canAuto {
-		t.Error("P0 decision should not be auto-decidable even with full autonomy")
-	}
-	if !strings.Contains(reason, "human intervention") {
-		t.Errorf("Expected reason about human intervention, got %q", reason)
+	// Full autonomy agents handle P0 decisions — that is Loom
+	canAuto, _ := m.CanAutoDecide(d.ID, models.AutonomyFull)
+	if !canAuto {
+		t.Error("Full autonomy agent should be able to auto-decide P0")
 	}
 }
 
@@ -1393,8 +1404,8 @@ func TestGetDecisionsByRequester_AllStatuses(t *testing.T) {
 	}
 }
 
-// TestCanAutoDecide_AfterEscalation verifies that escalation changes
-// the auto-decide outcome.
+// TestCanAutoDecide_AfterEscalation verifies escalation behavior.
+// Full-autonomy agents still handle P0; semi agents lose authority.
 func TestCanAutoDecide_AfterEscalation(t *testing.T) {
 	m, d := createTestDecision(t, withPriority(models.BeadPriorityP2))
 
@@ -1407,13 +1418,19 @@ func TestCanAutoDecide_AfterEscalation(t *testing.T) {
 	// Escalate to P0
 	_ = m.EscalateDecision(d.ID, "urgent")
 
-	// After escalation: nobody can auto-decide P0
-	canAuto, reason := m.CanAutoDecide(d.ID, models.AutonomyFull)
-	if canAuto {
-		t.Error("Nobody should auto-decide P0 after escalation")
+	// After escalation: full autonomy still handles P0
+	canAuto, _ = m.CanAutoDecide(d.ID, models.AutonomyFull)
+	if !canAuto {
+		t.Error("Full autonomy agent should still auto-decide after escalation to P0")
 	}
-	if !strings.Contains(reason, "human intervention") {
-		t.Errorf("Expected human intervention reason, got %q", reason)
+
+	// Semi loses authority on escalated P0
+	canAuto, reason := m.CanAutoDecide(d.ID, models.AutonomySemi)
+	if canAuto {
+		t.Error("Semi should not auto-decide P0 after escalation")
+	}
+	if !strings.Contains(reason, "semi-autonomous") {
+		t.Errorf("Expected semi-autonomous restriction reason, got %q", reason)
 	}
 }
 

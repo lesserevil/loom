@@ -346,6 +346,14 @@ func (s *Server) handleBead(w http.ResponseWriter, r *http.Request) {
 			}
 			return
 		}
+
+		// Moving a bead to in_progress is an implicit "start working on this."
+		// Wake the project executor so a worker claims the bead immediately
+		// instead of waiting for the next poll cycle.
+		if req.Status != nil && models.BeadStatus(*req.Status) == models.BeadStatusInProgress {
+			s.app.WakeProject(bead.ProjectID)
+		}
+
 		s.respondJSON(w, http.StatusOK, bead)
 
 	default:

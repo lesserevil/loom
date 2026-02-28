@@ -5,7 +5,7 @@ license: Proprietary
 compatibility: Designed for Loom
 metadata:
   role: {{Role Title}}
-  autonomy_level: semi  # full, semi, or supervised
+  autonomy_level: full  # full, semi, or supervised
   specialties:
     - specialty-1
     - specialty-2

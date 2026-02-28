@@ -203,7 +203,7 @@ const (
 type BeadPriority int
 
 const (
-	BeadPriorityP0 BeadPriority = 0 // Critical - needs human
+	BeadPriorityP0 BeadPriority = 0 // Critical - highest urgency
 	BeadPriorityP1 BeadPriority = 1 // High
 	BeadPriorityP2 BeadPriority = 2 // Medium
 	BeadPriorityP3 BeadPriority = 3 // Low

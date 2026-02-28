@@ -303,7 +303,7 @@ personas:
 Customize issue-to-bead priority mapping:
 ```yaml
 priority_mapping:
-  label:security: 0  # P0 - Critical, needs human
+  label:security: 0  # P0 - Critical, highest urgency
   label:bug: 2  # P2 - Medium
   label:feature: 3  # P3 - Low
   label:good-first-issue: 3  # P3 - Low

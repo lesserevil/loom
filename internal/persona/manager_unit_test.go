@@ -169,8 +169,8 @@ Body content here.
 		t.Fatalf("LoadPersona() error = %v", err)
 	}
 
-	if persona.AutonomyLevel != "semi" {
-		t.Errorf("AutonomyLevel = %q, want semi (default)", persona.AutonomyLevel)
+	if persona.AutonomyLevel != "full" {
+		t.Errorf("AutonomyLevel = %q, want full (default)", persona.AutonomyLevel)
 	}
 }
 
@@ -411,8 +411,8 @@ func TestExtractAutonomyLevel(t *testing.T) {
 		{"Semi-autonomous mode", "semi"},
 		{"Supervised by human", "supervised"},
 		{"FULL AUTONOMY", "full"},
-		{"unknown text", "semi"},
-		{"", "semi"},
+		{"unknown text", "full"},
+		{"", "full"},
 	}
 
 	for _, tt := range tests {

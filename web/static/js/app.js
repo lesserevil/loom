@@ -710,7 +710,27 @@ async function loadPersonas() {
 }
 
 async function loadDecisions() {
-    state.decisions = await apiCall('/decisions');
+    // Merge in-memory decisions (from DecisionManager) with persistent
+    // decision-type beads from the bead store. The DecisionManager is
+    // in-memory-only and loses state on restart; the bead store persists.
+    const [inMemory, beadDecisions] = await Promise.all([
+        apiCall('/decisions').catch(() => []),
+        apiCall('/beads?type=decision').catch(() => [])
+    ]);
+    const seen = new Set((inMemory || []).map(d => d.id));
+    const merged = [...(inMemory || [])];
+    for (const b of (beadDecisions || [])) {
+        if (!seen.has(b.id)) {
+            merged.push({
+                ...b,
+                question: b.title || b.description || '',
+                requester_id: (b.context && b.context.requester_id) || b.assigned_to || 'system',
+                recommendation: (b.context && b.context.recommendation) || ''
+            });
+            seen.add(b.id);
+        }
+    }
+    state.decisions = merged;
 }
 
 async function loadSystemStatus() {
@@ -1759,16 +1779,33 @@ function renderCeoBeads() {
 
     const ceoAgentIds = new Set(getCeoAgentIds());
     const sourceBeads = Array.isArray(state.ceoBeads) ? state.ceoBeads : state.beads;
-    const beads = (sourceBeads || []).filter((bead) => {
+    const allBeads = state.beads || [];
+
+    // Collect beads that need CEO attention:
+    // 1. Beads explicitly assigned to a CEO agent
+    // 2. Decision-type beads (require human input, agents skip them)
+    // 3. Beads escalated to CEO (context.escalated_to === "ceo")
+    const seen = new Set();
+    const beads = [];
+
+    for (const bead of sourceBeads || []) {
         const assigned = normalizeAssignee(bead.assigned_to);
-        if (!assigned) return false;
-        if (ceoAgentIds.size > 0) {
-            return ceoAgentIds.has(assigned);
+        if (assigned && (ceoAgentIds.has(assigned) || isCeoAssignee(assigned))) {
+            if (!seen.has(bead.id)) { seen.add(bead.id); beads.push(bead); }
         }
-        return isCeoAssignee(assigned);
-    });
+    }
+    for (const bead of allBeads) {
+        if (seen.has(bead.id)) continue;
+        const isDecision = bead.type === 'decision' && bead.status !== 'closed';
+        const isEscalated = bead.context && bead.context.escalated_to === 'ceo' && bead.status !== 'closed';
+        if (isDecision || isEscalated) {
+            seen.add(bead.id);
+            beads.push(bead);
+        }
+    }
+
     if (beads.length === 0) {
-        container.innerHTML = renderEmptyState('No beads assigned to the CEO', 'Escalated or assigned beads will appear here.');
+        container.innerHTML = renderEmptyState('No beads requiring CEO attention', 'Decision beads, escalations, and assigned items appear here.');
         return;
     }
 
@@ -2582,20 +2619,28 @@ async function cloneAgentPersona(agentId) {
 }
 
 function renderDecisions() {
-    const html = state.decisions.map(decision => {
+    const items = (state.decisions || []).filter(d => d.status !== 'closed');
+    const html = items.map(decision => {
         const p0Class = decision.priority === 0 ? 'p0' : '';
         const claimKey = `claimDecision:${decision.id}`;
         const decideKey = `makeDecision:${decision.id}`;
+        const displayText = decision.question || decision.title || decision.description || '(no description)';
+        const requester = decision.requester_id || decision.assigned_to || 'system';
+        const escalationReason = decision.context && decision.context.escalation_reason
+            ? `<br><strong>Reason:</strong> ${escapeHtml(decision.context.escalation_reason)}`
+            : '';
         return `
             <div class="decision-card ${p0Class}">
-                <div class="decision-question">${escapeHtml(decision.question)}</div>
+                <div class="decision-question">${escapeHtml(displayText)}</div>
                 <div>
-                    <strong>Priority:</strong> P${decision.priority}<br>
-                    <strong>Requester:</strong> ${decision.requester_id}<br>
-                    ${decision.recommendation ? `<strong>Recommendation:</strong> ${escapeHtml(decision.recommendation)}` : ''}
+                    <strong>Priority:</strong> P${decision.priority}
+                    <strong>Status:</strong> ${escapeHtml(decision.status || 'open')}
+                    <br><strong>Requester:</strong> ${escapeHtml(requester)}
+                    ${decision.recommendation ? `<br><strong>Recommendation:</strong> ${escapeHtml(decision.recommendation)}` : ''}
+                    ${escalationReason}
                 </div>
                 <div class="decision-actions">
-                    <button class="secondary" onclick="viewDecision('${decision.id}')">View</button>
+                    <button class="secondary" onclick="viewBead('${decision.id}')">View</button>
                     <button onclick="claimDecision('${decision.id}')" ${isBusy(claimKey) ? 'disabled' : ''}>${isBusy(claimKey) ? 'Claiming…' : 'Claim'}</button>
                     ${decision.status === 'in_progress' ? `<button class="secondary" onclick="makeDecision('${decision.id}')" ${isBusy(decideKey) ? 'disabled' : ''}>${isBusy(decideKey) ? 'Submitting…' : 'Decide'}</button>` : ''}
                 </div>
@@ -2607,7 +2652,7 @@ function renderDecisions() {
     if (!decisionListEl) return;
     decisionListEl.innerHTML =
         html ||
-        renderEmptyState('No pending decisions', 'Decision beads requiring input will appear here.');
+        renderEmptyState('No pending decisions', 'When agents escalate work requiring human input, it appears here.');
 }
 
 function renderCeoDashboard() {

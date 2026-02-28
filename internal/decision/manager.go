@@ -172,7 +172,7 @@ func (m *Manager) GetPendingDecisions(priority *models.BeadPriority) ([]*models.
 	return decisions, nil
 }
 
-// GetP0Decisions returns all P0 decisions requiring human intervention
+// GetP0Decisions returns all P0 decisions (highest urgency)
 func (m *Manager) GetP0Decisions() ([]*models.DecisionBead, error) {
 	p0 := models.BeadPriorityP0
 	return m.GetPendingDecisions(&p0)
@@ -223,7 +223,12 @@ func (m *Manager) GetBlockedBeads(decisionID string) []string {
 	return decision.Blocks
 }
 
-// CanAutoDecide determines if a decision can be made autonomously
+// CanAutoDecide determines if a decision can be made autonomously.
+//
+// Loom agents are autonomous by design. Full-autonomy agents handle all
+// decisions, including P0. The only decisions that require a human are
+// those explicitly tagged requires_human in their context (real-world
+// spending authority, token budget exhaustion, etc.).
 func (m *Manager) CanAutoDecide(decisionID string, deciderAutonomy models.AutonomyLevel) (bool, string) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -233,9 +238,10 @@ func (m *Manager) CanAutoDecide(decisionID string, deciderAutonomy models.Autono
 		return false, "decision not found"
 	}
 
-	// P0 decisions always require human intervention
-	if decision.Priority == models.BeadPriorityP0 {
-		return false, "P0 decisions require human intervention"
+	// Decisions explicitly tagged as requiring human authority (spending,
+	// token budgets, real-world commitments) cannot be auto-decided by anyone.
+	if decision.Context != nil && decision.Context["requires_human"] == "true" {
+		return false, "decision requires human authority"
 	}
 
 	// Supervised agents cannot make any decisions
@@ -250,7 +256,7 @@ func (m *Manager) CanAutoDecide(decisionID string, deciderAutonomy models.Autono
 		}
 	}
 
-	// Full autonomy can decide all non-P0
+	// Full autonomy agents decide everything — that is Loom.
 	return true, ""
 }
 

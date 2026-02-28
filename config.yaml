@@ -189,6 +189,7 @@ projects:
   - id: loom
     name: Loom
     git_repo: "https://github.com/jordanhubbard/loom.git"  # HTTPS for token-based auth
+    github_repo: "jordanhubbard/loom"  # owner/repo for GitHub API (CI monitor, PR ops)
     branch: develop
     beads_path: "/.beads"  # Path within beads worktree
     beads_branch: "beads-sync"  # Branch for beads storage
@@ -205,6 +206,7 @@ projects:
   - id: aviation
     name: Aviation
     git_repo: "https://github.com/jordanhubbard/Aviation.git"
+    github_repo: "jordanhubbard/Aviation"  # owner/repo for GitHub API (CI monitor, PR ops)
     branch: main
     beads_path: ".beads"
     beads_branch: "beads-sync"
@@ -219,6 +221,7 @@ projects:
   - id: tokenhub
     name: TokenHub
     git_repo: "https://github.com/jordanhubbard/tokenhub.git"
+    github_repo: "jordanhubbard/tokenhub"  # owner/repo for GitHub API (CI monitor, PR ops)
     branch: main
     beads_path: ".beads"
     beads_branch: "beads-sync"

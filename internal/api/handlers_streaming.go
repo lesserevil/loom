@@ -44,8 +44,8 @@ func (s *Server) handleStreamChatCompletion(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	if req.ProviderID == "" || len(req.Messages) == 0 {
-		s.respondError(w, http.StatusBadRequest, "provider_id and messages are required")
+	if len(req.Messages) == 0 {
+		s.respondError(w, http.StatusBadRequest, "messages are required")
 		return
 	}
 
@@ -54,6 +54,16 @@ func (s *Server) handleStreamChatCompletion(w http.ResponseWriter, r *http.Reque
 	if providerReg == nil {
 		s.respondError(w, http.StatusServiceUnavailable, "Provider registry not available")
 		return
+	}
+
+	// Auto-select the first active provider when none is specified (e.g. CEO REPL)
+	if req.ProviderID == "" {
+		active := providerReg.ListActive()
+		if len(active) == 0 {
+			s.respondError(w, http.StatusServiceUnavailable, "No active providers available")
+			return
+		}
+		req.ProviderID = active[0].Config.ID
 	}
 
 	providerImpl, err := providerReg.Get(req.ProviderID)
@@ -86,9 +96,15 @@ func (s *Server) handleStreamChatCompletion(w http.ResponseWriter, r *http.Reque
 	fmt.Fprintf(w, "data: {\"message\": \"Connected to stream\"}\n\n")
 	flusher.Flush()
 
+	// Fall back to the provider's configured model when the caller omits one
+	model := req.Model
+	if model == "" && providerImpl.Config != nil {
+		model = providerImpl.Config.Model
+	}
+
 	// Create provider request
 	providerReq := &provider.ChatCompletionRequest{
-		Model:       req.Model,
+		Model:       model,
 		Messages:    appendActionPrompt(req.Messages),
 		Temperature: req.Temperature,
 		MaxTokens:   req.MaxTokens,

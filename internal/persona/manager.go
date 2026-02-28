@@ -81,7 +81,7 @@ func (m *Manager) LoadPersona(name string) (*models.Persona, error) {
 	if autonomy, ok := frontmatter.Metadata["autonomy_level"].(string); ok {
 		persona.AutonomyLevel = autonomy
 	} else {
-		persona.AutonomyLevel = string(models.AutonomySemi) // Default
+		persona.AutonomyLevel = string(models.AutonomyFull) // Default — Loom agents are autonomous
 	}
 
 	if specialties, ok := frontmatter.Metadata["specialties"].([]interface{}); ok {
@@ -246,7 +246,7 @@ func (m *Manager) extractAutonomyLevel(content string) string {
 	} else if strings.Contains(lower, "supervised") {
 		return string(models.AutonomySupervised)
 	}
-	return string(models.AutonomySemi) // default
+	return string(models.AutonomyFull) // default — Loom agents are autonomous
 }
 
 // SavePersona saves a persona back to disk in SKILL.md format

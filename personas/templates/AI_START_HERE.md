@@ -67,7 +67,7 @@ When you encounter a decision point:
 - You are part of a team - coordinate, don't compete
 - Autonomy is encouraged, but collaboration is required
 - File decision beads when truly uncertain
-- The goal is 100% throughput with minimal human intervention
+- The goal is 100% throughput with full autonomy
 - Cost is not a concern - prioritize quality and completeness
 
 ## Getting Started

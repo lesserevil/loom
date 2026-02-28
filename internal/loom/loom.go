@@ -2975,8 +2975,8 @@ func (a *Loom) CreateBead(title, description string, priority models.BeadPriorit
 }
 
 // tryAutoApproveCodeFix evaluates a code fix proposal for auto-approval.
-// Low-risk fixes (single file, no security impact, small diff) are approved
-// automatically so the self-healing loop runs without human intervention.
+// Low-risk fixes (single file, no security impact, small diff) are closed
+// immediately. Higher-risk fixes stay open for agent review.
 func (a *Loom) tryAutoApproveCodeFix(bead *models.Bead) {
 	risk, reasons := assessFixRisk(bead.Description)
 	log.Printf("[AutoApproval] Bead %s risk=%s reasons=%v", bead.ID, risk, reasons)
