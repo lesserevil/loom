@@ -41,6 +41,10 @@ const (
 	// gitFetchInterval: how often the watcher does a git fetch to detect
 	// beads pushed from external sources.
 	gitFetchInterval = 5 * time.Minute
+	// recoverySweepInterval: how often the watcher runs the blocked-bead
+	// recovery sweep. Must be long enough that transient provider outages
+	// have time to resolve before we re-queue work.
+	recoverySweepInterval = 5 * time.Minute
 	// zombieBeadThreshold: if an in_progress bead with an ephemeral exec-*
 	// assignment has not been updated in this long, its executor goroutine
 	// is considered dead and the bead is reclaimed.
@@ -50,7 +54,17 @@ const (
 	// hot-spin loops that exhaust the tokenhub rate limit (60 RPS / IP).
 	providerErrorBackoff  = 3 * time.Second
 	maxConcurrentRequests = 3
+	// irrecoverableDispatchThreshold: a bead that has been dispatched this
+	// many times across distinct workers without any of them being infra
+	// errors is considered irrecoverable and gets escalated to the CEO.
+	irrecoverableDispatchThreshold = 15
 )
+
+// CEOEscalator is called when a bead is irrecoverably stuck and must be
+// escalated to the CEO for a human decision.
+type CEOEscalator interface {
+	EscalateBeadToCEO(beadID, reason, returnedTo string) error
+}
 
 // projectState tracks per-project executor state.
 type projectState struct {
@@ -71,6 +85,7 @@ type Executor struct {
 	actionRouter     *actions.Router
 	projectManager   *project.Manager
 	personaManager   *persona.Manager
+	ceoEscalator     CEOEscalator
 	db               *database.Database
 	lessonsProvider  worker.LessonsProvider
 	numWorkers       int
@@ -104,6 +119,13 @@ func (e *Executor) SetPersonaManager(pm *persona.Manager) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.personaManager = pm
+}
+
+// SetCEOEscalator wires in the callback for irrecoverable bead escalation.
+func (e *Executor) SetCEOEscalator(esc CEOEscalator) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.ceoEscalator = esc
 }
 
 // SetLessonsProvider wires in the lessons provider for build failure learning.
@@ -262,11 +284,17 @@ func (e *Executor) watcherLoop(ctx context.Context, projectID string) {
 	defer ticker.Stop()
 	gitTicker := time.NewTicker(gitFetchInterval)
 	defer gitTicker.Stop()
+	recoveryTicker := time.NewTicker(recoverySweepInterval)
+	defer recoveryTicker.Stop()
 
 	e.mu.Lock()
 	state := e.getOrCreateState(projectID)
 	wakeCh := state.wakeCh
 	e.mu.Unlock()
+
+	// Run an initial recovery sweep at startup so beads blocked by a
+	// previous provider outage are unblocked immediately.
+	e.recoverBlockedBeads(projectID)
 
 	for {
 		select {
@@ -284,6 +312,13 @@ func (e *Executor) watcherLoop(ctx context.Context, projectID string) {
 		case <-gitTicker.C:
 			// Periodic git fetch to detect beads pushed externally
 			e.fetchAndReloadBeads(ctx, projectID)
+			e.maybeSpawnWorkers(ctx, projectID)
+
+		case <-recoveryTicker.C:
+			// Mark-and-sweep: re-open blocked beads whose failure reason
+			// was transient (provider errors, rate limits). Escalate truly
+			// irrecoverable beads to the CEO.
+			e.recoverBlockedBeads(projectID)
 			e.maybeSpawnWorkers(ctx, projectID)
 		}
 	}
@@ -369,6 +404,162 @@ func (e *Executor) fetchAndReloadBeads(ctx context.Context, projectID string) {
 func runShell(ctx context.Context, cmd string) error {
 	c := exec.CommandContext(ctx, "sh", "-c", cmd)
 	return c.Run()
+}
+
+// recoverBlockedBeads is the mark-and-sweep recovery mechanism. It scans all
+// blocked beads for the project and classifies each as recoverable or
+// irrecoverable.
+//
+// Recoverable (re-opened): beads blocked by transient infrastructure failures
+// (provider 502s, rate limits, budget exhaustion). These are the common case
+// after a provider outage resolves.
+//
+// Irrecoverable (escalated to CEO): beads that have been dispatched to many
+// distinct workers, all of which failed with non-infrastructure errors. This
+// means every agent that tried has given up — only a human can unblock it.
+func (e *Executor) recoverBlockedBeads(projectID string) {
+	allBeads, err := e.beadManager.ListBeads(map[string]interface{}{
+		"project_id": projectID,
+		"status":     models.BeadStatusBlocked,
+	})
+	if err != nil {
+		return
+	}
+
+	recovered := 0
+	escalated := 0
+	for _, b := range allBeads {
+		if b == nil || b.Status != models.BeadStatusBlocked {
+			continue
+		}
+		if b.Context == nil {
+			b.Context = map[string]string{}
+		}
+
+		// Skip beads already escalated to CEO
+		if b.Context["escalated_to_ceo_at"] != "" {
+			continue
+		}
+
+		if isTransientFailure(b) {
+			// Transient infra error: reset to open, clear loop state, let
+			// the next worker pick it up with a clean slate.
+			_ = e.beadManager.UpdateBead(b.ID, map[string]interface{}{
+				"status":      models.BeadStatusOpen,
+				"assigned_to": "",
+				"context": map[string]string{
+					"loop_detected":        "false",
+					"loop_detected_reason": "",
+					"loop_detected_at":     "",
+					"recovery_reason":      "transient infrastructure failure resolved — re-queued by recovery sweep",
+					"recovered_at":         time.Now().UTC().Format(time.RFC3339),
+				},
+			})
+			recovered++
+		} else if isIrrecoverable(b) {
+			// Every agent tried and failed with non-infra errors. Escalate.
+			e.mu.Lock()
+			esc := e.ceoEscalator
+			e.mu.Unlock()
+
+			reason := fmt.Sprintf("All agents failed on bead %s (%s) after %s dispatches. Last error: %s",
+				b.ID, b.Title, b.Context["dispatch_count"], truncate(b.Context["last_run_error"], 200))
+
+			if esc != nil {
+				if err := esc.EscalateBeadToCEO(b.ID, reason, ""); err != nil {
+					log.Printf("[TaskExecutor] Failed to escalate bead %s to CEO: %v", b.ID, err)
+				} else {
+					escalated++
+				}
+			} else {
+				log.Printf("[TaskExecutor] Bead %s is irrecoverable but no CEO escalator configured: %s", b.ID, reason)
+			}
+		}
+		// Beads that are neither transient nor irrecoverable are left blocked.
+		// They'll be re-evaluated on the next sweep as more context accumulates.
+	}
+
+	if recovered > 0 || escalated > 0 {
+		log.Printf("[TaskExecutor] Recovery sweep for %s: %d recovered, %d escalated to CEO",
+			projectID, recovered, escalated)
+	}
+}
+
+// isTransientFailure returns true if the bead was blocked by infrastructure
+// errors that are expected to resolve on their own (provider outages, rate
+// limits, budget exhaustion).
+func isTransientFailure(b *models.Bead) bool {
+	reason := b.Context["loop_detected_reason"]
+	if reason == "" {
+		reason = b.Context["loop_detection_reason"]
+	}
+	if reason == "" {
+		return false
+	}
+	reasonLower := strings.ToLower(reason)
+	for _, pattern := range []string{
+		"provider error",
+		"provider unavailable",
+		"rate limit",
+		"budget exceeded",
+		"provider quota",
+		"exhausted provider",
+		"all providers fa",
+	} {
+		if strings.Contains(reasonLower, pattern) {
+			return true
+		}
+	}
+	return false
+}
+
+// isIrrecoverable returns true if the bead has been attempted by many distinct
+// workers and all failed with non-infrastructure errors — meaning no agent can
+// make progress and a human must intervene.
+func isIrrecoverable(b *models.Bead) bool {
+	dc := 0
+	fmt.Sscanf(b.Context["dispatch_count"], "%d", &dc)
+	if dc < irrecoverableDispatchThreshold {
+		return false
+	}
+
+	// Check error history for diversity of workers and non-infra errors.
+	type errRecord struct {
+		Timestamp string `json:"timestamp"`
+		Error     string `json:"error"`
+		Dispatch  int    `json:"dispatch"`
+	}
+	var history []errRecord
+	if raw := b.Context["error_history"]; raw != "" {
+		_ = json.Unmarshal([]byte(raw), &history)
+	}
+
+	// Count how many recent errors are NOT infra errors.
+	// If the majority are logic/agent failures, the bead is irrecoverable.
+	nonInfraErrors := 0
+	for _, h := range history {
+		errLower := strings.ToLower(h.Error)
+		isInfra := false
+		for _, pattern := range []string{"502", "429", "all providers", "budget", "rate limit", "provider"} {
+			if strings.Contains(errLower, pattern) {
+				isInfra = true
+				break
+			}
+		}
+		if !isInfra {
+			nonInfraErrors++
+		}
+	}
+
+	// At least half the error history must be non-infra for irrecoverable
+	return len(history) > 0 && nonInfraErrors*2 >= len(history)
+}
+
+func truncate(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
 }
 
 // claimNextBead returns the next available bead for the project, or nil.

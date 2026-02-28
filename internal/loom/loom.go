@@ -3828,6 +3828,15 @@ func (a *Loom) StartDispatchLoop(ctx context.Context, interval time.Duration) {
 	}
 }
 
+// loomCEOEscalator adapts Loom.EscalateBeadToCEO to the taskexecutor.CEOEscalator
+// interface so the recovery sweep can escalate irrecoverable beads.
+type loomCEOEscalator struct{ app *Loom }
+
+func (e loomCEOEscalator) EscalateBeadToCEO(beadID, reason, returnedTo string) error {
+	_, err := e.app.EscalateBeadToCEO(beadID, reason, returnedTo)
+	return err
+}
+
 // StartTaskExecutor starts the direct bead execution engine for all registered projects.
 // It creates a taskexecutor.Executor and launches worker goroutines per project.
 // Call this instead of StartDispatchLoop to bypass Temporal/NATS/WorkerPool overhead.
@@ -3853,6 +3862,9 @@ func (a *Loom) StartTaskExecutor(ctx context.Context) {
 	if a.personaManager != nil {
 		exec.SetPersonaManager(a.personaManager)
 	}
+
+	// Wire in CEO escalation so irrecoverable beads get human attention.
+	exec.SetCEOEscalator(loomCEOEscalator{app: a})
 
 	a.taskExecutor = exec
 
