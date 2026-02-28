@@ -895,11 +895,12 @@ func (a *Loom) Initialize(ctx context.Context) error {
 			}
 		}
 
-		// Auto-bootstrap provider from LOOM_PROVIDER_URL environment variable
-		// when no providers exist in database or config. This enables zero-config
-		// startup in Docker environments where these env vars are set.
-		if len(providers) == 0 {
-			if envURL := os.Getenv("LOOM_PROVIDER_URL"); envURL != "" {
+		// Auto-bootstrap or reconcile provider from LOOM_PROVIDER_URL env var.
+		// If no providers exist, seed one. If the "tokenhub" provider exists but
+		// its endpoint drifted (e.g. container network changed), update it so
+		// workers don't keep hitting an unreachable address.
+		if envURL := os.Getenv("LOOM_PROVIDER_URL"); envURL != "" {
+			if len(providers) == 0 {
 				log.Printf("[Loom] No providers configured — bootstrapping from LOOM_PROVIDER_URL: %s", envURL)
 				envAPIKey := os.Getenv("LOOM_PROVIDER_API_KEY")
 				seed := &internalmodels.Provider{
@@ -914,6 +915,17 @@ func (a *Loom) Initialize(ctx context.Context) error {
 					log.Printf("[Loom] Failed to bootstrap provider from env: %v", regErr)
 				}
 				providers, _ = a.database.ListProviders()
+			} else {
+				for _, p := range providers {
+					if p.ID == "tokenhub" && p.Endpoint != envURL {
+						log.Printf("[Loom] Reconciling tokenhub endpoint: %s → %s", p.Endpoint, envURL)
+						p.Endpoint = envURL
+						if dbErr := a.database.UpsertProvider(p); dbErr != nil {
+							log.Printf("[Loom] Failed to reconcile tokenhub endpoint: %v", dbErr)
+						}
+						break
+					}
+				}
 			}
 		}
 		for _, p := range providers {

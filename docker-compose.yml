@@ -171,6 +171,7 @@ services:
     networks:
       - loom-network
     extra_hosts:
+      - "host.docker.internal:host-gateway"
       - "plubbit.local:10.11.101.250"
       - "sparky.local:10.11.100.116"
     volumes:

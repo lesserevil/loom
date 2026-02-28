@@ -505,6 +505,16 @@ func isTransientFailure(b *models.Bead) bool {
 		"provider quota",
 		"exhausted provider",
 		"all providers fa",
+		"failed to send request",
+		"dial tcp",
+		"connection refused",
+		"no such host",
+		"i/o timeout",
+		"context deadline exceeded",
+		"eof",
+		"502",
+		"503",
+		"504",
 	} {
 		if strings.Contains(reasonLower, pattern) {
 			return true

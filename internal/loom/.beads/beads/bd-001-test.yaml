@@ -7,9 +7,9 @@ id: bd-001
 type: task
 title: Test
 description: desc
-status: open
-priority: 0
-projectid: proj-9
+status: closed
+priority: 2
+projectid: proj-2
 assignedto: ""
 blockedby: []
 blocks: []
@@ -21,6 +21,6 @@ context: {}
 duedate: null
 milestoneid: ""
 estimatedtime: 0
-createdat: 2026-02-28T04:13:29.183733673Z
-updatedat: 2026-02-28T04:13:29.183733769Z
-closedat: null
+createdat: 2026-02-28T00:30:15.975996935-08:00
+updatedat: 2026-02-28T00:30:15.976426124-08:00
+closedat: 2026-02-28T00:30:15.976424188-08:00
