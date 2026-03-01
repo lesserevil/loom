@@ -233,6 +233,212 @@ header h1 {
     border: 2px dashed #3498db;
 }
 
+/* Decision Container Styles */
+.decision-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+    gap: 1.5rem;
+    padding: 1rem 0;
+}
+
+.decision-card {
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.decision-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+    border-color: #3498db;
+}
+
+.decision-card.p0 {
+    border-left: 4px solid #e74c3c;
+    background: linear-gradient(to right, rgba(231, 76, 60, 0.02), white);
+}
+
+.decision-card.p0:hover {
+    border-left-color: #c0392b;
+    box-shadow: 0 4px 12px rgba(231, 76, 60, 0.15);
+}
+
+.decision-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+}
+
+.decision-question {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #2c3e50;
+    line-height: 1.5;
+    flex: 1;
+}
+
+.decision-priority-badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.decision-priority-badge.p0 {
+    background: #e74c3c;
+    color: white;
+}
+
+.decision-priority-badge.p1 {
+    background: #e67e22;
+    color: white;
+}
+
+.decision-priority-badge.p2 {
+    background: #f39c12;
+    color: white;
+}
+
+.decision-priority-badge.p3 {
+    background: #95a5a6;
+    color: white;
+}
+
+.decision-metadata {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+    font-size: 0.9rem;
+    color: #555;
+    padding: 0.75rem;
+    background: #f8f9fa;
+    border-radius: 4px;
+}
+
+.decision-metadata-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.decision-metadata-label {
+    font-weight: 600;
+    color: #2c3e50;
+    font-size: 0.85rem;
+}
+
+.decision-metadata-value {
+    color: #555;
+    word-break: break-word;
+}
+
+.decision-status-badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.decision-status-badge.open {
+    background: #d5f4e6;
+    color: #27ae60;
+}
+
+.decision-status-badge.in_progress {
+    background: #d6eaf8;
+    color: #2980b9;
+}
+
+.decision-status-badge.closed {
+    background: #e8daef;
+    color: #8e44ad;
+}
+
+.decision-context {
+    padding: 0.75rem;
+    background: #f0f7ff;
+    border-left: 3px solid #3498db;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    color: #2c3e50;
+    line-height: 1.5;
+}
+
+.decision-context-label {
+    font-weight: 600;
+    color: #2980b9;
+    margin-bottom: 0.25rem;
+}
+
+.decision-recommendation {
+    padding: 0.75rem;
+    background: #f0fff4;
+    border-left: 3px solid #27ae60;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    color: #2c3e50;
+    line-height: 1.5;
+}
+
+.decision-recommendation-label {
+    font-weight: 600;
+    color: #27ae60;
+    margin-bottom: 0.25rem;
+}
+
+.decision-actions {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    padding-top: 0.5rem;
+    border-top: 1px solid #e0e0e0;
+}
+
+.decision-actions button {
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.decision-actions button.primary {
+    background: #3498db;
+    color: white;
+}
+
+.decision-actions button.primary:hover:not(:disabled) {
+    background: #2980b9;
+    box-shadow: 0 2px 6px rgba(52, 152, 219, 0.3);
+}
+
+.decision-actions button.secondary {
+    background: #ecf0f1;
+    color: #2c3e50;
+    border: 1px solid #bdc3c7;
+}
+
+.decision-actions button.secondary:hover:not(:disabled) {
+    background: #d5dbdb;
+    border-color: #95a5a6;
+}
+
+.decision-actions button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
 /* Scrollbar styling */
 .bead-list::-webkit-scrollbar {
     width: 6px;

@@ -774,6 +774,11 @@ function render() {
     renderDiagrams();
 
     // New UI components
+    renderActiveMeetings();
+    renderStatusBoardFeed();
+    renderOrgHealth();
+    renderReviewSummary();
+    renderEscalationQueue();
     if (typeof renderProjectsTable === 'function') {
         renderProjectsTable();
     }
@@ -4741,3 +4746,171 @@ document.addEventListener('click', function(event) {
 // This should be detected, auto-filed, investigated, and fixed by Loom agents
 // FIXED: Commented out to prevent UI errors on every page load
 // testSelfHealingWorkflow();
+
+// Render Active Meetings
+function renderActiveMeetings() {
+    const container = document.getElementById('active-meetings-container');
+    if (!container) return;
+    
+    const meetings = state.activeMeetings || [];
+    if (meetings.length === 0) {
+        container.innerHTML = renderEmptyState('No active meetings', 'Meetings will appear here.');
+        return;
+    }
+    
+    container.innerHTML = `
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem;">
+            ${meetings.map(m => `
+                <div style="padding: 1rem; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-secondary);">
+                    <h4>${escapeHtml(m.title || 'Untitled Meeting')}</h4>
+                    <p class="small" style="margin: 0.5rem 0; color: var(--text-muted);">Started: ${new Date(m.start_time).toLocaleString()}</p>
+                    <p class="small" style="margin: 0.5rem 0;"><strong>Participants:</strong> ${(m.participants || []).join(', ')}</p>
+                    ${m.transcript ? `<button type="button" class="secondary" onclick="alert('Transcript: ' + ${JSON.stringify(m.transcript)})" style="margin-top: 0.5rem;">View Transcript</button>` : ''}
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
+// Render Status Board Feed
+function renderStatusBoardFeed() {
+    const container = document.getElementById('status-board-feed-container');
+    if (!container) return;
+    
+    const feed = state.statusBoardFeed || [];
+    if (feed.length === 0) {
+        container.innerHTML = renderEmptyState('No status updates', 'Status board entries will appear here.');
+        return;
+    }
+    
+    container.innerHTML = `
+        <div style="display: flex; flex-direction: column; gap: 1rem;">
+            ${feed.slice(0, 10).map(entry => `
+                <div style="padding: 1rem; border-left: 3px solid #0ea5e9; background: var(--bg-secondary); border-radius: 4px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                        <strong>${escapeHtml(entry.author_display_name || 'Unknown')}</strong>
+                        <span class="small" style="color: var(--text-muted);">${new Date(entry.timestamp).toLocaleString()}</span>
+                    </div>
+                    <p style="margin: 0; white-space: pre-wrap;">${escapeHtml(entry.content || '')}</p>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
+// Render Org Health
+function renderOrgHealth() {
+    const container = document.getElementById('org-health-container');
+    if (!container) return;
+    
+    const health = state.orgHealth || {};
+    const working = health.working || [];
+    const idle = health.idle || [];
+    const blocked = health.blocked || [];
+    const vacant = health.vacant_positions || [];
+    
+    container.innerHTML = `
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
+            <div style="padding: 1rem; border: 1px solid #16a34a; border-radius: 4px; background: rgba(22, 163, 74, 0.05);">
+                <h4 style="margin: 0 0 0.5rem 0; color: #16a34a;">Working (${working.length})</h4>
+                <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+                    ${working.slice(0, 5).map(a => `<span class="small">${escapeHtml(a.name || a.id)}</span>`).join('')}
+                    ${working.length > 5 ? `<span class="small" style="color: var(--text-muted);">+${working.length - 5} more</span>` : ''}
+                </div>
+            </div>
+            <div style="padding: 1rem; border: 1px solid #f59e0b; border-radius: 4px; background: rgba(245, 158, 11, 0.05);">
+                <h4 style="margin: 0 0 0.5rem 0; color: #f59e0b;">Idle (${idle.length})</h4>
+                <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+                    ${idle.slice(0, 5).map(a => `<span class="small">${escapeHtml(a.name || a.id)}</span>`).join('')}
+                    ${idle.length > 5 ? `<span class="small" style="color: var(--text-muted);">+${idle.length - 5} more</span>` : ''}
+                </div>
+            </div>
+            <div style="padding: 1rem; border: 1px solid #dc2626; border-radius: 4px; background: rgba(220, 38, 38, 0.05);">
+                <h4 style="margin: 0 0 0.5rem 0; color: #dc2626;">Blocked (${blocked.length})</h4>
+                <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+                    ${blocked.slice(0, 5).map(a => `<span class="small">${escapeHtml(a.name || a.id)}</span>`).join('')}
+                    ${blocked.length > 5 ? `<span class="small" style="color: var(--text-muted);">+${blocked.length - 5} more</span>` : ''}
+                </div>
+            </div>
+            <div style="padding: 1rem; border: 1px solid #6b7280; border-radius: 4px; background: rgba(107, 114, 128, 0.05);">
+                <h4 style="margin: 0 0 0.5rem 0; color: #6b7280;">Vacant Positions (${vacant.length})</h4>
+                <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+                    ${vacant.slice(0, 5).map(p => `<span class="small">${escapeHtml(p.title || p.id)}</span>`).join('')}
+                    ${vacant.length > 5 ? `<span class="small" style="color: var(--text-muted);">+${vacant.length - 5} more</span>` : ''}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Render Review Summary
+function renderReviewSummary() {
+    const container = document.getElementById('review-summary-container');
+    if (!container) return;
+    
+    const summary = state.reviewSummary || {};
+    const grades = summary.grade_distribution || {};
+    const warning = summary.agents_on_warning || [];
+    const risk = summary.agents_at_risk || [];
+    
+    container.innerHTML = `
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+            <div>
+                <h4>Grade Distribution</h4>
+                <div id="review-grades-chart" style="width: 100%; height: 200px;"></div>
+            </div>
+            <div>
+                <h4>Agents on Warning (${warning.length})</h4>
+                <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                    ${warning.slice(0, 5).map(a => `
+                        <div style="padding: 0.5rem; background: rgba(245, 158, 11, 0.1); border-radius: 4px;">
+                            <span class="small"><strong>${escapeHtml(a.name || a.id)}</strong></span>
+                            <span class="small" style="color: var(--text-muted);"> - Grade: ${a.grade}</span>
+                        </div>
+                    `).join('')}
+                    ${warning.length > 5 ? `<span class="small" style="color: var(--text-muted);">+${warning.length - 5} more</span>` : ''}
+                </div>
+            </div>
+        </div>
+        <div style="margin-top: 1rem;">
+            <h4>Agents at Risk of Firing (${risk.length})</h4>
+            <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                ${risk.slice(0, 5).map(a => `
+                    <div style="padding: 0.5rem; background: rgba(220, 38, 38, 0.1); border-radius: 4px;">
+                        <span class="small"><strong>${escapeHtml(a.name || a.id)}</strong></span>
+                        <span class="small" style="color: var(--text-muted);"> - Grade: ${a.grade}</span>
+                    </div>
+                `).join('')}
+                ${risk.length > 5 ? `<span class="small" style="color: var(--text-muted);">+${risk.length - 5} more</span>` : ''}
+            </div>
+        </div>
+    `;
+}
+
+// Render Escalation Queue
+function renderEscalationQueue() {
+    const container = document.getElementById('escalation-queue-container');
+    if (!container) return;
+    
+    const escalations = (state.decisions || []).filter(d => d.requires_human === true);
+    if (escalations.length === 0) {
+        container.innerHTML = renderEmptyState('No escalations', 'Human decisions will appear here.');
+        return;
+    }
+    
+    container.innerHTML = `
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem;">
+            ${escalations.map(e => `
+                <div style="padding: 1rem; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-secondary);">
+                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem;">
+                        <h4 style="margin: 0;">${escapeHtml(e.question || e.title || 'Decision')}</h4>
+                        <span class="badge priority-${e.priority || 2}" style="white-space: nowrap;">P${e.priority || 2}</span>
+                    </div>
+                    <p class="small" style="margin: 0.5rem 0; color: var(--text-muted);"><strong>From:</strong> ${escapeHtml(e.requester_id || 'Unknown')}</p>
+                    ${e.recommendation ? `<p class="small" style="margin: 0.5rem 0;"><strong>Recommendation:</strong> ${escapeHtml(e.recommendation)}</p>` : ''}
+                    <button type="button" class="primary" onclick="viewDecision('${escapeHtml(e.id)}')" style="margin-top: 0.5rem; width: 100%;">Review & Decide</button>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
