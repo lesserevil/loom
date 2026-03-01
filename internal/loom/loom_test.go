@@ -833,3 +833,22 @@ func TestLoom_setupProviderMetrics(t *testing.T) {
 	// Should not panic
 	loom.setupProviderMetrics()
 }
+
+
+func TestLoom_GetCollaborationStore(t *testing.T) {
+	loom, tmpDir := testLoom(t)
+	defer os.RemoveAll(tmpDir)
+
+	if loom.GetCollaborationStore() == nil {
+		t.Error("GetCollaborationStore() returned nil")
+	}
+}
+
+func TestLoom_GetConsensusManager(t *testing.T) {
+	loom, tmpDir := testLoom(t)
+	defer os.RemoveAll(tmpDir)
+
+	if loom.GetConsensusManager() == nil {
+		t.Error("GetConsensusManager() returned nil")
+	}
+}
