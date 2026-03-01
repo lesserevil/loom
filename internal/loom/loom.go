@@ -19,7 +19,9 @@ import (
 	"github.com/jordanhubbard/loom/internal/agent"
 	"github.com/jordanhubbard/loom/internal/analytics"
 	"github.com/jordanhubbard/loom/internal/beads"
+	"github.com/jordanhubbard/loom/internal/collaboration"
 	"github.com/jordanhubbard/loom/internal/comments"
+	"github.com/jordanhubbard/loom/internal/consensus"
 	"github.com/jordanhubbard/loom/internal/containers"
 	"github.com/jordanhubbard/loom/internal/database"
 	"github.com/jordanhubbard/loom/internal/decision"
@@ -32,6 +34,7 @@ import (
 	"github.com/jordanhubbard/loom/internal/logging"
 	"github.com/jordanhubbard/loom/internal/memory"
 	"github.com/jordanhubbard/loom/internal/messagebus"
+	"github.com/jordanhubbard/loom/internal/meetings"
 	"github.com/jordanhubbard/loom/internal/metrics"
 	"github.com/jordanhubbard/loom/internal/modelcatalog"
 	internalmodels "github.com/jordanhubbard/loom/internal/models"
@@ -84,6 +87,9 @@ type Loom struct {
 	activityManager       *activity.Manager
 	notificationManager   *notifications.Manager
 	commentsManager       *comments.Manager
+	collaborationStore    *collaboration.ContextStore
+	consensusManager      *consensus.DecisionManager
+	meetingsManager       *meetings.Manager
 	motivationRegistry    *motivation.Registry
 	motivationEngine      *motivation.Engine
 	idleDetector          *motivation.IdleDetector
@@ -269,6 +275,11 @@ func New(cfg *config.Config) (*Loom, error) {
 		commentsMgr = comments.NewManager(db, notificationMgr, eb)
 	}
 
+	// Initialize meetings manager
+	var meetingsMgr *meetings.Manager
+	if db != nil {
+		meetingsMgr = meetings.NewManager(db)
+	}
 	// Initialize pattern manager and analytics logger if database is available
 	var patternMgr *patterns.Manager
 	if db != nil {
@@ -321,6 +332,9 @@ func New(cfg *config.Config) (*Loom, error) {
 	beadsMgr := beads.NewManager(cfg.Beads.BDPath)
 	beadsMgr.SetBackend(cfg.Beads.Backend)
 
+	collaborationStore := collaboration.NewContextStore()
+	consensusManager := consensus.NewDecisionManager()
+
 	arb := &Loom{
 		config:                cfg,
 		startedAt:             time.Now().UTC(),
@@ -341,6 +355,9 @@ func New(cfg *config.Config) (*Loom, error) {
 		activityManager:       activityMgr,
 		notificationManager:   notificationMgr,
 		commentsManager:       commentsMgr,
+		collaborationStore:    collaborationStore,
+		consensusManager:      consensusManager,
+		meetingsManager:       meetingsMgr,
 		motivationRegistry:    motivationRegistry,
 		idleDetector:          idleDetector,
 		workflowEngine:        workflowEngine,
