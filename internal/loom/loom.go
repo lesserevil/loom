@@ -1539,6 +1539,11 @@ func (a *Loom) GetWorkflowEngine() *workflow.Engine {
 	return a.workflowEngine
 }
 
+
+func (a *Loom) GetMeetingsManager() *meetings.Manager {
+	return a.meetingsManager
+}
+
 // GetActivityManager returns the activity manager
 func (a *Loom) GetActivityManager() *activity.Manager {
 	return a.activityManager
