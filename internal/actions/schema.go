@@ -656,6 +656,21 @@ func validateAction(action Action) error {
 		if action.Path == "" {
 			return errors.New("generate_docs requires path")
 		}
+	case ActionInvokeSkill:
+		if action.SkillName == "" {
+			return errors.New("invoke_skill requires skill_name")
+		}
+	case ActionPostToBoard:
+		if action.BoardCategory == "" {
+			return errors.New("post_to_board requires board_category")
+		}
+		if action.BoardContent == "" {
+			return errors.New("post_to_board requires board_content")
+		}
+	case ActionVote:
+		if action.VoteDecisionID == "" {
+			return errors.New("vote requires vote_decision_id")
+		}
 	default:
 		return fmt.Errorf("unknown action type: %s", action.Type)
 	}
