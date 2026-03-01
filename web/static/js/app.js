@@ -96,7 +96,12 @@ let state = {
     decisions: [],
     systemStatus: null,
     users: [],
-    apiKeys: []
+    apiKeys: [],
+    activeMeetings: [],
+    statusBoardFeed: [],
+    orgHealth: {},
+    reviewSummary: {},
+    escalationQueue: []
 };
 window.state = state;
 
