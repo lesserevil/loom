@@ -823,6 +823,15 @@ func (e *Executor) executeBead(ctx context.Context, bead *models.Bead, workerID 
 			AgentID:   agentID,
 			BeadID:    bead.ID,
 			ProjectID: bead.ProjectID,
+			Model:     func() string {
+				if prov != nil && prov.Config != nil {
+					if prov.Config.SelectedModel != "" {
+						return prov.Config.SelectedModel
+					}
+					return prov.Config.Model
+				}
+				return ""
+			}(),
 		},
 		LessonsProvider: e.lessonsProvider,
 		DB:              e.db,
@@ -1064,20 +1073,6 @@ func personaForBead(bead *models.Bead) string {
 		case "docs", "documentation":
 			return "documentation-manager"
 	}
-	}
-	return "engineering-manager"
-}
-	for _, tag := range bead.Tags {
-		switch strings.ToLower(tag) {
-		case "devops", "infra", "infrastructure":
-			return "devops"
-		case "review", "pr", "code-review":
-			return "review"
-		case "qa", "test", "testing":
-			return "qa"
-		case "docs", "documentation":
-			return "docs"
-		}
 	}
 	return "engineering-manager"
 }

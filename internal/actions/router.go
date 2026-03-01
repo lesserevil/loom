@@ -104,6 +104,7 @@ type ActionContext struct {
 	AgentID   string
 	BeadID    string
 	ProjectID string
+	Model     string // LLM model used for this agent execution (e.g. "claude-opus-4-5")
 }
 
 type Result struct {
@@ -506,8 +507,12 @@ func (r *Router) executeAction(ctx context.Context, action Action, actx ActionCo
 		// Auto-generate commit message if not provided
 		message := action.CommitMessage
 		if message == "" {
-			message = fmt.Sprintf("feat: Update from bead %s\n\nBead: %s\nAgent: %s\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>",
-				actx.BeadID, actx.BeadID, actx.AgentID)
+			message = fmt.Sprintf("feat: Update from bead %s\n\nBead: %s\nAgent: %s\nModel: %s\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>",
+				actx.BeadID, actx.BeadID, actx.AgentID, actx.Model)
+		} else if !strings.Contains(message, "Bead:") {
+			// Append metadata trailers to agent-provided message if missing
+			message = fmt.Sprintf("%s\n\nBead: %s\nAgent: %s\nModel: %s",
+				message, actx.BeadID, actx.AgentID, actx.Model)
 		}
 
 		result, err := r.Git.Commit(ctx, actx.BeadID, actx.AgentID, message, action.Files, len(action.Files) == 0)
@@ -533,8 +538,8 @@ func (r *Router) executeAction(ctx context.Context, action Action, actx ActionCo
 		message := action.CommitMessage
 		if message == "" {
 			// Auto-generate checkpoint message with [WIP] prefix
-			message = fmt.Sprintf("[WIP] Checkpoint commit\n\nBead: %s\nAgent: %s\n\nThis is a work-in-progress checkpoint commit to preserve incremental changes.\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>",
-				actx.BeadID, actx.AgentID)
+			message = fmt.Sprintf("[WIP] Checkpoint commit\n\nBead: %s\nAgent: %s\nModel: %s\n\nThis is a work-in-progress checkpoint commit to preserve incremental changes.\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>",
+				actx.BeadID, actx.AgentID, actx.Model)
 		} else {
 			// Ensure WIP prefix is present
 			if !strings.HasPrefix(message, "[WIP]") {
