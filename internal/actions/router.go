@@ -1937,14 +1937,30 @@ func (r *Router) handleInvokeSkill(_ context.Context, action Action, actx Action
 		return Result{ActionType: action.Type, Status: "error", Message: "skill_name is required"}
 	}
 
+	if r.PersonaManager == nil {
+		return Result{ActionType: action.Type, Status: "error", Message: "persona manager not configured"}
+	}
+
+	personaObj, err := r.PersonaManager.LoadPersona(action.SkillName)
+	if err != nil {
+		return Result{ActionType: action.Type, Status: "error", Message: fmt.Sprintf("failed to load skill '%s': %v", action.SkillName, err)}
+	}
+
+	skillContent := personaObj.Instructions
+	if action.SkillContext != "" {
+		skillContent = fmt.Sprintf("%s\n\n---\n\nContext for this invocation:\n%s", skillContent, action.SkillContext)
+	}
+
 	return Result{
 		ActionType: action.Type,
 		Status:     "executed",
-		Message:    fmt.Sprintf("Skill '%s' invoked. Apply this skill's perspective to your current task.", action.SkillName),
+		Message:    fmt.Sprintf("Skill '%s' loaded and ready to apply.", action.SkillName),
 		Metadata: map[string]interface{}{
 			"skill_name":    action.SkillName,
-			"skill_context": action.SkillContext,
+			"skill_content": skillContent,
 			"agent_id":      actx.AgentID,
+			"persona_name":  personaObj.Name,
+			"persona_desc":  personaObj.Description,
 		},
 	}
 }

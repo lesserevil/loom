@@ -150,7 +150,7 @@ func (rm *ReviewManager) RunReviewCycle(ctx context.Context) {
 			optimized++
 			log.Printf("[Reviews] %s (%s): grade %s (score %.1f) — self-optimization triggered\n  %s",
 				review.AgentName, review.PersonaName, review.Grade, review.WeightedScore, review.Breakdown)
-			rm.triggerSelfOptimization(ctx, ag)
+			rm.triggerSelfOptimization(ctx, ag, review)
 		case "fired":
 			fired++
 			log.Printf("[Reviews] %s (%s): grade %s (score %.1f) — TERMINATED\n  %s",
@@ -392,26 +392,31 @@ func (rm *ReviewManager) consecutiveLowCount(agentID string) int {
 // triggerSelfOptimization lets an agent rewrite its own MOTIVATION.md or
 // PERSONALITY.md. SKILL.md stays fixed — capabilities don't change, but
 // approach and communication style can.
-func (rm *ReviewManager) triggerSelfOptimization(ctx context.Context, ag *models.Agent) {
+func (rm *ReviewManager) triggerSelfOptimization(ctx context.Context, ag *models.Agent, review *AgentReview) {
 	_ = ctx
-	if rm.personaManager == nil || ag.PersonaName == "" {
+	if rm.beadManager == nil || ag.PersonaName == "" {
 		return
 	}
 
-	rm.mu.RLock()
-	history := rm.reviews[ag.ID]
-	rm.mu.RUnlock()
+	title := "[self-optimize] Rewrite motivation or personality to improve performance"
+	desc := fmt.Sprintf("Agent %s received grade %s (score %.0f/100).\n\nBreakdown: %s\n\nRewrite MOTIVATION.md or PERSONALITY.md to address weaknesses and improve performance.",
+		ag.Name, review.Grade, review.WeightedScore, review.Breakdown)
 
-	var grades []string
-	for _, r := range history {
-		grades = append(grades, fmt.Sprintf("%s(%.0f)", r.Grade, r.WeightedScore))
+	bead, err := rm.beadManager.CreateBead(title, desc, models.BeadPriorityP1, "self-optimization", ag.ProjectID)
+	if err != nil {
+		log.Printf("[Reviews] Failed to create self-optimization bead for %s: %v", ag.Name, err)
+		return
 	}
 
-	log.Printf("[Reviews] Self-optimization triggered for %s (%s). History: %v",
-		ag.Name, ag.PersonaName, grades)
-
-	if p, err := rm.personaManager.LoadPersona(ag.PersonaName); err == nil {
-		p.SelfOptimized = true
+	if bead != nil {
+		if bead.Context == nil {
+			bead.Context = make(map[string]string)
+		}
+		bead.Context["self_optimization_for"] = ag.ID
+		bead.Context["trigger_grade"] = review.Grade
+		bead.Context["trigger_score"] = fmt.Sprintf("%.0f", review.WeightedScore)
+		bead.AssignedTo = ag.ID
+		log.Printf("[Reviews] Created self-optimization bead %s for %s", bead.ID, ag.Name)
 	}
 }
 
