@@ -565,6 +565,7 @@ func (w *Worker) GetInfo() WorkerInfo {
 // Task represents a task for a worker to execute
 type Task struct {
 	ID                  string
+	ModelHint           string                         // Optional: hint for model selection
 	Description         string
 	Context             string
 	BeadID              string

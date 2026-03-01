@@ -12,14 +12,12 @@ import (
 	"github.com/jordanhubbard/loom/internal/agent"
 	"github.com/jordanhubbard/loom/internal/beads"
 	"github.com/jordanhubbard/loom/internal/database"
-	"github.com/jordanhubbard/loom/internal/dispatch"
 	"github.com/jordanhubbard/loom/pkg/models"
 )
 
 // Activities supplies the Ralph Loop maintenance operations.
 type Activities struct {
 	database   *database.Database
-	dispatcher *dispatch.Dispatcher
 	beadsMgr   *beads.Manager
 	agentMgr   *agent.WorkerManager
 }
@@ -27,10 +25,9 @@ type Activities struct {
 // New creates a new Activities instance.
 func New(db *database.Database, d *dispatch.Dispatcher, b *beads.Manager, a *agent.WorkerManager) *Activities {
 	return &Activities{
-		database:   db,
-		dispatcher: d,
-		beadsMgr:   b,
-		agentMgr:   a,
+		database: db,
+		beadsMgr: b,
+		agentMgr: a,
 	}
 }
 
@@ -39,7 +36,7 @@ func New(db *database.Database, d *dispatch.Dispatcher, b *beads.Manager, a *age
 // provider-blocked beads every 10 beats (~100s).
 func (a *Activities) Beat(ctx context.Context, beatCount int) error {
 	start := time.Now()
-	log.Printf("[Ralph] Beat %d: starting (dispatcher=%v agentMgr=%v beadsMgr=%v)", beatCount, a.dispatcher != nil, a.agentMgr != nil, a.beadsMgr != nil)
+	log.Printf("[Ralph] Beat %d: starting (agentMgr=%v beadsMgr=%v)", beatCount, a.agentMgr != nil, a.beadsMgr != nil)
 
 	// Phase 1: Reset agents stuck in "working" state for too long
 	agentsReset := 0

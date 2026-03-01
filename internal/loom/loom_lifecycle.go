@@ -1306,8 +1306,6 @@ func (a *Loom) SetKeyManager(km *keymanager.KeyManager) {
 func (a *Loom) GetKeyManager() *keymanager.KeyManager {
 	return a.keyManager
 }
-func (a *Loom) GetDispatcher() *dispatch.Dispatcher {return nil
-}
 
 // GetPersonaManager returns the persona manager
 func (a *Loom) GetPersonaManager() *persona.Manager {
@@ -1893,13 +1891,6 @@ func (e loomCEOEscalator) EscalateBeadToCEO(beadID, reason, returnedTo string) e
 		a.database,
 	)
 
-	// Wire in lessons provider if database is available
-	if a.database != nil {
-		lp := dispatch.NewLessonsProvider(a.database)
-		if lp != nil {
-			exec.SetLessonsProvider(lp)
-		}
-	}
 
 	// Wire in the persona manager so workers use rich persona definitions
 	// instead of the hardcoded fallback map.

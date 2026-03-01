@@ -9,6 +9,7 @@ import (
 
 	"github.com/jordanhubbard/loom/internal/executor"
 	"github.com/jordanhubbard/loom/internal/files"
+	"github.com/jordanhubbard/loom/internal/persona"
 	"github.com/jordanhubbard/loom/pkg/models"
 )
 
@@ -154,6 +155,7 @@ type Router struct {
 	Consulter     AgentConsulter
 	Board         StatusBoardPoster
 	Voter         VoteCaster
+	PersonaManager *persona.Manager
 	BeadType      string
 	BeadTags      []string
 	DefaultP0     bool

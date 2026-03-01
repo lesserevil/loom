@@ -2,12 +2,12 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strings"
 )
 
 func main() {
-	content, err := ioutil.ReadFile("internal/actions/router.go")
+	content, err := os.ReadFile("internal/actions/router.go")
 	if err != nil {
 		fmt.Printf("Error reading file: %v\n", err)
 		return
@@ -16,22 +16,28 @@ func main() {
 	text := string(content)
 
 	// Add persona import after files import
-	text = strings.Replace(text,
-		`"github.com/jordanhubbard/loom/internal/files"`,
-		`"github.com/jordanhubbard/loom/internal/files"
+	if !strings.Contains(text, "internal/persona") {
+		text = strings.Replace(text,
+			`"github.com/jordanhubbard/loom/internal/files"`,
+			`"github.com/jordanhubbard/loom/internal/files"
 	"github.com/jordanhubbard/loom/internal/persona"`,
-		1)
+			1)
+		fmt.Println("Added persona import")
+	}
 
 	// Add PersonaManager field after Voter field
-	text = strings.Replace(text,
-		`	Voter         VoteCaster
+	if !strings.Contains(text, "PersonaManager") {
+		text = strings.Replace(text,
+			`	Voter         VoteCaster
 	BeadType      string`,
-		`	Voter         VoteCaster
+			`	Voter         VoteCaster
 	PersonaManager *persona.Manager
 	BeadType      string`,
-		1)
+			1)
+		fmt.Println("Added PersonaManager field")
+	}
 
-	err = ioutil.WriteFile("internal/actions/router.go", []byte(text), 0644)
+	err = os.WriteFile("internal/actions/router.go", []byte(text), 0644)
 	if err != nil {
 		fmt.Printf("Error writing file: %v\n", err)
 		return

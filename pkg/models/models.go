@@ -75,6 +75,7 @@ type Agent struct {
 	Persona     *Persona  `json:"persona,omitempty"`
 	ProviderID  string    `json:"provider_id,omitempty"`
 	Status      string    `json:"status"` // "paused", "idle", "working", "deciding", "blocked"
+	Model       string    `json:"model,omitempty"`        // Agent's preferred model (can be overridden per task)
 	CurrentBead string    `json:"current_bead,omitempty"`
 	ProjectID   string    `json:"project_id"`
 	PositionID  string    `json:"position_id,omitempty"` // Link to org chart position

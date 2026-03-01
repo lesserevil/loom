@@ -66,6 +66,7 @@ type ReviewManager struct {
 // BeadManagerForReview is the subset of the bead manager needed for reviews.
 type BeadManagerForReview interface {
 	ListBeads(filter map[string]interface{}) ([]*models.Bead, error)
+	CreateBead(title, description string, priority models.BeadPriority, beadType, projectID string) (*models.Bead, error)
 }
 
 func NewReviewManager(am AgentManager, bm BeadManagerForReview, pm *persona.Manager) *ReviewManager {
