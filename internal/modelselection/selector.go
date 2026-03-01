@@ -44,22 +44,17 @@ func (s *Selector) SelectModelForBead(bead *models.Bead) (ModelTier, string, err
 }
 
 // priorityToTier maps bead priority to model tier
-func (s *Selector) priorityToTier(priority string) ModelTier {
-	switch strings.ToUpper(priority) {
-	case "P0":
-		// Critical issues get the strongest model
+func (s *Selector) priorityToTier(priority models.BeadPriority) ModelTier {
+	switch priority {
+	case models.BeadPriorityP0:
 		return TierStrong
-	case "P1":
-		// High priority gets strong model
+	case models.BeadPriorityP1:
 		return TierStrong
-	case "P2":
-		// Medium priority gets mid-tier
+	case models.BeadPriorityP2:
 		return TierMidTier
-	case "P3":
-		// Low priority gets lightweight
+	case models.BeadPriorityP3:
 		return TierLightweight
 	default:
-		// Default to mid-tier
 		return TierMidTier
 	}
 }

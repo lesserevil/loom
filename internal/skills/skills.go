@@ -3,11 +3,9 @@ package skills
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/jordanhubbard/loom/internal/persona"
-	"github.com/jordanhubbard/loom/pkg/models"
 )
 
 // SkillLoader loads and injects skills into LLM prompts.

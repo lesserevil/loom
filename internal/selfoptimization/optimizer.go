@@ -68,7 +68,7 @@ func (o *Optimizer) CreateOptimizationBead(trigger *OptimizationTrigger) (*model
 		Title:       fmt.Sprintf("Self-optimize: Rewrite %s.md", strings.Title(optimizationType)),
 		Description: description,
 		Status:      "open",
-		Priority:    "P1", // Self-optimization is high priority
+		Priority:    models.BeadPriorityP1, // Self-optimization is high priority
 		AssignedTo:  trigger.AgentID,
 		Tags:        []string{"self-optimization", "performance-review", optimizationType},
 	}

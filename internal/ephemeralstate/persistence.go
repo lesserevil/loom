@@ -40,16 +40,12 @@ func (p *Persistence) SaveOrgChartSnapshot(snapshot *OrgChartSnapshot) error {
 		return fmt.Errorf("snapshot ID is required")
 	}
 
-	// Serialize the snapshot
-	data, err := json.Marshal(snapshot)
-	if err != nil {
+	// Serialize the snapshot (used when DB backend is wired in future)
+	if _, err := json.Marshal(snapshot); err != nil {
 		return fmt.Errorf("failed to marshal org chart snapshot: %w", err)
 	}
 
-	// Store in database
-	// This would use the database abstraction to store the snapshot
-	// For now, we define the interface
-
+	// TODO: store in database when DB backend is wired
 	return nil
 }
 

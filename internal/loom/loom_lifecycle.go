@@ -1120,11 +1120,13 @@ This is a simple verification task. Do NOT search for bugs or make changes. Just
 		}
 	}
 
-	// Start motivation engine
+	// Start motivation engine (non-blocking)
 	if a.motivationEngine != nil {
-		if err := a.motivationEngine.Start(ctx); err != nil {
-			log.Printf("[Loom] Warning: Failed to start motivation engine: %v", err)
-		}
+		go func() {
+			if err := a.motivationEngine.Start(ctx); err != nil && err != ctx.Err() {
+				log.Printf("[Loom] Warning: motivation engine exited: %v", err)
+			}
+		}()
 	}
 
 	log.Printf("[Loom] DEBUG: Initialize completed successfully")
