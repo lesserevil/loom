@@ -429,6 +429,7 @@ async function loadAll() {
         await loadStatusBoardFeed().catch(err => { console.error('[Loom] Failed to load status board feed:', err); state.statusBoardFeed = []; });
         await loadOrgHealth().catch(err => { console.error('[Loom] Failed to load org health:', err); state.orgHealth = {}; });
         await loadReviewSummary().catch(err => { console.error('[Loom] Failed to load review summary:', err); state.reviewSummary = {}; });
+        await loadEscalationQueue().catch(err => { console.error('[Loom] Failed to load escalation queue:', err); state.escalationQueue = []; });
         console.log('[Loom] Data loaded successfully:', {
             beads: state.beads?.length || 0,
             projects: state.projects?.length || 0,
@@ -4370,6 +4371,30 @@ async function loadReviewSummary() {
     } catch (err) {
         console.error('[Loom] Failed to load review summary:', err);
         state.reviewSummary = {};
+    }
+}
+
+// Load Escalation Queue
+async function loadEscalationQueue() {
+    try {
+        // Filter decisions that require human input
+        const allDecisions = state.decisions || [];
+        state.escalationQueue = allDecisions.filter(d => d.requires_human === true);
+    } catch (err) {
+        console.error('[Loom] Failed to load escalation queue:', err);
+        state.escalationQueue = [];
+    }
+}
+
+// Load Escalation Queue
+async function loadEscalationQueue() {
+    try {
+        // Filter decisions that require human input
+        const allDecisions = state.decisions || [];
+        state.escalationQueue = allDecisions.filter(d => d.requires_human === true);
+    } catch (err) {
+        console.error('[Loom] Failed to load escalation queue:', err);
+        state.escalationQueue = [];
     }
 }
     
