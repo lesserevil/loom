@@ -1192,9 +1192,76 @@ This is a simple verification task. Do NOT search for bugs or make changes. Just
 // kickstartOpenBeads starts Temporal workflows for all open beads in registered projects.
 func (a *Loom) Shutdown() {
 	a.shutdownOnce.Do(func() {
+		// Stop all agents first - they may be using other subsystems
 		if a.agentManager != nil {
 			a.agentManager.StopAll()
 		}
+
+		// Close task executor
+		if a.taskExecutor != nil {
+			_ = a.taskExecutor.Close()
+		}
+
+		// Close container orchestrator - stops Docker containers
+		if a.containerOrchestrator != nil {
+			_ = a.containerOrchestrator.Close()
+		}
+
+		// Close gitops manager - stops git processes
+		if a.gitopsManager != nil {
+			_ = a.gitopsManager.Close()
+		}
+
+		// Close shell executor - stops running shell commands
+		if a.shellExecutor != nil {
+			_ = a.shellExecutor.Close()
+		}
+
+		// Close logging manager
+		if a.logManager != nil {
+			_ = a.logManager.Close()
+		}
+
+		// Close activity manager
+		if a.activityManager != nil {
+			_ = a.activityManager.Close()
+		}
+
+		// Close notification manager
+		if a.notificationManager != nil {
+			_ = a.notificationManager.Close()
+		}
+
+		// Close comments manager
+		if a.commentsManager != nil {
+			_ = a.commentsManager.Close()
+		}
+
+		// Close workflow engine
+		if a.workflowEngine != nil {
+			_ = a.workflowEngine.Close()
+		}
+
+		// Close motivation engine
+		if a.motivationEngine != nil {
+			_ = a.motivationEngine.Close()
+		}
+
+		// Close idle detector
+		if a.idleDetector != nil {
+			_ = a.idleDetector.Close()
+		}
+
+		// Close memory manager
+		if a.memoryManager != nil {
+			_ = a.memoryManager.Close()
+		}
+
+		// Close metrics
+		if a.metrics != nil {
+			_ = a.metrics.Close()
+		}
+
 		if a.connectorManager != nil {
 			_ = a.connectorManager.Close()
 		}
