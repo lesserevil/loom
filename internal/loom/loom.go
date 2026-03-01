@@ -1,23 +1,12 @@
 package loom
 
 import (
-	"context"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"log"
-	"os"
-	"os/exec"
-	"path"
-	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/jordanhubbard/loom/internal/actions"
 	"github.com/jordanhubbard/loom/internal/activity"
 	"github.com/jordanhubbard/loom/internal/agent"
-	"github.com/jordanhubbard/loom/internal/analytics"
 	"github.com/jordanhubbard/loom/internal/beads"
 	"github.com/jordanhubbard/loom/internal/collaboration"
 	"github.com/jordanhubbard/loom/internal/comments"
@@ -28,7 +17,6 @@ import (
 	"github.com/jordanhubbard/loom/internal/ephemeralstate"
 	"github.com/jordanhubbard/loom/internal/eventbus"
 	"github.com/jordanhubbard/loom/internal/executor"
-	"github.com/jordanhubbard/loom/internal/files"
 	"github.com/jordanhubbard/loom/internal/gitops"
 	"github.com/jordanhubbard/loom/internal/keymanager"
 	"github.com/jordanhubbard/loom/internal/logging"
@@ -37,11 +25,9 @@ import (
 	"github.com/jordanhubbard/loom/internal/meetings"
 	"github.com/jordanhubbard/loom/internal/metrics"
 	"github.com/jordanhubbard/loom/internal/modelcatalog"
-	internalmodels "github.com/jordanhubbard/loom/internal/models"
 	"github.com/jordanhubbard/loom/internal/modelselection"
 	"github.com/jordanhubbard/loom/internal/motivation"
 	"github.com/jordanhubbard/loom/internal/notifications"
-	"github.com/jordanhubbard/loom/internal/observability"
 	"github.com/jordanhubbard/loom/internal/openclaw"
 	"github.com/jordanhubbard/loom/internal/orchestrator"
 	"github.com/jordanhubbard/loom/internal/orgchart"
@@ -49,7 +35,6 @@ import (
 	"github.com/jordanhubbard/loom/internal/persona"
 	"github.com/jordanhubbard/loom/internal/project"
 	"github.com/jordanhubbard/loom/internal/provider"
-	"github.com/jordanhubbard/loom/internal/ralph"
 	"github.com/jordanhubbard/loom/internal/selfoptimization"
 	"github.com/jordanhubbard/loom/internal/statusboard"
 	"github.com/jordanhubbard/loom/internal/swarm"
@@ -57,7 +42,6 @@ import (
 	"github.com/jordanhubbard/loom/internal/workflow"
 	"github.com/jordanhubbard/loom/pkg/config"
 	"github.com/jordanhubbard/loom/pkg/connectors"
-	"github.com/jordanhubbard/loom/pkg/models"
 )
 
 const readinessCacheTTL = 2 * time.Minute
@@ -112,10 +96,10 @@ type Loom struct {
 	swarmFederation       *swarm.Federation
 	taskExecutor          *taskexecutor.Executor
 	statusBoard           *statusboard.Board
-	ephemeralStateManager *ephemeralstate.Manager
+	ephemeralStateManager *ephemeralstate.Persistence
 	modelSelector         *modelselection.Selector
 	selfOptimizer         *selfoptimization.Optimizer
-	readinessmu           sync.Mutex
+	readinessMu           sync.Mutex
 	readinessCache        map[string]projectReadinessState
 	readinessFailures     map[string]time.Time
 	shutdownOnce          sync.Once

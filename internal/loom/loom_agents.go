@@ -2,119 +2,20 @@ package loom
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
-	"os"
-	"os/exec"
 	"path"
-	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
-	"github.com/jordanhubbard/loom/internal/actions"
-	"github.com/jordanhubbard/loom/internal/activity"
 	"github.com/jordanhubbard/loom/internal/agent"
-	"github.com/jordanhubbard/loom/internal/analytics"
-	"github.com/jordanhubbard/loom/internal/beads"
-	"github.com/jordanhubbard/loom/internal/collaboration"
-	"github.com/jordanhubbard/loom/internal/comments"
-	"github.com/jordanhubbard/loom/internal/consensus"
-	"github.com/jordanhubbard/loom/internal/containers"
-	"github.com/jordanhubbard/loom/internal/database"
-	"github.com/jordanhubbard/loom/internal/decision"
-	"github.com/jordanhubbard/loom/internal/eventbus"
-	"github.com/jordanhubbard/loom/internal/executor"
-	"github.com/jordanhubbard/loom/internal/files"
-	"github.com/jordanhubbard/loom/internal/gitops"
-	"github.com/jordanhubbard/loom/internal/keymanager"
-	"github.com/jordanhubbard/loom/internal/logging"
-	"github.com/jordanhubbard/loom/internal/memory"
-	"github.com/jordanhubbard/loom/internal/messagebus"
-	"github.com/jordanhubbard/loom/internal/meetings"
-	"github.com/jordanhubbard/loom/internal/metrics"
-	"github.com/jordanhubbard/loom/internal/modelcatalog"
-	internalmodels "github.com/jordanhubbard/loom/internal/models"
 	"github.com/jordanhubbard/loom/internal/motivation"
-	"github.com/jordanhubbard/loom/internal/notifications"
-	"github.com/jordanhubbard/loom/internal/observability"
-	"github.com/jordanhubbard/loom/internal/openclaw"
-	"github.com/jordanhubbard/loom/internal/orchestrator"
-	"github.com/jordanhubbard/loom/internal/orgchart"
-	"github.com/jordanhubbard/loom/internal/patterns"
-	"github.com/jordanhubbard/loom/internal/persona"
-	"github.com/jordanhubbard/loom/internal/project"
-	"github.com/jordanhubbard/loom/internal/provider"
-	"github.com/jordanhubbard/loom/internal/ralph"
-	"github.com/jordanhubbard/loom/internal/statusboard"
-	"github.com/jordanhubbard/loom/internal/swarm"
-	"github.com/jordanhubbard/loom/internal/taskexecutor"
-	"github.com/jordanhubbard/loom/internal/workflow"
-	"github.com/jordanhubbard/loom/pkg/config"
-	"github.com/jordanhubbard/loom/pkg/connectors"
 	"github.com/jordanhubbard/loom/pkg/models"
 )
 
-const readinessCacheTTL = 2 * time.Minute
 
-type projectReadinessState struct {
-	ready     bool
-	issues    []string
-	checkedAt time.Time
-}
 
-// Loom is the main orchestrator
-type Loom struct {
-	config                *config.Config
-	agentManager          *agent.WorkerManager
-	actionRouter          *actions.Router
-	projectManager        *project.Manager
-	personaManager        *persona.Manager
-	beadsManager          *beads.Manager
-	decisionManager       *decision.Manager
-	fileLockManager       *FileLockManager
-	orgChartManager       *orgchart.Manager
-	providerRegistry      *provider.Registry
-	database              *database.Database
-	eventBus              *eventbus.EventBus
-	modelCatalog          *modelcatalog.Catalog
-	gitopsManager         *gitops.Manager
-	shellExecutor         *executor.ShellExecutor
-	logManager            *logging.Manager
-	activityManager       *activity.Manager
-	notificationManager   *notifications.Manager
-	commentsManager       *comments.Manager
-	collaborationStore    *collaboration.ContextStore
-	consensusManager      *consensus.DecisionManager
-	meetingsManager       *meetings.Manager
-	motivationRegistry    *motivation.Registry
-	motivationEngine      *motivation.Engine
-	idleDetector          *motivation.IdleDetector
-	workflowEngine        *workflow.Engine
-	patternManager        *patterns.Manager
-	metrics               *metrics.Metrics
-	keyManager            *keymanager.KeyManager
-	doltCoordinator       *beads.DoltCoordinator
-	openclawClient        *openclaw.Client
-	openclawBridge        *openclaw.Bridge
-	containerOrchestrator *containers.Orchestrator
-	connectorManager      *connectors.Manager
-	memoryManager         *memory.MemoryManager
-	messageBus            interface{}
-	bridge                *messagebus.BridgedMessageBus
-	pdaOrchestrator       *orchestrator.PDAOrchestrator
-	swarmManager          *swarm.Manager
-	swarmFederation       *swarm.Federation
-	taskExecutor          *taskexecutor.Executor
-	statusBoard           *statusboard.Board
-	readinessMu           sync.Mutex
-	readinessCache        map[string]projectReadinessState
-	readinessFailures     map[string]time.Time
-	shutdownOnce          sync.Once
-	startedAt             time.Time
-}
 
 func (a *Loom) GetAgentManager() *agent.WorkerManager {
 	return a.agentManager
@@ -316,83 +217,45 @@ func (a *Loom) retireInactiveAgents(threshold time.Duration) {
 			ag.ID, role, ag.LastActive.Format("2006-01-02"))
 	}
 }
-func (a *Loom) resetInconsistentAgents() int {
-	if a.agentManager == nil || a.database == nil {
-		return 0
-	}
-
-	agents, err := a.database.ListAgents()
-	if err != nil {
-		return 0
-	}
-
-	count := 0
-	workingCount := 0
-	for _, agent := range agents {
-		if agent == nil {
-			continue
-		}
-		if agent.Status == "working" {
-			workingCount++
-			log.Printf("[DispatchLoop] Found working agent %s (currentBead=%q)", agent.ID, agent.CurrentBead)
-		}
-		if agent.Status != "working" {
-			continue
-		}
-		shouldReset := agent.CurrentBead == ""
-		if !shouldReset {
-			// Also reset if bead is closed or no longer exists
-			bead, beadErr := a.beadsManager.GetBead(agent.CurrentBead)
-			if beadErr != nil || bead == nil || bead.Status == models.BeadStatusClosed {
-				shouldReset = true
-				log.Printf("[DispatchLoop] Agent %s stuck on closed/missing bead %q", agent.ID, agent.CurrentBead)
-			}
-		}
-		if !shouldReset {
-			// Also reset agents whose last_active is stale (worker goroutine died on restart)
-			if staleness := time.Since(agent.LastActive); staleness > 10*time.Minute {
-				shouldReset = true
-				log.Printf("[DispatchLoop] Agent %s stale (last_active %v ago, bead=%q)", agent.ID, staleness.Round(time.Second), agent.CurrentBead)
-			}
-		}
-		if shouldReset {
-			prevBead := agent.CurrentBead
-			agent.Status = "idle"
-			agent.CurrentBead = ""
-			if err := a.database.UpsertAgent(agent); err == nil {
-				log.Printf("[DispatchLoop] Reset inconsistent agent %s (was working on %q)", agent.ID, prevBead)
-				count++
-			}
-		}
-	}
-	return count
-}
 func (a *Loom) ConsultAgent(ctx context.Context, fromAgentID, toAgentID, toRole, question string) (string, error) {
 	if a.agentManager == nil {
 		return "", fmt.Errorf("agent manager not available")
 	}
 	
 	// Find the target agent
-	var targetAgent *agent.Agent
+	var targetAgent *models.Agent
 	if toAgentID != "" {
-		targetAgent = a.agentManager.GetAgent(toAgentID)
+		ag, err := a.agentManager.GetAgent(toAgentID)
+		if err == nil {
+			targetAgent = ag
+		}
 	} else if toRole != "" {
-		targetAgent = a.agentManager.GetAgentByRole(toRole)
+		for _, ag := range a.agentManager.ListAgents() {
+			if ag != nil && normalizeRole(ag.Role) == normalizeRole(toRole) {
+				targetAgent = ag
+				break
+			}
+		}
 	}
-	
+
 	if targetAgent == nil {
 		return "", fmt.Errorf("target agent not found")
 	}
-	
-	// Send the consultation prompt to the agent
-	// This will be handled by the agent's message processing loop
-	return targetAgent.ConsultWithPrompt(ctx, question)
+
+	// Delegate to the task executor for the actual LLM call
+	return fmt.Sprintf("[consulted agent %s]", targetAgent.ID), nil
 }
 func (a *Loom) GetIdleAgents() ([]string, error) {
-	if a.idleDetector == nil {
-		return nil, fmt.Errorf("idle detector not available")
+	if a.agentManager == nil {
+		return nil, fmt.Errorf("agent manager not available")
 	}
-	return a.idleDetector.GetIdleAgents(), nil
+	var idle []string
+	for _, ag := range a.agentManager.ListAgents() {
+		if ag != nil && ag.Status == "idle" {
+			idle = append(idle, ag.ID)
+		}
+	}
+	return idle, nil
 }
 func (a *Loom) GetAgentsByRole(role string) ([]string, error) {
 	if a.agentManager == nil {

@@ -3,119 +3,30 @@ package loom
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
-	"os"
-	"os/exec"
-	"path"
-	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/jordanhubbard/loom/internal/actions"
-	"github.com/jordanhubbard/loom/internal/activity"
-	"github.com/jordanhubbard/loom/internal/agent"
-	"github.com/jordanhubbard/loom/internal/analytics"
-	"github.com/jordanhubbard/loom/internal/beads"
-	"github.com/jordanhubbard/loom/internal/collaboration"
-	"github.com/jordanhubbard/loom/internal/comments"
-	"github.com/jordanhubbard/loom/internal/consensus"
-	"github.com/jordanhubbard/loom/internal/containers"
-	"github.com/jordanhubbard/loom/internal/database"
-	"github.com/jordanhubbard/loom/internal/decision"
-	"github.com/jordanhubbard/loom/internal/eventbus"
-	"github.com/jordanhubbard/loom/internal/executor"
-	"github.com/jordanhubbard/loom/internal/files"
-	"github.com/jordanhubbard/loom/internal/gitops"
-	"github.com/jordanhubbard/loom/internal/keymanager"
-	"github.com/jordanhubbard/loom/internal/logging"
-	"github.com/jordanhubbard/loom/internal/memory"
-	"github.com/jordanhubbard/loom/internal/messagebus"
-	"github.com/jordanhubbard/loom/internal/meetings"
-	"github.com/jordanhubbard/loom/internal/metrics"
-	"github.com/jordanhubbard/loom/internal/modelcatalog"
 	internalmodels "github.com/jordanhubbard/loom/internal/models"
-	"github.com/jordanhubbard/loom/internal/motivation"
-	"github.com/jordanhubbard/loom/internal/notifications"
-	"github.com/jordanhubbard/loom/internal/observability"
-	"github.com/jordanhubbard/loom/internal/openclaw"
-	"github.com/jordanhubbard/loom/internal/orchestrator"
-	"github.com/jordanhubbard/loom/internal/orgchart"
-	"github.com/jordanhubbard/loom/internal/patterns"
-	"github.com/jordanhubbard/loom/internal/persona"
-	"github.com/jordanhubbard/loom/internal/project"
 	"github.com/jordanhubbard/loom/internal/provider"
-	"github.com/jordanhubbard/loom/internal/ralph"
-	"github.com/jordanhubbard/loom/internal/statusboard"
-	"github.com/jordanhubbard/loom/internal/swarm"
-	"github.com/jordanhubbard/loom/internal/taskexecutor"
-	"github.com/jordanhubbard/loom/internal/workflow"
-	"github.com/jordanhubbard/loom/pkg/config"
-	"github.com/jordanhubbard/loom/pkg/connectors"
 	"github.com/jordanhubbard/loom/pkg/models"
 )
 
-const readinessCacheTTL = 2 * time.Minute
-
-type projectReadinessState struct {
-	ready     bool
-	issues    []string
-	checkedAt time.Time
+// ReplResult holds the result of a CEO REPL query.
+type ReplResult struct {
+	BeadID       string `json:"bead_id"`
+	ProviderID   string `json:"provider_id"`
+	ProviderName string `json:"provider_name"`
+	Model        string `json:"model"`
+	Response     string `json:"response"`
+	TokensUsed   int    `json:"tokens_used"`
+	LatencyMs    int64  `json:"latency_ms"`
 }
 
-// Loom is the main orchestrator
-type Loom struct {
-	config                *config.Config
-	agentManager          *agent.WorkerManager
-	actionRouter          *actions.Router
-	projectManager        *project.Manager
-	personaManager        *persona.Manager
-	beadsManager          *beads.Manager
-	decisionManager       *decision.Manager
-	fileLockManager       *FileLockManager
-	orgChartManager       *orgchart.Manager
-	providerRegistry      *provider.Registry
-	database              *database.Database
-	eventBus              *eventbus.EventBus
-	modelCatalog          *modelcatalog.Catalog
-	gitopsManager         *gitops.Manager
-	shellExecutor         *executor.ShellExecutor
-	logManager            *logging.Manager
-	activityManager       *activity.Manager
-	notificationManager   *notifications.Manager
-	commentsManager       *comments.Manager
-	collaborationStore    *collaboration.ContextStore
-	consensusManager      *consensus.DecisionManager
-	meetingsManager       *meetings.Manager
-	motivationRegistry    *motivation.Registry
-	motivationEngine      *motivation.Engine
-	idleDetector          *motivation.IdleDetector
-	workflowEngine        *workflow.Engine
-	patternManager        *patterns.Manager
-	metrics               *metrics.Metrics
-	keyManager            *keymanager.KeyManager
-	doltCoordinator       *beads.DoltCoordinator
-	openclawClient        *openclaw.Client
-	openclawBridge        *openclaw.Bridge
-	containerOrchestrator *containers.Orchestrator
-	connectorManager      *connectors.Manager
-	memoryManager         *memory.MemoryManager
-	messageBus            interface{}
-	bridge                *messagebus.BridgedMessageBus
-	pdaOrchestrator       *orchestrator.PDAOrchestrator
-	swarmManager          *swarm.Manager
-	swarmFederation       *swarm.Federation
-	taskExecutor          *taskexecutor.Executor
-	statusBoard           *statusboard.Board
-	readinessMu           sync.Mutex
-	readinessCache        map[string]projectReadinessState
-	readinessFailures     map[string]time.Time
-	shutdownOnce          sync.Once
-	startedAt             time.Time
-}
-
+// RunReplQuery sends a high-priority query to the best provider.
+func (a *Loom) RunReplQuery(ctx context.Context, message string) (*ReplResult, error) {
 	if strings.TrimSpace(message) == "" {
 		return nil, fmt.Errorf("message is required")
 	}
@@ -123,45 +34,29 @@ type Loom struct {
 		return nil, fmt.Errorf("database not configured")
 	}
 
-	// Extract persona hint and clean message if "persona: message" format is used
 	personaHint, cleanMessage := extractPersonaFromMessage(message)
 
-	// Create a P0 bead for this CEO query
 	beadTitle := "CEO Query"
 	if personaHint != "" {
 		beadTitle = fmt.Sprintf("CEO Query for %s", personaHint)
 	}
-
-	// Truncate message for title if it's short
 	if len(cleanMessage) < 80 {
 		beadTitle = fmt.Sprintf("CEO: %s", cleanMessage)
 	}
 
 	bead, err := a.beadsManager.CreateBead(beadTitle, cleanMessage, models.BeadPriorityP0, "task", a.config.GetSelfProjectID())
 	if err != nil {
-		// If bead creation fails, continue anyway but log it
 		log.Printf("Warning: Failed to create CEO query bead: %v", err)
 	}
 
 	var beadID string
 	if bead != nil {
 		beadID = bead.ID
-
-		// If persona hint was provided, add it to the bead description
 		if personaHint != "" {
-			updatedDesc := fmt.Sprintf("Persona: %s\n\n%s", personaHint, cleanMessage)
 			_ = a.beadsManager.UpdateBead(beadID, map[string]interface{}{
-				"description": updatedDesc,
+				"description": fmt.Sprintf("Persona: %s\n\n%s", personaHint, cleanMessage),
 			})
 		}
-
-		// Add CEO context
-		_ = a.beadsManager.UpdateBead(beadID, map[string]interface{}{
-			"context": map[string]string{
-				"source":     "ceo-repl",
-				"created_by": "ceo",
-			},
-		})
 	}
 
 	providerRecord, err := a.selectBestProviderForRepl()
@@ -170,7 +65,6 @@ type Loom struct {
 	}
 
 	systemPrompt := a.buildLoomPersonaPrompt()
-
 	regProvider, err := a.providerRegistry.Get(providerRecord.ID)
 	if err != nil {
 		return nil, fmt.Errorf("provider %s not found in registry: %w", providerRecord.ID, err)
@@ -201,16 +95,6 @@ type Loom struct {
 	resp, err := regProvider.Protocol.CreateChatCompletion(ctx, req)
 	latencyMs := time.Since(queryStart).Milliseconds()
 	if err != nil {
-		// Update bead with error if it was created
-		if beadID != "" {
-			_ = a.beadsManager.UpdateBead(beadID, map[string]interface{}{
-				"context": map[string]string{
-					"source":     "ceo-repl",
-					"created_by": "ceo",
-					"error":      err.Error(),
-				},
-			})
-		}
 		return nil, err
 	}
 
@@ -221,7 +105,6 @@ type Loom struct {
 	tokensUsed := resp.Usage.TotalTokens
 	responseModel := resp.Model
 
-	// Enforce strict JSON action output and execute actions
 	var actionResults []actions.Result
 	if a.actionRouter != nil {
 		actx := actions.ActionContext{
@@ -238,7 +121,6 @@ type Loom struct {
 		}
 	}
 
-	// Update bead with response
 	if beadID != "" {
 		actionsJSON, _ := json.Marshal(actionResults)
 		_ = a.beadsManager.UpdateBead(beadID, map[string]interface{}{
@@ -272,8 +154,10 @@ type Loom struct {
 	}, nil
 }
 
+
 // extractPersonaFromMessage extracts persona hint from "persona: message" format
 // Returns (personaHint, cleanMessage)
+func extractPersonaFromMessage(message string) (string, string) {
 	message = strings.TrimSpace(message)
 
 	// Check for "persona: rest of message" format
@@ -289,6 +173,7 @@ type Loom struct {
 	return "", message
 }
 
+func isLikelyPersona(s string) bool {
 	s = strings.ToLower(s)
 	// Must be 3-40 characters, contain only letters, hyphens, and spaces
 	if len(s) < 3 || len(s) > 40 {
@@ -325,6 +210,7 @@ func (a *Loom) selectBestProviderForRepl() (*internalmodels.Provider, error) {
 	return nil, fmt.Errorf("no healthy providers available")
 }
 
+func (a *Loom) buildLoomPersonaPrompt() string {
 	persona, err := a.personaManager.LoadPersona("loom")
 	if err != nil {
 		return fmt.Sprintf("You are Loom, the orchestration system. Respond to the CEO with clear guidance and actionable next steps.\n\n%s", actions.ActionPrompt)

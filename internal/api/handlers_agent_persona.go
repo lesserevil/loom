@@ -2,7 +2,6 @@ package api
 
 import (
 	"net/http"
-	"strings"
 )
 
 // handleAgentPersonaDetail handles GET /api/v1/agents/{id}/persona

@@ -1,6 +1,7 @@
 package meetings
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -253,4 +254,25 @@ func (m *Manager) CompleteMeeting(id string, summary string) (*Meeting, error) {
 	meeting.CompletedAt = &now
 
 	return meeting, nil
+}
+
+// CallMeeting creates a meeting from the given parameters, satisfying the actions.MeetingCaller interface.
+func (m *Manager) CallMeeting(_ context.Context, _, title, _, _ string, participants []string, agenda []struct{ Topic, Description string }) (string, error) {
+	agendaItems := make([]AgendaItem, len(agenda))
+	for i, a := range agenda {
+		agendaItems[i] = AgendaItem{Title: a.Topic, Description: a.Description}
+	}
+	ps := make([]Participant, len(participants))
+	for i, p := range participants {
+		ps[i] = Participant{ID: p, Role: "participant"}
+	}
+	meeting, err := m.CreateMeeting(&CreateMeetingRequest{
+		Title:        title,
+		Participants: ps,
+		AgendaItems:  agendaItems,
+	})
+	if err != nil {
+		return "", err
+	}
+	return meeting.ID, nil
 }

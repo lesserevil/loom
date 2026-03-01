@@ -3,15 +3,12 @@ package loom
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/jordanhubbard/loom/internal/actions"
@@ -25,6 +22,7 @@ import (
 	"github.com/jordanhubbard/loom/internal/containers"
 	"github.com/jordanhubbard/loom/internal/database"
 	"github.com/jordanhubbard/loom/internal/decision"
+	"github.com/jordanhubbard/loom/internal/dispatch"
 	"github.com/jordanhubbard/loom/internal/eventbus"
 	"github.com/jordanhubbard/loom/internal/executor"
 	"github.com/jordanhubbard/loom/internal/files"
@@ -57,64 +55,8 @@ import (
 	"github.com/jordanhubbard/loom/pkg/models"
 )
 
-const readinessCacheTTL = 2 * time.Minute
 
-type projectReadinessState struct {
-	ready     bool
-	issues    []string
-	checkedAt time.Time
-}
 
-// Loom is the main orchestrator
-type Loom struct {
-	config                *config.Config
-	agentManager          *agent.WorkerManager
-	actionRouter          *actions.Router
-	projectManager        *project.Manager
-	personaManager        *persona.Manager
-	beadsManager          *beads.Manager
-	decisionManager       *decision.Manager
-	fileLockManager       *FileLockManager
-	orgChartManager       *orgchart.Manager
-	providerRegistry      *provider.Registry
-	database              *database.Database
-	eventBus              *eventbus.EventBus
-	modelCatalog          *modelcatalog.Catalog
-	gitopsManager         *gitops.Manager
-	shellExecutor         *executor.ShellExecutor
-	logManager            *logging.Manager
-	activityManager       *activity.Manager
-	notificationManager   *notifications.Manager
-	commentsManager       *comments.Manager
-	collaborationStore    *collaboration.ContextStore
-	consensusManager      *consensus.DecisionManager
-	meetingsManager       *meetings.Manager
-	motivationRegistry    *motivation.Registry
-	motivationEngine      *motivation.Engine
-	idleDetector          *motivation.IdleDetector
-	workflowEngine        *workflow.Engine
-	patternManager        *patterns.Manager
-	metrics               *metrics.Metrics
-	keyManager            *keymanager.KeyManager
-	doltCoordinator       *beads.DoltCoordinator
-	openclawClient        *openclaw.Client
-	openclawBridge        *openclaw.Bridge
-	containerOrchestrator *containers.Orchestrator
-	connectorManager      *connectors.Manager
-	memoryManager         *memory.MemoryManager
-	messageBus            interface{}
-	bridge                *messagebus.BridgedMessageBus
-	pdaOrchestrator       *orchestrator.PDAOrchestrator
-	swarmManager          *swarm.Manager
-	swarmFederation       *swarm.Federation
-	taskExecutor          *taskexecutor.Executor
-	statusBoard           *statusboard.Board
-	readinessMu           sync.Mutex
-	readinessCache        map[string]projectReadinessState
-	readinessFailures     map[string]time.Time
-	shutdownOnce          sync.Once
-	startedAt             time.Time
-}
 
 func New(cfg *config.Config) (*Loom, error) {
 	personaPath := cfg.Agents.DefaultPersonaPath
@@ -333,7 +275,7 @@ func New(cfg *config.Config) (*Loom, error) {
 
 	collaborationStore := collaboration.NewContextStore()
 	consensusManager := consensus.NewDecisionManager()
-	statusBoard := statusboard.NewBoard()
+	statusBoard := statusboard.New()
 
 	// Create motivation engine (will be wired after arb is created)
 	var motivationEngine *motivation.Engine
@@ -403,7 +345,7 @@ func New(cfg *config.Config) (*Loom, error) {
 		Voter:         arb,
 	}
 	arb.actionRouter = actionRouter
-	motivationEngine = motivation.NewEngine(motivationRegistry, arb, arb)
+	motivationEngine = motivation.NewEngine(motivationRegistry, NewLoomStateProvider(arb), arb)
 	arb.motivationEngine = motivationEngine
 	agentMgr.SetActionRouter(actionRouter)
 
@@ -1114,7 +1056,8 @@ This is a simple verification task. Do NOT search for bugs or make changes. Just
 			}
 		} else {
 			log.Printf("Default workflows directory not found: %s", workflowsDir)
-		}	}
+			}
+		}
 
 	// ── Multi-service pub/sub wiring ───────────────────────────────────
 	// Start the NATS ↔ EventBus bridge so cross-container events flow.
@@ -1162,7 +1105,6 @@ This is a simple verification task. Do NOT search for bugs or make changes. Just
 			endpoint := fmt.Sprintf("http://%s:%d", hostname, port)
 			if err := a.swarmManager.Start(ctx, []string{"control-plane"}, projectIDs, endpoint); err != nil {
 				log.Printf("[Loom] Warning: Failed to start swarm manager: %v", err)
-			}				if a.memoryManager != nil {				}
 			}
 
 			// Federation with peer NATS instances
@@ -1301,10 +1243,12 @@ func (a *Loom) GetEventBus() *eventbus.EventBus {
 }
 
 // GetDatabase returns the database instance
+func (a *Loom) GetDatabase() *database.Database {
 	return a.database
 }
 
 // GetMessageBus returns the NATS message bus instance
+func (a *Loom) GetMessageBus() interface{} {
 	return a.messageBus
 }
 
@@ -1361,6 +1305,21 @@ func (a *Loom) GetGitOpsManager() *gitops.Manager {
 	return a.gitopsManager
 }
 
+// GetGitopsManager is an alias for GetGitOpsManager (lowercase 'o' variant).
+func (a *Loom) GetGitopsManager() *gitops.Manager {
+	return a.gitopsManager
+}
+
+// GetFileLockManager returns the file lock manager.
+func (a *Loom) GetFileLockManager() *FileLockManager {
+	return a.fileLockManager
+}
+
+// GetWorkGraph returns the dependency graph of beads for a project.
+func (a *Loom) GetWorkGraph(projectID string) (*models.WorkGraph, error) {
+	return a.beadsManager.GetWorkGraph(projectID)
+}
+
 // SetKeyManager sets the key manager for encrypted credential storage.
 func (a *Loom) SetKeyManager(km *keymanager.KeyManager) {
 	a.keyManager = km
@@ -1373,6 +1332,7 @@ func (a *Loom) SetKeyManager(km *keymanager.KeyManager) {
 func (a *Loom) GetKeyManager() *keymanager.KeyManager {
 	return a.keyManager
 }
+
 
 // GetPersonaManager returns the persona manager
 func (a *Loom) GetPersonaManager() *persona.Manager {
@@ -1657,6 +1617,7 @@ func (a *Loom) ensureOrgChart(ctx context.Context, projectID string) error {
 	return nil
 }
 
+func (a *Loom) attemptSelfHeal(ctx context.Context, project *models.Project, issues []string) bool {
 	if project == nil || len(issues) == 0 {
 		return false
 	}
@@ -1692,84 +1653,8 @@ func (a *Loom) ensureOrgChart(ctx context.Context, projectID string) error {
 
 	return healed
 }
-	message = strings.TrimSpace(message)
 
-	// Check for "persona: rest of message" format
-	if idx := strings.Index(message, ":"); idx > 0 && idx < 50 {
-		potentialPersona := strings.TrimSpace(message[:idx])
-		// Check if it looks like a persona (single word or hyphenated, lowercase)
-		if isLikelyPersona(potentialPersona) {
-			restOfMessage := strings.TrimSpace(message[idx+1:])
-			return potentialPersona, restOfMessage
-		}
-	}
-
-	return "", message
-}
-
-	s = strings.ToLower(s)
-	// Must be 3-40 characters, contain only letters, hyphens, and spaces
-	if len(s) < 3 || len(s) > 40 {
-		return false
-	}
-	for _, ch := range s {
-		if !((ch >= 'a' && ch <= 'z') || ch == '-' || ch == ' ') {
-			return false
-		}
-	}
-	// Can't start or end with hyphen/space
-	if s[0] == '-' || s[0] == ' ' || s[len(s)-1] == '-' || s[len(s)-1] == ' ' {
-		return false
-	}
-	return true
-}
-
-func (a *Loom) selectBestProviderForRepl() (*internalmodels.Provider, error) {
-	providers, err := a.database.ListProviders()
-	if err != nil {
-		return nil, err
-	}
-
-	// With TokenHub as the sole provider, just return the first healthy one.
-	for _, p := range providers {
-		if p == nil {
-			continue
-		}
-		if p.Status == "healthy" || p.Status == "active" {
-			return p, nil
-		}
-	}
-
-	return nil, fmt.Errorf("no healthy providers available")
-}
-
-	persona, err := a.personaManager.LoadPersona("loom")
-	if err != nil {
-		return fmt.Sprintf("You are Loom, the orchestration system. Respond to the CEO with clear guidance and actionable next steps.\n\n%s", actions.ActionPrompt)
-	}
-
-	focus := strings.Join(persona.FocusAreas, ", ")
-	standards := strings.Join(persona.Standards, "; ")
-
-	return fmt.Sprintf(
-		"You are Loom, the orchestration system. Treat this as a high-priority CEO request.\n\nMission: %s\nCharacter: %s\nTone: %s\nFocus Areas: %s\nDecision Making: %s\nStandards: %s\n\n%s",
-		strings.TrimSpace(persona.Mission),
-		strings.TrimSpace(persona.Character),
-		strings.TrimSpace(persona.Tone),
-		strings.TrimSpace(focus),
-		strings.TrimSpace(persona.DecisionMaking),
-		strings.TrimSpace(standards),
-		actions.ActionPrompt,
-	)
-}
-
-// ListModelCatalog returns the recommended model catalog.
-func (a *Loom) ListModelCatalog() []internalmodels.ModelSpec {
-	if a.modelCatalog == nil {
-		return nil
-	}
-	return a.modelCatalog.List()
-}
+func (a *Loom) RequestFileAccess(projectID, filePath, agentID, beadID string) (*models.FileLock, error) {
 	// Verify agent exists
 	if _, err := a.agentManager.GetAgent(agentID); err != nil {
 		return nil, fmt.Errorf("agent not found: %w", err)
@@ -1790,11 +1675,13 @@ func (a *Loom) ListModelCatalog() []internalmodels.ModelSpec {
 }
 
 // ReleaseFileAccess releases a file lock
+func (a *Loom) ReleaseFileAccess(projectID, filePath, agentID string) error {
 	return a.fileLockManager.ReleaseLock(projectID, filePath, agentID)
 }
 
 // findDefaultAssignee returns the ID of the best default triage agent for a project.
 // Preference order: CTO > Engineering Manager > any agent assigned to the project.
+func (a *Loom) findDefaultAssignee(projectID string) string {
 	if a.agentManager == nil {
 		return ""
 	}
@@ -1824,7 +1711,8 @@ func (a *Loom) ListModelCatalog() []internalmodels.ModelSpec {
 	return ""
 }
 
-// normalizeRole lowercases and normalizes a role string for comparison.
+// StartMaintenanceLoop starts background maintenance tasks
+func (a *Loom) StartMaintenanceLoop(ctx context.Context) {
 	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
 
@@ -1892,52 +1780,6 @@ func (a *Loom) ListModelCatalog() []internalmodels.ModelSpec {
 	}
 }
 
-// resetZombieBeads resets in_progress beads whose assigned executor ID is an
-// ephemeral exec-* goroutine ID from a previous run. These IDs are never
-// persisted to the agents table and cannot survive a restart, so any bead
-// they hold is permanently stuck unless explicitly cleared here.
-//
-// This runs once at startup, immediately after ResetStuckAgents, so the task
-// executor can reclaim the work on its very first tick.
-		defer func() {
-		if r := recover(); r != nil {
-			log.Printf("[DispatchLoop] PANIC recovered: %v", r)
-		}
-	}()	debugWrite("/tmp/dispatch-loop-past-nil-check.txt", []byte("PAST NIL CHECK\n"))
-	if interval <= 0 {
-		interval = 10 * time.Second
-	}
-
-	log.Printf("[DispatchLoop] Starting with %s interval", interval)
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			debugWrite("/tmp/dispatch-loop-tick.txt", []byte(fmt.Sprintf("TICK at %s\n", time.Now())))
-
-			// Phase 1: Reset agents stuck in "working" state (similar to Ralph Loop)
-			// Using 10 minute timeout — context cancellation handles premature kills;
-			// this is a last-resort safety net for truly deadlocked goroutines.
-			if a.agentManager != nil {
-				// First reset agents with inconsistent state (working but no bead)
-				inconsistentReset := a.resetInconsistentAgents()
-				// Then reset agents stuck for too long
-				timeoutReset := a.agentManager.ResetStuckAgents(10 * time.Minute)
-				totalReset := inconsistentReset + timeoutReset
-				debugWrite("/tmp/dispatch-agents-reset.txt", []byte(fmt.Sprintf("reset=%d (inconsistent=%d timeout=%d)\n", totalReset, inconsistentReset, timeoutReset)))
-				if totalReset > 0 {
-					log.Printf("[DispatchLoop] Reset %d stuck agent(s) (inconsistent=%d, timeout=%d)", totalReset, inconsistentReset, timeoutReset)
-				}
-			}
-
-		}
-	}
-}
-
 // loomCEOEscalator adapts Loom.EscalateBeadToCEO to the taskexecutor.CEOEscalator
 // interface so the recovery sweep can escalate irrecoverable beads.
 type loomCEOEscalator struct{ app *Loom }
@@ -1950,6 +1792,7 @@ func (e loomCEOEscalator) EscalateBeadToCEO(beadID, reason, returnedTo string) e
 // StartTaskExecutor starts the direct bead execution engine for all registered projects.
 // It creates a taskexecutor.Executor and launches worker goroutines per project.
 // Call this instead of StartDispatchLoop to bypass Temporal/NATS/WorkerPool overhead.
+func (a *Loom) StartTaskExecutor(ctx context.Context) {
 	exec := taskexecutor.New(
 		a.providerRegistry,
 		a.beadsManager,
@@ -2021,83 +1864,72 @@ func (e loomCEOEscalator) EscalateBeadToCEO(beadID, reason, returnedTo string) e
 	}
 }
 
-// WakeProject signals the task executor that new work is available for projectID.
+// GetMemoryManager returns the memory manager instance.
+func (a *Loom) GetMemoryManager() *memory.MemoryManager {
 	return a.memoryManager
 }
 
 // GetSwarmManager returns the swarm manager (nil if NATS is not configured).
+func (a *Loom) GetSwarmManager() *swarm.Manager {
 	return a.swarmManager
 }
 
 // GetCollaborationStore returns the collaboration context store
+func (a *Loom) GetCollaborationStore() *collaboration.ContextStore {
 	return a.collaborationStore
 }
 
 // GetConsensusManager returns the consensus decision manager
+func (a *Loom) GetConsensusManager() *consensus.DecisionManager {
 	return a.consensusManager
 }
 
 // StartedAt returns when this Loom instance was created.
+func (a *Loom) StartedAt() time.Time {
 	return a.startedAt
 }
 
-
+// CastVote records a vote for a consensus decision.
+func (a *Loom) CastVote(ctx context.Context, decisionID, agentID, choice, rationale string) error {
 	if a.consensusManager == nil {
 		return fmt.Errorf("consensus manager not available")
 	}
-	
-	return a.consensusManager.RecordVote(ctx, decisionID, agentID, choice, rationale)
-}
 
+	return a.consensusManager.CastVote(ctx, decisionID, agentID, consensus.VoteChoice(choice), rationale, 1.0)
+}
 
 // StateProvider interface implementations
 
 // GetCurrentTime returns the current time
+func (a *Loom) GetCurrentTime() time.Time {
 	return time.Now()
 }
 
-// GetBeadsWithUpcomingDeadlines returns beads with deadlines within the specified days
-	// TODO: Implement milestone retrieval
-	return []*motivation.Milestone{}, nil
-}
 
-// GetUpcomingMilestones returns milestones within the specified days
-	// TODO: Implement upcoming milestone retrieval
-	return []*motivation.Milestone{}, nil
-}
-
-// GetIdleAgents returns agent IDs that are idle
-	if a.idleDetector == nil {
-		return false, fmt.Errorf("idle detector not available")
-	}
-	return a.idleDetector.IsSystemIdle(duration), nil
-}
-
-	// TODO: Implement spending tracking
-	return 0.0, nil
-}
-
-// GetBudgetThreshold returns budget threshold for a project
-	// TODO: Implement budget threshold retrieval
-	return 0.0, nil
-}
-
-// GetPendingDecisions returns pending decision IDs
-	// TODO: Implement external event retrieval
-	return []motivation.ExternalEvent{}, nil
-}
-
-// ActionHandler interface implementations
-
-// CreateStimulusBead creates a stimulus bead to drive work
+// PublishMotivationFired publishes a motivation fired event to the event bus.
+func (a *Loom) PublishMotivationFired(trigger *motivation.MotivationTrigger) error {
 	if a.eventBus == nil {
-		return fmt.Errorf("event bus not available")
+		return nil
 	}
-	// TODO: Publish event to event bus
+	data := map[string]interface{}{
+		"motivation_id": trigger.MotivationID,
+		"triggered_at":  trigger.TriggeredAt,
+	}
+	if trigger.Motivation != nil {
+		data["motivation_name"] = trigger.Motivation.Name
+		data["agent_role"] = trigger.Motivation.AgentRole
+		data["project_id"] = trigger.Motivation.ProjectID
+	}
+	_ = a.eventBus.Publish(&eventbus.Event{
+		Type:   eventbus.EventTypeConfigUpdated,
+		Source: "motivation-engine",
+		Data:   data,
+	})
 	return nil
 }
 
-// StartWorkflow starts a Temporal workflow
+// StartWorkflow starts a workflow
+func (a *Loom) StartWorkflow(workflowType string, input interface{}) (string, error) {
 	// TODO: Implement workflow start
 	return "", nil
 }

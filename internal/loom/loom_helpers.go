@@ -1,120 +1,17 @@
 package loom
 
 import (
-	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"os"
-	"os/exec"
-	"path"
-	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
-	"github.com/jordanhubbard/loom/internal/actions"
-	"github.com/jordanhubbard/loom/internal/activity"
-	"github.com/jordanhubbard/loom/internal/agent"
-	"github.com/jordanhubbard/loom/internal/analytics"
-	"github.com/jordanhubbard/loom/internal/beads"
-	"github.com/jordanhubbard/loom/internal/collaboration"
-	"github.com/jordanhubbard/loom/internal/comments"
-	"github.com/jordanhubbard/loom/internal/consensus"
-	"github.com/jordanhubbard/loom/internal/containers"
-	"github.com/jordanhubbard/loom/internal/database"
-	"github.com/jordanhubbard/loom/internal/decision"
-	"github.com/jordanhubbard/loom/internal/eventbus"
-	"github.com/jordanhubbard/loom/internal/executor"
-	"github.com/jordanhubbard/loom/internal/files"
-	"github.com/jordanhubbard/loom/internal/gitops"
-	"github.com/jordanhubbard/loom/internal/keymanager"
-	"github.com/jordanhubbard/loom/internal/logging"
-	"github.com/jordanhubbard/loom/internal/memory"
-	"github.com/jordanhubbard/loom/internal/messagebus"
-	"github.com/jordanhubbard/loom/internal/meetings"
-	"github.com/jordanhubbard/loom/internal/metrics"
-	"github.com/jordanhubbard/loom/internal/modelcatalog"
-	internalmodels "github.com/jordanhubbard/loom/internal/models"
-	"github.com/jordanhubbard/loom/internal/motivation"
-	"github.com/jordanhubbard/loom/internal/notifications"
-	"github.com/jordanhubbard/loom/internal/observability"
-	"github.com/jordanhubbard/loom/internal/openclaw"
-	"github.com/jordanhubbard/loom/internal/orchestrator"
-	"github.com/jordanhubbard/loom/internal/orgchart"
-	"github.com/jordanhubbard/loom/internal/patterns"
-	"github.com/jordanhubbard/loom/internal/persona"
-	"github.com/jordanhubbard/loom/internal/project"
-	"github.com/jordanhubbard/loom/internal/provider"
-	"github.com/jordanhubbard/loom/internal/ralph"
-	"github.com/jordanhubbard/loom/internal/statusboard"
-	"github.com/jordanhubbard/loom/internal/swarm"
-	"github.com/jordanhubbard/loom/internal/taskexecutor"
-	"github.com/jordanhubbard/loom/internal/workflow"
-	"github.com/jordanhubbard/loom/pkg/config"
-	"github.com/jordanhubbard/loom/pkg/connectors"
 	"github.com/jordanhubbard/loom/pkg/models"
 )
 
-const readinessCacheTTL = 2 * time.Minute
 
-type projectReadinessState struct {
-	ready     bool
-	issues    []string
-	checkedAt time.Time
-}
 
-// Loom is the main orchestrator
-type Loom struct {
-	config                *config.Config
-	agentManager          *agent.WorkerManager
-	actionRouter          *actions.Router
-	projectManager        *project.Manager
-	personaManager        *persona.Manager
-	beadsManager          *beads.Manager
-	decisionManager       *decision.Manager
-	fileLockManager       *FileLockManager
-	orgChartManager       *orgchart.Manager
-	providerRegistry      *provider.Registry
-	database              *database.Database
-	eventBus              *eventbus.EventBus
-	modelCatalog          *modelcatalog.Catalog
-	gitopsManager         *gitops.Manager
-	shellExecutor         *executor.ShellExecutor
-	logManager            *logging.Manager
-	activityManager       *activity.Manager
-	notificationManager   *notifications.Manager
-	commentsManager       *comments.Manager
-	collaborationStore    *collaboration.ContextStore
-	consensusManager      *consensus.DecisionManager
-	meetingsManager       *meetings.Manager
-	motivationRegistry    *motivation.Registry
-	motivationEngine      *motivation.Engine
-	idleDetector          *motivation.IdleDetector
-	workflowEngine        *workflow.Engine
-	patternManager        *patterns.Manager
-	metrics               *metrics.Metrics
-	keyManager            *keymanager.KeyManager
-	doltCoordinator       *beads.DoltCoordinator
-	openclawClient        *openclaw.Client
-	openclawBridge        *openclaw.Bridge
-	containerOrchestrator *containers.Orchestrator
-	connectorManager      *connectors.Manager
-	memoryManager         *memory.MemoryManager
-	messageBus            interface{}
-	bridge                *messagebus.BridgedMessageBus
-	pdaOrchestrator       *orchestrator.PDAOrchestrator
-	swarmManager          *swarm.Manager
-	swarmFederation       *swarm.Federation
-	taskExecutor          *taskexecutor.Executor
-	statusBoard           *statusboard.Board
-	readinessMu           sync.Mutex
-	readinessCache        map[string]projectReadinessState
-	readinessFailures     map[string]time.Time
-	shutdownOnce          sync.Once
-	startedAt             time.Time
-}
 
 func isSSHRepo(repo string) bool {
 	repo = strings.TrimSpace(repo)
@@ -203,6 +100,7 @@ func rolesForProfile(profile string) []string {
 	}
 }
 
+func normalizeRole(role string) string {
 	role = strings.TrimSpace(strings.ToLower(role))
 	if strings.Contains(role, "/") {
 		parts := strings.Split(role, "/")
@@ -216,6 +114,10 @@ func rolesForProfile(profile string) []string {
 	return role
 }
 
+// tryAutoApproveCodeFix evaluates a code fix proposal for auto-approval.
+// Low-risk fixes (single file, no security impact, small diff) are closed
+// immediately. Higher-risk fixes stay open for agent review.
+func (a *Loom) tryAutoApproveCodeFix(bead *models.Bead) {
 	risk, reasons := assessFixRisk(bead.Description)
 	log.Printf("[AutoApproval] Bead %s risk=%s reasons=%v", bead.ID, risk, reasons)
 
@@ -236,6 +138,8 @@ func rolesForProfile(profile string) []string {
 }
 
 // assessFixRisk evaluates the risk level of a code fix proposal.
+// Returns risk level ("low", "medium", "high") and list of reasons.
+func assessFixRisk(description string) (string, []string) {
 	lower := strings.ToLower(description)
 	var reasons []string
 
@@ -251,17 +155,64 @@ func rolesForProfile(profile string) []string {
 			return "high", []string{"contains security/destructive keyword: " + p}
 		}
 	}
+
+	// Medium-risk: multi-file changes, API changes, config changes
+	mediumRiskPatterns := []string{
+		"breaking change", "api change", "config change",
+		"multiple files", "architecture", "refactor",
+	}
+	for _, p := range mediumRiskPatterns {
+		if strings.Contains(lower, p) {
+			reasons = append(reasons, "medium-risk pattern: "+p)
+		}
+	}
+	if len(reasons) > 0 {
+		return "medium", reasons
+	}
+
+	// Check risk assessment section in the proposal
+	if strings.Contains(lower, "risk level: high") || strings.Contains(lower, "risk: high") {
+		return "high", []string{"proposal self-assessed as high risk"}
+	}
+	if strings.Contains(lower, "risk level: medium") || strings.Contains(lower, "risk: medium") {
+		return "medium", []string{"proposal self-assessed as medium risk"}
+	}
+
+	// Low-risk indicators
+	if strings.Contains(lower, "risk level: low") || strings.Contains(lower, "risk: low") {
+		reasons = append(reasons, "proposal self-assessed as low risk")
+	}
+
+	lowRiskPatterns := []string{
+		"typo", "comment", "formatting", "whitespace",
+		"variable rename", "css", "style", "cosmetic",
+		"undefined variable", "missing import",
+		"single file", "one file",
+	}
+	for _, p := range lowRiskPatterns {
+		if strings.Contains(lower, p) {
+			reasons = append(reasons, "low-risk pattern: "+p)
+		}
+	}
+
+	if len(reasons) == 0 {
+		reasons = append(reasons, "no high/medium risk indicators detected")
+	}
+
+	return "low", reasons
+}
+
+func extractOriginalBugID(description string) string {
 	// Look for patterns like "**Original Bug:** ac-001" or "Original Bug: bd-123"
-	patterns := []string{
+	pats := []string{
 		"**Original Bug:** ",
 		"Original Bug: ",
 		"**Original Bug:**",
 	}
 
-	for _, pattern := range patterns {
+	for _, pattern := range pats {
 		idx := strings.Index(description, pattern)
 		if idx >= 0 {
-			// Extract the bead ID after the pattern
 			start := idx + len(pattern)
 			end := start
 			for end < len(description) && ((description[end] >= 'a' && description[end] <= 'z') ||
@@ -270,13 +221,16 @@ func rolesForProfile(profile string) []string {
 				end++
 			}
 			if end > start {
-				bugID := strings.TrimSpace(description[start:end])
-				return bugID
+				return strings.TrimSpace(description[start:end])
 			}
 		}
 	}
 
 	return ""
+}
+
+// UnblockDependents unblocks beads that were waiting on a decision
+func (a *Loom) UnblockDependents(decisionID string) error {
 	blocked := a.decisionManager.GetBlockedBeads(decisionID)
 
 	for _, beadID := range blocked {
@@ -288,6 +242,8 @@ func rolesForProfile(profile string) []string {
 	return nil
 }
 
+// debugWrite writes debug output to a file, logging any errors.
+func debugWrite(path string, data []byte) {
 	if err := os.WriteFile(path, data, 0644); err != nil {
 		log.Printf("[DispatchLoop] debug write to %s failed: %v", path, err)
 	}
