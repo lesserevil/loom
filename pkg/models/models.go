@@ -305,3 +305,29 @@ const (
 	AutonomySemi       AutonomyLevel = "semi"       // Can make routine decisions
 	AutonomySupervised AutonomyLevel = "supervised" // Requires approval for all decisions
 )
+
+// PerformanceReview represents a performance review for an agent
+type PerformanceReview struct {
+	EntityMetadata `json:",inline"`
+
+	ID              string    `json:"id"`
+	PersonaID       string    `json:"persona_id"`
+	ReviewerID      string    `json:"reviewer_id"`
+	ReviewPeriod    string    `json:"review_period"`
+	Grade           string    `json:"grade"`
+	Narrative       string    `json:"narrative"`
+	Strengths       []string  `json:"strengths"`
+	Weaknesses      []string  `json:"weaknesses"`
+	Recommendations []string  `json:"recommendations"`
+	ActionTaken     string    `json:"action_taken,omitempty"`
+	ReviewDate      time.Time `json:"review_date"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
+}
+
+// VersionedEntity interface implementation for PerformanceReview
+func (pr *PerformanceReview) GetEntityType() EntityType          { return EntityTypePerformanceReview }
+func (pr *PerformanceReview) GetSchemaVersion() SchemaVersion    { return pr.EntityMetadata.SchemaVersion }
+func (pr *PerformanceReview) SetSchemaVersion(v SchemaVersion)   { pr.EntityMetadata.SchemaVersion = v }
+func (pr *PerformanceReview) GetEntityMetadata() *EntityMetadata { return &pr.EntityMetadata }
+func (pr *PerformanceReview) GetID() string                      { return pr.ID }

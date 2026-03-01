@@ -18,6 +18,7 @@ const (
 	PersonaSchemaVersion  SchemaVersion = "1.0"
 	BeadSchemaVersion     SchemaVersion = "1.0"
 	ReviewSchemaVersion   SchemaVersion = "1.0"
+	PerformanceReviewSchemaVersion SchemaVersion = "1.0"
 )
 
 // EntityType identifies the type of entity for migration purposes
@@ -32,6 +33,7 @@ const (
 	EntityTypePersona  EntityType = "persona"
 	EntityTypeBead     EntityType = "bead"
 	EntityTypeReview   EntityType = "review"
+	EntityTypePerformanceReview EntityType = "performance_review"
 )
 
 // EntityMetadata contains versioning and extensibility fields for all entities

@@ -2306,7 +2306,7 @@ function renderDecisions() {
     if (!decisionListEl) return;
     decisionListEl.innerHTML =
         html ||
-        renderEmptyState('No pending decisions', 'When agents escalate work requiring human input, it appears here.');
+        renderEmptyState('No pending decisions', 'No decisions pending human review. Agents are handling decisions autonomously.');
 }
 function renderCeoDashboard() {
     const container = document.getElementById('ceo-dashboard-summary');
