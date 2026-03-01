@@ -338,6 +338,9 @@ func New(cfg *config.Config) (*Loom, error) {
 	consensusManager := consensus.NewDecisionManager()
 	statusBoard := statusboard.NewBoard()
 
+	// Create motivation engine (will be wired after arb is created)
+	var motivationEngine *motivation.Engine
+
 	arb := &Loom{
 		config:                cfg,
 		startedAt:             time.Now().UTC(),
@@ -363,6 +366,7 @@ func New(cfg *config.Config) (*Loom, error) {
 		meetingsManager:       meetingsMgr,
 		motivationRegistry:    motivationRegistry,
 		idleDetector:          idleDetector,
+	motivationEngine:     motivationEngine,
 		workflowEngine:        workflowEngine,
 		patternManager:        patternMgr,
 		metrics:               metrics.NewMetrics(),
@@ -402,6 +406,8 @@ func New(cfg *config.Config) (*Loom, error) {
 		Voter:         arb,
 	}
 	arb.actionRouter = actionRouter
+	motivationEngine = motivation.NewEngine(motivationRegistry, arb, arb)
+	arb.motivationEngine = motivationEngine
 	agentMgr.SetActionRouter(actionRouter)
 
 	// Enable multi-turn action loop
@@ -420,7 +426,7 @@ func New(cfg *config.Config) (*Loom, error) {
 	arb.readinessCache = make(map[string]projectReadinessState)
 	arb.readinessFailures = make(map[string]time.Time)
 	arb.dispatcher.SetReadinessCheck(arb.CheckProjectReadiness)
-	arb.dispatcher.SetReadinessMode(dispatch.ReadinessMode(cfg.Readiness.Mode))
+arb.dispatcher.SetReadinessMode(dispatch.ReadinessMode(cfg.Readiness.Mode))
 	arb.dispatcher.SetMaxDispatchHops(cfg.Dispatch.MaxHops)
 	arb.dispatcher.SetEscalator(arb)
 	// Enable conversation context support for multi-turn conversations
@@ -4239,4 +4245,156 @@ func (a *Loom) CastVote(ctx context.Context, decisionID, agentID, choice, ration
 	}
 	
 	return a.consensusManager.RecordVote(ctx, decisionID, agentID, choice, rationale)
+}
+
+
+// StateProvider interface implementations
+
+// GetCurrentTime returns the current time
+func (a *Loom) GetCurrentTime() time.Time {
+	return time.Now()
+}
+
+// GetBeadsWithUpcomingDeadlines returns beads with deadlines within the specified days
+func (a *Loom) GetBeadsWithUpcomingDeadlines(withinDays int) ([]motivation.BeadDeadlineInfo, error) {
+	if a.beadsManager == nil {
+		return nil, fmt.Errorf("beads manager not available")
+	}
+	// TODO: Implement deadline checking
+	return []motivation.BeadDeadlineInfo{}, nil
+}
+
+// GetOverdueBeads returns beads that are overdue
+func (a *Loom) GetOverdueBeads() ([]motivation.BeadDeadlineInfo, error) {
+	if a.beadsManager == nil {
+		return nil, fmt.Errorf("beads manager not available")
+	}
+	// TODO: Implement overdue checking
+	return []motivation.BeadDeadlineInfo{}, nil
+}
+
+// GetBeadsByStatus returns bead IDs with the specified status
+func (a *Loom) GetBeadsByStatus(status string) ([]string, error) {
+	if a.beadsManager == nil {
+		return nil, fmt.Errorf("beads manager not available")
+	}
+	// TODO: Implement status filtering
+	return []string{}, nil
+}
+
+// GetMilestones returns milestones for a project
+func (a *Loom) GetMilestones(projectID string) ([]*motivation.Milestone, error) {
+	// TODO: Implement milestone retrieval
+	return []*motivation.Milestone{}, nil
+}
+
+// GetUpcomingMilestones returns milestones within the specified days
+func (a *Loom) GetUpcomingMilestones(withinDays int) ([]*motivation.Milestone, error) {
+	// TODO: Implement upcoming milestone retrieval
+	return []*motivation.Milestone{}, nil
+}
+
+// GetIdleAgents returns agent IDs that are idle
+func (a *Loom) GetIdleAgents() ([]string, error) {
+	if a.idleDetector == nil {
+		return nil, fmt.Errorf("idle detector not available")
+	}
+	return a.idleDetector.GetIdleAgents(), nil
+}
+
+// GetAgentsByRole returns agent IDs with the specified role
+func (a *Loom) GetAgentsByRole(role string) ([]string, error) {
+	if a.agentManager == nil {
+		return nil, fmt.Errorf("agent manager not available")
+	}
+	// TODO: Implement role-based agent retrieval
+	return []string{}, nil
+}
+
+// GetProjectIdle checks if a project is idle
+func (a *Loom) GetProjectIdle(projectID string, duration time.Duration) (bool, error) {
+	// TODO: Implement project idle checking
+	return false, nil
+}
+
+// GetSystemIdle checks if the system is idle
+func (a *Loom) GetSystemIdle(duration time.Duration) (bool, error) {
+	if a.idleDetector == nil {
+		return false, fmt.Errorf("idle detector not available")
+	}
+	return a.idleDetector.IsSystemIdle(duration), nil
+}
+
+// GetCurrentSpending returns current spending for a period
+func (a *Loom) GetCurrentSpending(period string) (float64, error) {
+	// TODO: Implement spending tracking
+	return 0.0, nil
+}
+
+// GetBudgetThreshold returns budget threshold for a project
+func (a *Loom) GetBudgetThreshold(projectID string) (float64, error) {
+	// TODO: Implement budget threshold retrieval
+	return 0.0, nil
+}
+
+// GetPendingDecisions returns pending decision IDs
+func (a *Loom) GetPendingDecisions() ([]string, error) {
+	if a.consensusManager == nil {
+		return nil, fmt.Errorf("consensus manager not available")
+	}
+	// TODO: Implement pending decision retrieval
+	return []string{}, nil
+}
+
+// GetUnprocessedExternalEvents returns unprocessed external events
+func (a *Loom) GetUnprocessedExternalEvents(eventType string) ([]motivation.ExternalEvent, error) {
+	// TODO: Implement external event retrieval
+	return []motivation.ExternalEvent{}, nil
+}
+
+// ActionHandler interface implementations
+
+// CreateStimulusBead creates a stimulus bead to drive work
+func (a *Loom) CreateStimulusBead(motivation *motivation.Motivation, triggerData map[string]interface{}) (string, error) {
+	if a.beadsManager == nil {
+		return "", fmt.Errorf("beads manager not available")
+	}
+	// Create a bead with the motivation as context
+	title := fmt.Sprintf("Stimulus: %s", motivation.Title)
+	description := fmt.Sprintf("Triggered by motivation: %s\nTrigger data: %v", motivation.Title, triggerData)
+	// TODO: Use proper bead creation API
+	return "", nil
+}
+
+// WakeAgent wakes a specific agent
+func (a *Loom) WakeAgent(agentID string, motivation *motivation.Motivation) error {
+	if a.agentManager == nil {
+		return fmt.Errorf("agent manager not available")
+	}
+	// TODO: Implement agent wake-up
+	return nil
+}
+
+// WakeAgentsByRole wakes agents by role
+func (a *Loom) WakeAgentsByRole(role string, motivation *motivation.Motivation) error {
+	if a.agentManager == nil {
+		return fmt.Errorf("agent manager not available")
+	}
+	// TODO: Implement role-based agent wake-up
+	return nil
+}
+
+// PublishMotivationFired publishes a motivation fired event
+func (a *Loom) PublishMotivationFired(trigger *motivation.MotivationTrigger) error {
+	if a.eventBus == nil {
+		return fmt.Errorf("event bus not available")
+	}
+	// TODO: Publish event to event bus
+	return nil
+}
+
+// StartWorkflow starts a Temporal workflow
+func (a *Loom) StartWorkflow(workflowType string, input interface{}) (string, error) {
+	// TODO: Implement workflow start
+	return "", nil
 }

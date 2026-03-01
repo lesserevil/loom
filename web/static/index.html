@@ -359,6 +359,60 @@
     </div>
 </section>
 
+<!-- Meetings Section -->
+<section id="meetings" class="view-panel" role="tabpanel" aria-label="Meetings" hidden>
+    <h2><span aria-hidden="true">🤝</span> Meetings</h2>
+    <p class="small" style="margin-bottom: 1rem;">Schedule, manage, and track team meetings and sync sessions.</p>
+    <div class="toolbar" role="region" aria-label="Meeting controls">
+        <div class="toolbar-row">
+            <button type="button" class="primary" onclick="showCreateMeetingModal()" aria-haspopup="dialog">Schedule Meeting</button>
+            <div class="field" style="flex: 1; margin-left: 1rem;">
+                <label for="meeting-filter">Filter</label>
+                <select id="meeting-filter">
+                    <option value="all">All Meetings</option>
+                    <option value="upcoming">Upcoming</option>
+                    <option value="past">Past</option>
+                    <option value="my-meetings">My Meetings</option>
+                </select>
+            </div>
+        </div>
+    </div>
+    <div class="meetings-container">
+        <div class="meetings-list">
+            <h3>Scheduled Meetings</h3>
+            <div id="meetings-list" class="meeting-items">
+                <!-- Meetings will be loaded here -->
+            </div>
+        </div>
+        <div class="meetings-detail">
+            <div id="meeting-detail" class="meeting-detail-panel">
+                <div class="empty-state"><p>Select a meeting to view details</p></div>
+            </div>
+        </div>
+    </div>
+    <div class="meetings-stats" style="margin-top: 2rem;">
+        <h3>Meeting Statistics</h3>
+        <div class="analytics-summary">
+            <div class="analytics-card">
+                <h4>Total Meetings</h4>
+                <div id="meetings-total" style="font-size: 2rem; font-weight: bold;">0</div>
+            </div>
+            <div class="analytics-card">
+                <h4>Upcoming</h4>
+                <div id="meetings-upcoming" style="font-size: 2rem; font-weight: bold;">0</div>
+            </div>
+            <div class="analytics-card">
+                <h4>Avg Duration</h4>
+                <div id="meetings-avg-duration" style="font-size: 2rem; font-weight: bold;">--</div>
+            </div>
+            <div class="analytics-card">
+                <h4>Attendance Rate</h4>
+                <div id="meetings-attendance" style="font-size: 2rem; font-weight: bold;">--%</div>
+            </div>
+        </div>
+    </div>
+</section>
+
         <!-- Personas Section -->
         <section id="personas" class="view-panel" role="tabpanel" aria-label="Personas" hidden>
             <h2><span aria-hidden="true">🎭</span> Personas</h2>
