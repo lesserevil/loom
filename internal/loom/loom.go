@@ -49,6 +49,7 @@ import (
 	"github.com/jordanhubbard/loom/internal/project"
 	"github.com/jordanhubbard/loom/internal/provider"
 	"github.com/jordanhubbard/loom/internal/ralph"
+	"github.com/jordanhubbard/loom/internal/statusboard"
 	"github.com/jordanhubbard/loom/internal/swarm"
 	"github.com/jordanhubbard/loom/internal/taskexecutor"
 	"github.com/jordanhubbard/loom/internal/workflow"
@@ -109,6 +110,7 @@ type Loom struct {
 	swarmManager          *swarm.Manager
 	swarmFederation       *swarm.Federation
 	taskExecutor          *taskexecutor.Executor
+	statusBoard           *statusboard.Board
 	readinessMu           sync.Mutex
 	readinessCache        map[string]projectReadinessState
 	readinessFailures     map[string]time.Time
@@ -334,6 +336,7 @@ func New(cfg *config.Config) (*Loom, error) {
 
 	collaborationStore := collaboration.NewContextStore()
 	consensusManager := consensus.NewDecisionManager()
+	statusBoard := statusboard.NewBoard()
 
 	arb := &Loom{
 		config:                cfg,
@@ -370,6 +373,7 @@ func New(cfg *config.Config) (*Loom, error) {
 		connectorManager:      connectorMgr,
 		messageBus:            messageBus,
 		bridge:                bridge,
+		statusBoard:           statusBoard,
 	}
 
 	buildEnv := actions.NewBuildEnvManager(providerRegistry)
@@ -392,6 +396,10 @@ func New(cfg *config.Config) (*Loom, error) {
 		BeadType:      "task",
 		BeadReader:    arb,
 		DefaultP0:     true,
+		Board:         arb.statusBoard,
+		Meetings:      arb.meetingsManager,
+		Consulter:     arb,
+		Voter:         arb,
 	}
 	arb.actionRouter = actionRouter
 	agentMgr.SetActionRouter(actionRouter)
@@ -4198,4 +4206,37 @@ func (a *Loom) GetConsensusManager() *consensus.DecisionManager {
 // StartedAt returns when this Loom instance was created.
 func (a *Loom) StartedAt() time.Time {
 	return a.startedAt
+}
+
+
+// ConsultAgent forwards a consultation request to another agent via the worker.
+func (a *Loom) ConsultAgent(ctx context.Context, fromAgentID, toAgentID, toRole, question string) (string, error) {
+	if a.agentManager == nil {
+		return "", fmt.Errorf("agent manager not available")
+	}
+	
+	// Find the target agent
+	var targetAgent *agent.Agent
+	if toAgentID != "" {
+		targetAgent = a.agentManager.GetAgent(toAgentID)
+	} else if toRole != "" {
+		targetAgent = a.agentManager.GetAgentByRole(toRole)
+	}
+	
+	if targetAgent == nil {
+		return "", fmt.Errorf("target agent not found")
+	}
+	
+	// Send the consultation prompt to the agent
+	// This will be handled by the agent's message processing loop
+	return targetAgent.ConsultWithPrompt(ctx, question)
+}
+
+// CastVote records a vote for a consensus decision.
+func (a *Loom) CastVote(ctx context.Context, decisionID, agentID, choice, rationale string) error {
+	if a.consensusManager == nil {
+		return fmt.Errorf("consensus manager not available")
+	}
+	
+	return a.consensusManager.RecordVote(ctx, decisionID, agentID, choice, rationale)
 }
