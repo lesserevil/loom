@@ -156,7 +156,7 @@ func (c *Client) streamSSE(path string) error {
 }
 
 // outputJSON prints data according to the global outputFormat flag.
-func outputJSON(data []byte) {
+func outputJSON(data []byte, filterApplied ...bool) {
 	// Parse JSON first
 	var v interface{}
 	if err := json.Unmarshal(data, &v); err != nil {
@@ -167,7 +167,11 @@ func outputJSON(data []byte) {
 
 	// Handle table format
 	if outputFormat == "table" {
-		if err := outputTable(v); err != nil {
+		filtered := false
+		if len(filterApplied) > 0 {
+			filtered = filterApplied[0]
+		}
+		if err := outputTable(v, filtered); err != nil {
 			// Fallback to JSON if table formatting fails
 			fmt.Fprintf(os.Stderr, "Warning: table formatting failed (%v), falling back to JSON\n", err)
 			outputFormatJSON(v)
@@ -222,7 +226,7 @@ func sortColumns(columns []string, filterApplied bool) []string {
 
 
 // outputTable formats data as a table
-func outputTable(v interface{}) error {
+func outputTable(v interface{}, filterApplied bool) error {
 	// Handle array of objects (most common case for list commands)
 	arr, ok := v.([]interface{})
 	if !ok {
@@ -251,6 +255,9 @@ func outputTable(v interface{}) error {
 			}
 		}
 	}
+
+	// Sort and filter columns
+	columns = sortColumns(columns, filterApplied)
 
 	if len(columns) == 0 {
 		return fmt.Errorf("no columns found")
@@ -451,7 +458,7 @@ func newBeadCreateCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			outputJSON(data)
+			outputJSON(data, projectID != "")
 			return nil
 		},
 	}
