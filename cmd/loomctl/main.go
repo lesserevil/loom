@@ -186,6 +186,41 @@ func outputFormatJSON(v interface{}) {
 	enc.Encode(v)
 }
 
+var columnPriority = map[string]int{
+	"id": 0, "project_id": 1, "name": 2, "title": 2,
+	"status": 3, "priority": 4, "assigned_to": 5, "type": 6,
+	"created_at": 100, "updated_at": 101,
+}
+
+func sortColumns(columns []string, filterApplied bool) []string {
+	if filterApplied {
+		filtered := make([]string, 0, len(columns))
+		for _, col := range columns {
+			if col != "project_id" {
+				filtered = append(filtered, col)
+			}
+		}
+		columns = filtered
+	}
+	for i := 0; i < len(columns); i++ {
+		for j := i + 1; j < len(columns); j++ {
+			pri1 := columnPriority[columns[i]]
+			if pri1 == 0 && columns[i] != "id" {
+				pri1 = 50
+			}
+			pri2 := columnPriority[columns[j]]
+			if pri2 == 0 && columns[j] != "id" {
+				pri2 = 50
+			}
+			if pri2 < pri1 {
+				columns[i], columns[j] = columns[j], columns[i]
+			}
+		}
+	}
+	return columns
+}
+
+
 // outputTable formats data as a table
 func outputTable(v interface{}) error {
 	// Handle array of objects (most common case for list commands)
