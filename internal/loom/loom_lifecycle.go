@@ -842,11 +842,6 @@ func (a *Loom) Initialize(ctx context.Context) error {
 				if _, regErr := a.RegisterProvider(ctx, seed, envAPIKey); regErr != nil {
 					log.Printf("[Loom] Failed to bootstrap provider from env: %v", regErr)
 				}
-				providers, err := a.database.ListProviders()
-		if err != nil {
-			log.Printf("[Loom] Warning: failed to list providers: %v", err)
-			providers = []*internalmodels.Provider{}
-		}
 			} else {
 				for _, p := range providers {
 					if p.ID == "tokenhub" && p.Endpoint != envURL {
@@ -870,10 +865,7 @@ func (a *Loom) Initialize(ctx context.Context) error {
 			}
 			var apiKey string
 			if p.KeyID != "" && a.keyManager != nil && a.keyManager.IsUnlocked() {
-				apiKey, err := a.keyManager.GetKey(p.KeyID)
-				if err != nil {
-					log.Printf("[Loom] Warning: failed to get key for provider %s: %v", p.ID, err)
-				}
+				apiKey, _ = a.keyManager.GetKey(p.KeyID)
 			}
 			if apiKey == "" {
 				apiKey = p.APIKey // fall back to key stored directly in provider record
@@ -890,7 +882,7 @@ func (a *Loom) Initialize(ctx context.Context) error {
 				Status:                 p.Status,
 				LastHeartbeatAt:        p.LastHeartbeatAt,
 				LastHeartbeatLatencyMs: p.LastHeartbeatLatencyMs,
-			}; err != nil {
+			}); err != nil {
 				log.Printf("[Loom] Warning: failed to upsert provider %s: %v", p.ID, err)
 			}
 		}
@@ -937,8 +929,7 @@ func (a *Loom) Initialize(ctx context.Context) error {
 				}
 				ag.ProviderID = providers[0].Config.ID
 			}
-			_, err := a.agentManager.RestoreAgentWorker(ctx, ag)
-			if err != nil {
+			if _, err := a.agentManager.RestoreAgentWorker(ctx, ag); err != nil {
 				log.Printf("[Loom] Warning: failed to restore agent worker %s: %v", ag.ID, err)
 			}
 			if err := a.projectManager.AddAgentToProject(ag.ProjectID, ag.ID); err != nil {
@@ -1499,10 +1490,9 @@ func (a *Loom) ensureOrgChart(ctx context.Context, projectID string) error {
 				log.Printf("[OrgChart] Backfilled missing position %q for project %s", tmplPos.RoleName, projectID)
 			}
 			// Refresh chart reference after mutation
-			chart, err := a.orgChartManager.CreateForProject(projectID, project.Name)
-		if err != nil {
-			log.Printf("[Loom] Warning: failed to create org chart for project %s: %v", projectID, err)
-		}
+			if _, err := a.orgChartManager.CreateForProject(projectID, project.Name); err != nil {
+				log.Printf("[Loom] Warning: failed to refresh org chart for project %s: %v", projectID, err)
+			}
 		}
 	}
 
@@ -1869,11 +1859,13 @@ func (a *Loom) PublishMotivationFired(trigger *motivation.MotivationTrigger) err
 		data["agent_role"] = trigger.Motivation.AgentRole
 		data["project_id"] = trigger.Motivation.ProjectID
 	}
-		if err := a.eventBus.Publish(&eventbus.Event{
+	if err := a.eventBus.Publish(&eventbus.Event{
 		Type:   eventbus.EventTypeConfigUpdated,
 		Source: "motivation-engine",
 		Data:   data,
-	})
+	}); err != nil {
+		log.Printf("[Loom] Warning: failed to publish motivation event: %v", err)
+	}
 	return nil
 }
 
