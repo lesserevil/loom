@@ -1560,8 +1560,7 @@ function renderAgents() {
                 </div>
                 ` : ''}
                 <div style="margin-top: 1rem;">
-                    ${agent.current_bead ? `<button class="secondary" onclick="viewAgentConversation('${escapeHtml(agent.current_bead)}')"`
-                        title="View conversation log">Log</button>` : ''}
+                    ${agent.current_bead ? `<button class="secondary" onclick="viewAgentConversation('${escapeHtml(agent.current_bead)}')" title="View conversation log">Log</button>` : ''}
                     <button class="secondary" onclick="cloneAgentPersona('${agent.id}')" ${isBusy(`cloneAgent:${agent.id}`) ? 'disabled' : ''}>${isBusy(`cloneAgent:${agent.id}`) ? 'Cloning…' : 'Clone Persona'}</button>
                     <button class="danger" onclick="stopAgent('${agent.id}')" ${isBusy(`stopAgent:${agent.id}`) ? 'disabled' : ''}>${isBusy(`stopAgent:${agent.id}`) ? 'Stopping…' : 'Stop Agent'}</button>
                 </div>
@@ -1599,10 +1598,24 @@ function renderAgents() {
         }
     }
 }
+
+function renderProjects() {
+    const html = state.projects.map(project => `
+        <div class="project-card">
+            <h3>${escapeHtml(project.name)}</h3>
+            <div>
+                <strong>Branch:</strong> ${escapeHtml(project.branch)}<br>
+                <strong>Repo:</strong> ${escapeHtml(project.git_repo)}<br>
+                <strong>Agents:</strong> ${project.agents ? project.agents.length : 0}
+            </div>
+            <div style="margin-top: 0.75rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                <button type="button" class="secondary" onclick="viewProject('${escapeHtml(project.id)}')">View</button>
+                <button type="button" class="secondary" onclick="showEditProjectModal('${escapeHtml(project.id)}')">Edit</button>
+                <button type="button" class="danger" onclick="deleteProject('${escapeHtml(project.id)}')">Delete</button>
             </div>
         </div>
     `).join('');
-    
+
     const projectList = document.getElementById('project-list');
     if (!projectList) return;
     projectList.innerHTML =
@@ -1949,8 +1962,6 @@ async function sendReplQuery() {
 // Assign agent to project from CEO REPL
 async function assignAgentFromCeoRepl() {
     const agentSelect = document.getElementById('ceo-repl-agent-select');
-const projectSelect = document.getElementById('ceo-repl-project-select');
-const projectSelect = document.getElementById('ceo-repl-project-select');
     const projectSelect = document.getElementById('ceo-repl-project-select');
     
     const agentId = agentSelect ? agentSelect.value : '';
