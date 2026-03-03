@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -235,7 +236,7 @@ func (s *Server) handleConversationsList(w http.ResponseWriter, r *http.Request)
 	// Get limit from query parameters (default to 50)
 	limit := 50
 	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
-		if parsed := parseInt(limitStr); parsed > 0 {
+		if parsed, err := strconv.Atoi(limitStr); err == nil && parsed > 0 {
 			limit = parsed
 		}
 	}
