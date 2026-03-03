@@ -1,6 +1,7 @@
 package database
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"time"
@@ -239,7 +240,7 @@ func (d *Database) DeleteExpiredConversationContexts() (int64, error) {
 }
 
 // ListConversationContextsByProject retrieves all conversation contexts for a project
-func (d *Database) ListConversationContextsByProject(projectID string, limit int) ([]*models.ConversationContext, error) {
+func (d *Database) ListConversationContextsByProject(ctx context.Context, projectID string, limit int) ([]*models.ConversationContext, error) {
 	query := `
 		SELECT session_id, bead_id, project_id, messages,
 			   created_at, updated_at, expires_at, token_count, metadata
@@ -249,7 +250,7 @@ func (d *Database) ListConversationContextsByProject(projectID string, limit int
 		LIMIT ?
 	`
 
-	rows, err := d.db.Query(rebind(query), projectID, limit)
+	rows, err := d.db.QueryContext(ctx, rebind(query), projectID, limit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list conversation contexts: %w", err)
 	}
@@ -257,18 +258,18 @@ func (d *Database) ListConversationContextsByProject(projectID string, limit int
 
 	var contexts []*models.ConversationContext
 	for rows.Next() {
-		ctx := &models.ConversationContext{}
+		convCtx := &models.ConversationContext{}
 		var messagesJSON, metadataJSON []byte
 
 		err := rows.Scan(
-			&ctx.SessionID,
-			&ctx.BeadID,
-			&ctx.ProjectID,
+			&convCtx.SessionID,
+			&convCtx.BeadID,
+			&convCtx.ProjectID,
 			&messagesJSON,
-			&ctx.CreatedAt,
-			&ctx.UpdatedAt,
-			&ctx.ExpiresAt,
-			&ctx.TokenCount,
+			&convCtx.CreatedAt,
+			&convCtx.UpdatedAt,
+			&convCtx.ExpiresAt,
+			&convCtx.TokenCount,
 			&metadataJSON,
 		)
 
@@ -277,14 +278,14 @@ func (d *Database) ListConversationContextsByProject(projectID string, limit int
 		}
 
 		// Unmarshal JSON fields
-		if err := ctx.SetMessagesFromJSON(messagesJSON); err != nil {
+		if err := convCtx.SetMessagesFromJSON(messagesJSON); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal messages: %w", err)
 		}
-		if err := ctx.SetMetadataFromJSON(metadataJSON); err != nil {
+		if err := convCtx.SetMetadataFromJSON(metadataJSON); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
 		}
 
-		contexts = append(contexts, ctx)
+		contexts = append(contexts, convCtx)
 	}
 
 	return contexts, nil
