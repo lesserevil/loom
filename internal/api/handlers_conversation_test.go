@@ -89,9 +89,11 @@ func (m *mockApp) GetDatabase() *database.Database {
 
 // newTestServerWithApp creates a test server with a mock app and database
 func newTestServerWithApp() *Server {
-	db := newMockDatabase()
+	mockDB := newMockDatabase()
+	_ = mockDB // Use the mock database
+
 	app := &mockApp{
-		db: (*database.Database)(nil), // nil database for testing
+		db: nil, // nil database for testing - handler should gracefully degrade
 	}
 
 	return &Server{
