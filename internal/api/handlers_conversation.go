@@ -1,7 +1,6 @@
 package api
 
 import "log"
-import "os"
 import "context"
 import "time"
 import (
@@ -9,7 +8,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"errors"
 
 	"github.com/jordanhubbard/loom/internal/database"
 )
@@ -207,19 +205,14 @@ func (s *Server) handleConversationsList(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// Check database connectivity
 	if err := db.Ping(); err != nil {
 		s.respondError(w, http.StatusServiceUnavailable, "Database connection failed")
 		log.Printf("Database connection failed: %v", err)
-		if os.Getenv("RETRY_ON_FAILURE") == "true" {
-			time.Sleep(2 * time.Second)
-		}
 		return
 	}
 
 	log.Println("Database connection established successfully")
-
-	// Add a delay to simulate retry logic
-	time.Sleep(2 * time.Second)
 
 	// Get query parameters
 	projectID := r.URL.Query().Get("project_id")
