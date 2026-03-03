@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.26] - 2026-03-03
+
+### Fixed
+- update stale test assertions after dispatcher deprecation and repl error change
+
 ## [0.1.25] - 2026-03-03
 
 ### Fixed
