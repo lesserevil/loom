@@ -14,6 +14,60 @@ import (
 	"github.com/jordanhubbard/loom/pkg/models"
 )
 
+// handleConversationsList handles listing conversations
+// GET /api/v1/conversations - List all conversations for a project
+// Gracefully degrades: returns 200 with empty list if app/db unavailable
+func (s *Server) handleConversationsList(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		s.respondError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	// Get project ID from query parameters
+	projectID := r.URL.Query().Get("project_id")
+	if projectID == "" {
+		s.respondError(w, http.StatusBadRequest, "project_id query parameter is required")
+		return
+	}
+
+	// Get limit from query parameters (default to 50)
+	limit := 50
+	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
+		if parsed, err := strconv.Atoi(limitStr); err == nil && parsed > 0 {
+			limit = parsed
+		}
+	}
+
+	// Graceful degradation: if app or db is unavailable, return empty list
+	if s.app == nil || s.app.GetDatabase() == nil {
+		log.Printf("[WARN] Conversations list requested but app/db unavailable, returning empty list")
+		s.respondJSON(w, http.StatusOK, []*models.ConversationContext{})
+		return
+	}
+
+	db := s.app.GetDatabase()
+
+	// Create a context with a timeout derived from the request context
+	// Use the request context as the base, with a 30-second timeout
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+
+	// List conversations for the project
+	conversations, err := db.ListConversationContextsByProject(ctx, projectID, limit)
+	if err != nil {
+		log.Printf("Error listing conversations: %v", err)
+		// Graceful degradation: return empty list on error
+		s.respondJSON(w, http.StatusOK, []*models.ConversationContext{})
+		return
+	}
+
+	if conversations == nil {
+		conversations = []*models.ConversationContext{}
+	}
+
+	s.respondJSON(w, http.StatusOK, conversations)
+}
+
 // handleConversation handles operations on a specific conversation session
 // GET /api/v1/conversations/{id} - Get full conversation
 // DELETE /api/v1/conversations/{id} - Delete session
@@ -193,58 +247,4 @@ func (s *Server) handleBeadConversation(w http.ResponseWriter, r *http.Request) 
 	}
 
 	s.respondJSON(w, http.StatusOK, session)
-}
-
-// handleConversationsList handles listing conversations
-// GET /api/v1/conversations - List all conversations for a project
-// Gracefully degrades: returns 200 with empty list if app/db unavailable
-func (s *Server) handleConversationsList(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		s.respondError(w, http.StatusMethodNotAllowed, "Method not allowed")
-		return
-	}
-
-	// Get project ID from query parameters
-	projectID := r.URL.Query().Get("project_id")
-	if projectID == "" {
-		s.respondError(w, http.StatusBadRequest, "project_id query parameter is required")
-		return
-	}
-
-	// Get limit from query parameters (default to 50)
-	limit := 50
-	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
-		if parsed, err := strconv.Atoi(limitStr); err == nil && parsed > 0 {
-			limit = parsed
-		}
-	}
-
-	// Graceful degradation: if app or db is unavailable, return empty list
-	if s.app == nil || s.app.GetDatabase() == nil {
-		log.Printf("[WARN] Conversations list requested but app/db unavailable, returning empty list")
-		s.respondJSON(w, http.StatusOK, []*models.ConversationContext{})
-		return
-	}
-
-	db := s.app.GetDatabase()
-
-	// Create a context with a timeout derived from the request context
-	// Use the request context as the base, with a 30-second timeout
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-	defer cancel()
-
-	// List conversations for the project
-	conversations, err := db.ListConversationContextsByProject(ctx, projectID, limit)
-	if err != nil {
-		log.Printf("Error listing conversations: %v", err)
-		// Graceful degradation: return empty list on error
-		s.respondJSON(w, http.StatusOK, []*models.ConversationContext{})
-		return
-	}
-
-	if conversations == nil {
-		conversations = []*models.ConversationContext{}
-	}
-
-	s.respondJSON(w, http.StatusOK, conversations)
 }
