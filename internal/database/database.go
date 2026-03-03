@@ -174,6 +174,11 @@ func (d *Database) migrateRequestLogs() error {
 	return nil
 }
 
+// Ping tests the database connection
+func (d *Database) Ping() error {
+	return d.db.Ping()
+}
+
 // Close closes the database connection
 func (d *Database) Close() error {
 	return d.db.Close()
