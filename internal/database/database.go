@@ -77,8 +77,9 @@ func NewPostgreSQL() (*Database, error) {
 
 	// Configure connection pool
 	db.SetMaxOpenConns(25)
-	db.SetMaxIdleConns(5)
-	db.SetConnMaxLifetime(5 * time.Minute)
+	db.SetMaxIdleConns(20)
+	db.SetConnMaxLifetime(30 * time.Minute)
+	db.SetConnMaxIdleTime(5 * time.Minute)
 
 	d := &Database{
 		db:         db,
