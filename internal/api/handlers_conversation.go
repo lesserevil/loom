@@ -241,14 +241,6 @@ func (s *Server) handleConversationsList(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	if err := db.Ping(); err != nil {
-		s.respondError(w, http.StatusServiceUnavailable, "Database connection failed")
-		log.Printf("Database connection failed: %v", err)
-		return
-	}
-
-	log.Println("Database connection established successfully")
-
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
