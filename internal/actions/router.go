@@ -1917,7 +1917,7 @@ func (r *Router) autoPushAndPR(ctx context.Context, actx ActionContext, action A
 
 // --- Organizational layer action handlers ---
 
-func (r *Router) handleCallMeeting(_ context.Context, action Action, actx ActionContext) Result {
+func (r *Router) handleCallMeeting(ctx context.Context, action Action, actx ActionContext) Result {
 	if r.Meetings == nil {
 		return Result{ActionType: action.Type, Status: "error", Message: "meeting engine not configured"}
 	}
@@ -1933,7 +1933,6 @@ func (r *Router) handleCallMeeting(_ context.Context, action Action, actx Action
 		agenda[i] = struct{ Topic, Description string }{Topic: item.Topic, Description: item.Description}
 	}
 
-	ctx := context.Background()
 	meetingID, err := r.Meetings.CallMeeting(ctx, actx.AgentID, action.MeetingTitle, actx.ProjectID, actx.BeadID, action.MeetingParticipants, agenda)
 	if err != nil {
 		return Result{ActionType: action.Type, Status: "error", Message: fmt.Sprintf("failed to call meeting: %v", err)}
@@ -1947,7 +1946,7 @@ func (r *Router) handleCallMeeting(_ context.Context, action Action, actx Action
 	}
 }
 
-func (r *Router) handleConsultAgent(_ context.Context, action Action, actx ActionContext) Result {
+func (r *Router) handleConsultAgent(ctx context.Context, action Action, actx ActionContext) Result {
 	if r.Consulter == nil {
 		return Result{ActionType: action.Type, Status: "error", Message: "agent consultation not configured"}
 	}
@@ -1958,7 +1957,6 @@ func (r *Router) handleConsultAgent(_ context.Context, action Action, actx Actio
 		return Result{ActionType: action.Type, Status: "error", Message: "either consult_agent_id or consult_agent_role is required"}
 	}
 
-	ctx := context.Background()
 	response, err := r.Consulter.ConsultAgent(ctx, actx.AgentID, action.ConsultAgentID, action.ConsultAgentRole, action.ConsultQuestion)
 	if err != nil {
 		return Result{ActionType: action.Type, Status: "error", Message: fmt.Sprintf("consultation failed: %v", err)}
@@ -2008,7 +2006,7 @@ func (r *Router) handleInvokeSkill(_ context.Context, action Action, actx Action
 	}
 }
 
-func (r *Router) handlePostToBoard(_ context.Context, action Action, actx ActionContext) Result {
+func (r *Router) handlePostToBoard(ctx context.Context, action Action, actx ActionContext) Result {
 	if r.Board == nil {
 		return Result{ActionType: action.Type, Status: "error", Message: "status board not configured"}
 	}
@@ -2021,7 +2019,6 @@ func (r *Router) handlePostToBoard(_ context.Context, action Action, actx Action
 		category = "announcement"
 	}
 
-	ctx := context.Background()
 	if err := r.Board.PostToBoard(ctx, actx.ProjectID, category, action.BoardContent, actx.AgentID); err != nil {
 		return Result{ActionType: action.Type, Status: "error", Message: fmt.Sprintf("failed to post to board: %v", err)}
 	}
@@ -2033,7 +2030,7 @@ func (r *Router) handlePostToBoard(_ context.Context, action Action, actx Action
 	}
 }
 
-func (r *Router) handleVote(_ context.Context, action Action, actx ActionContext) Result {
+func (r *Router) handleVote(ctx context.Context, action Action, actx ActionContext) Result {
 	if r.Voter == nil {
 		return Result{ActionType: action.Type, Status: "error", Message: "voting system not configured"}
 	}
@@ -2044,7 +2041,6 @@ func (r *Router) handleVote(_ context.Context, action Action, actx ActionContext
 		return Result{ActionType: action.Type, Status: "error", Message: "vote_choice is required (approve, reject, abstain)"}
 	}
 
-	ctx := context.Background()
 	if err := r.Voter.CastVote(ctx, action.VoteDecisionID, actx.AgentID, action.VoteChoice, action.VoteRationale); err != nil {
 		return Result{ActionType: action.Type, Status: "error", Message: fmt.Sprintf("failed to cast vote: %v", err)}
 	}

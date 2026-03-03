@@ -1002,7 +1002,9 @@ func (a *Loom) Initialize(ctx context.Context) error {
 	// Start the Ralph Loop — a plain goroutine ticker that runs maintenance
 	// every 10 seconds (resets stuck agents, auto-blocks looped beads, etc.).
 	ralphActs := ralph.New(a.database, a.beadsManager, a.agentManager)
+	a.goroutineWg.Add(1)
 	go func() {
+		defer a.goroutineWg.Done()
 		ticker := time.NewTicker(10 * time.Second)
 		defer ticker.Stop()
 		beatCount := 0
@@ -1017,8 +1019,6 @@ func (a *Loom) Initialize(ctx context.Context) error {
 				}
 			}
 		}
-		// Add a mechanism to signal completion or error
-		// For example, using a channel to notify when done
 	}()
 
 	// Kick-start work on all open beads across registered projects.
@@ -1159,7 +1159,9 @@ This is a simple verification task. Do NOT search for bugs or make changes. Just
 
 	// Start motivation engine (non-blocking)
 	if a.motivationEngine != nil {
+		a.goroutineWg.Add(1)
 		go func() {
+			defer a.goroutineWg.Done()
 			if err := a.motivationEngine.Start(ctx); err != nil && err != ctx.Err() {
 				log.Printf("[Loom] Warning: motivation engine exited: %v", err)
 			}
