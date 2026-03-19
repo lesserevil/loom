@@ -6,8 +6,15 @@ Get Loom running and your first agents working in under 10 minutes.
 
 - Docker and Docker Compose
 - A GPU with vLLM **or** an API key for a cloud LLM provider
+- **TokenHub** — Loom's LLM proxy/token manager (see below)
 
 ## 1. Start Loom
+
+Loom requires [TokenHub](https://github.com/jordanhubbard/tokenhub) as its LLM provider proxy. You have two options:
+
+### Option A: Already have TokenHub running?
+
+If TokenHub is already running on `localhost:8090`, just:
 
 ```bash
 git clone https://github.com/jordanhubbard/loom.git
@@ -15,7 +22,24 @@ cd loom
 make start
 ```
 
-This builds the container and starts the full stack (Loom, PostgreSQL).
+Loom will detect it automatically and connect.
+
+### Option B: Build TokenHub from source alongside Loom
+
+Clone both repos as siblings, then start:
+
+```bash
+git clone https://github.com/jordanhubbard/tokenhub.git
+git clone https://github.com/jordanhubbard/loom.git
+cd loom
+make start
+```
+
+This builds and starts TokenHub as part of the Loom stack.
+
+---
+
+This builds the containers and starts the full stack (Loom, TokenHub, PostgreSQL).
 Wait about 30 seconds for everything to initialize, then open:
 
 - **Loom UI**: http://localhost:8080

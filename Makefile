@@ -90,6 +90,20 @@ define COMPOSE_UP
 		echo "Found running TokenHub at localhost:8090 — skipping embedded startup."; \
 		echo "  Provider URL for containers: $(EXTERNAL_PROVIDER_URL)"; \
 		LOOM_PROVIDER_URL="$(EXTERNAL_PROVIDER_URL)" docker compose up -d --build; \
+	elif [ ! -d "../tokenhub" ]; then \
+		echo ""; \
+		echo "ERROR: No TokenHub found."; \
+		echo ""; \
+		echo "Loom needs TokenHub to run. You have two options:"; \
+		echo ""; \
+		echo "  Option A — Use an already-running TokenHub:"; \
+		echo "    Start TokenHub on localhost:8090, then re-run make start."; \
+		echo ""; \
+		echo "  Option B — Build from source (clone TokenHub as a sibling):"; \
+		echo "    cd .. && git clone https://github.com/jordanhubbard/tokenhub.git"; \
+		echo "    cd loom && make start"; \
+		echo ""; \
+		exit 1; \
 	else \
 		echo "No TokenHub detected — starting embedded instance."; \
 		docker compose --profile embedded-tokenhub up -d --build; \
