@@ -38,9 +38,6 @@ DOCKER_RUN := docker run --rm \
 	-w /build \
 	$(BUILDER_IMAGE)
 
-# TokenHub auto-detection for start/restart/run.
-TOKENHUB_RUNNING := $(shell curl -sf --connect-timeout 2 --max-time 3 http://localhost:8090/healthz > /dev/null 2>&1 && echo yes || echo no)
-EXTERNAL_PROVIDER_URL := http://host.docker.internal:8090/v1
 
 all: build
 
@@ -86,28 +83,19 @@ build-all: builder
 # --build rebuilds the production image via the Dockerfile.
 
 define COMPOSE_UP
-	@if [ "$(TOKENHUB_RUNNING)" = "yes" ]; then \
-		echo "Found running TokenHub at localhost:8090 — skipping embedded startup."; \
-		echo "  Provider URL for containers: $(EXTERNAL_PROVIDER_URL)"; \
-		LOOM_PROVIDER_URL="$(EXTERNAL_PROVIDER_URL)" docker compose up -d --build; \
-	elif [ ! -d "../tokenhub" ]; then \
+	@if [ -z "$(LOOM_PROVIDER_URL)" ] && ! grep -q '^LOOM_PROVIDER_URL=.\+' .env 2>/dev/null; then \
 		echo ""; \
-		echo "ERROR: No TokenHub found."; \
+		echo "NOTE: LOOM_PROVIDER_URL is not set. Loom will start but has no LLM provider."; \
+		echo "      Set it to any OpenAI-compatible endpoint, for example:"; \
 		echo ""; \
-		echo "Loom needs TokenHub to run. You have two options:"; \
+		echo "        LOOM_PROVIDER_URL=https://api.openai.com/v1  make start"; \
+		echo "        LOOM_PROVIDER_URL=http://localhost:11434/v1   make start  # Ollama"; \
+		echo "        LOOM_PROVIDER_URL=http://localhost:8080/v1    make start  # vLLM / LiteLLM / TokenHub"; \
 		echo ""; \
-		echo "  Option A — Use an already-running TokenHub:"; \
-		echo "    Start TokenHub on localhost:8090, then re-run make start."; \
+		echo "      Or add LOOM_PROVIDER_URL to your .env file and re-run make start."; \
 		echo ""; \
-		echo "  Option B — Build from source (clone TokenHub as a sibling):"; \
-		echo "    cd .. && git clone https://github.com/jordanhubbard/tokenhub.git"; \
-		echo "    cd loom && make start"; \
-		echo ""; \
-		exit 1; \
-	else \
-		echo "No TokenHub detected — starting embedded instance."; \
-		docker compose --profile embedded-tokenhub up -d --build; \
 	fi
+	@docker compose up -d --build
 endef
 
 run:
@@ -125,10 +113,10 @@ start:
 	@$(MAKE) -s bootstrap
 
 stop:
-	docker compose --profile embedded-tokenhub down --remove-orphans
+	docker compose down --remove-orphans
 
 restart:
-	docker compose --profile embedded-tokenhub down
+	docker compose down
 	$(COMPOSE_UP)
 	@$(MAKE) -s bootstrap
 
@@ -291,7 +279,7 @@ clean:
 	rm -rf site/
 
 distclean: clean
-	@docker compose --profile embedded-tokenhub down -v --remove-orphans 2>/dev/null || true
+	@docker compose down -v --remove-orphans 2>/dev/null || true
 	@docker rmi loom:latest loom-loom-test:latest $(BUILDER_IMAGE) 2>/dev/null || true
 	@docker volume rm $(GO_MOD_CACHE) $(GO_BUILD_CACHE) 2>/dev/null || true
 	@docker image prune -f

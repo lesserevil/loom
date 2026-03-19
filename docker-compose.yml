@@ -20,58 +20,6 @@ services:
     ports:
       - "5432:5432"  # Expose for development/debugging
 
-  # TokenHub: LLM routing proxy with intelligent provider selection,
-  # health tracking, failover, and Thompson Sampling.
-  # All Loom agents route LLM requests through TokenHub instead of
-  # directly hitting provider endpoints.
-  #
-  # I start this service only under the "embedded-tokenhub" profile.
-  # If you already run a standalone TokenHub, I skip it — the Makefile
-  # probes localhost:8090/healthz before choosing which mode to use.
-  #
-  # Secrets (TOKENHUB_VAULT_PASSWORD, TOKENHUB_ADMIN_TOKEN) live in
-  # ~/.loom/config.env — never in the repo. See .env.example for details.
-  tokenhub:
-    profiles: [embedded-tokenhub]
-    build:
-      context: ../tokenhub
-      dockerfile: Dockerfile
-    image: tokenhub:latest
-    container_name: tokenhub
-    restart: unless-stopped
-    env_file:
-      - path: ${HOME}/.loom/config.env
-        required: false
-    environment:
-      - TOKENHUB_LISTEN_ADDR=:8080
-      - TOKENHUB_LOG_LEVEL=info
-      - TOKENHUB_DB_DSN=file:/data/tokenhub.sqlite?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)
-      # Vault: enabled with headless auto-unlock. Password comes from ~/.loom/config.env.
-      - TOKENHUB_VAULT_ENABLED=true
-      # Routing policy: balanced selection, generous budget/latency for agent workloads
-      - TOKENHUB_DEFAULT_MODE=normal
-      - TOKENHUB_DEFAULT_MAX_BUDGET_USD=1.00
-      - TOKENHUB_DEFAULT_MAX_LATENCY_MS=120000
-      - TOKENHUB_PROVIDER_TIMEOUT_SECS=120
-      # Security: TOKENHUB_ADMIN_TOKEN comes from ~/.loom/config.env if set.
-      # If unset, tokenhub auto-generates a random token logged at startup.
-      - TOKENHUB_CORS_ORIGINS=*
-      - TOKENHUB_RATE_LIMIT_RPS=120
-      - TOKENHUB_RATE_LIMIT_BURST=240
-      - TOKENHUB_TEMPORAL_ENABLED=false
-    networks:
-      - loom-network
-    volumes:
-      - tokenhub-data:/data
-    ports:
-      - "8090:8080"  # TokenHub admin UI on 8090 to avoid conflict with Loom on 8080
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/healthz"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-
   # NATS message bus with JetStream for inter-service communication
   nats:
     image: nats:2.10-alpine
@@ -140,9 +88,9 @@ services:
         condition: service_healthy
       pgbouncer:
         condition: service_healthy
-      # NOTE: tokenhub is NOT listed here. It runs under the "embedded-tokenhub"
-      # profile and may not be present. Loom's heartbeat loop retries provider
-      # health — if tokenhub isn't up yet (or is external), Loom handles it.
+      # NOTE: no LLM provider is listed here — Loom is provider-agnostic.
+      # Set LOOM_PROVIDER_URL to any OpenAI-compatible endpoint. Loom's
+      # heartbeat loop retries provider health until the endpoint is ready.
     ports:
       - "8080:8080"
       - "3307:3307"
@@ -162,12 +110,11 @@ services:
       - POSTGRES_DB=loom
       - CONNECTORS_SERVICE_ADDR=connectors-service:50051
       - OTEL_ENDPOINT=otel-collector:4317
-      # LOOM_PROVIDER_URL: any OpenAI-compatible endpoint works here
-      # (embedded TokenHub, standalone TokenHub, direct OpenAI, vLLM, etc.)
-      # When using an external provider, the Makefile sets this to the host gateway.
-      - LOOM_PROVIDER_URL=${LOOM_PROVIDER_URL:-http://tokenhub:8080}
-      - LOOM_PROVIDER_API_KEY=${LOOM_PROVIDER_API_KEY:-}  # optional: auth key for LOOM_PROVIDER_URL; blank if using embedded TokenHub without auth
-      - TOKENHUB_ADMIN_TOKEN=${TOKENHUB_ADMIN_TOKEN:-}  # optional: blank = TokenHub auto-generates one at startup
+      # LOOM_PROVIDER_URL: any OpenAI-compatible endpoint
+      # (vLLM, OpenAI, Anthropic-via-proxy, TokenHub, LiteLLM, etc.)
+      # Set this in your environment or .env file before running make start.
+      - LOOM_PROVIDER_URL=${LOOM_PROVIDER_URL:-}
+      - LOOM_PROVIDER_API_KEY=${LOOM_PROVIDER_API_KEY:-}  # optional: API key for the provider endpoint
     networks:
       - loom-network
     extra_hosts:
@@ -208,7 +155,7 @@ services:
       - CONTROL_PLANE_URL=http://loom:8080
       - NATS_URL=nats://nats:4222
       - AGENT_ROLE=coder
-      - PROVIDER_ENDPOINT=${PROVIDER_ENDPOINT:-}    # required for agents: OpenAI-compatible URL (e.g. http://tokenhub:8080/v1)
+      - PROVIDER_ENDPOINT=${PROVIDER_ENDPOINT:-}    # required for agents: OpenAI-compatible URL (e.g. http://host.docker.internal:8080/v1)
       - PROVIDER_MODEL=${PROVIDER_MODEL:-qwen3-235b-a22b}
       - PROVIDER_API_KEY=${PROVIDER_API_KEY:-}      # required for agents: API key for PROVIDER_ENDPOINT
       - ACTION_LOOP_ENABLED=true
@@ -482,7 +429,6 @@ volumes:
   prometheus-data:
   grafana-data:
   loki-data:
-  tokenhub-data:
   agent-coder-workspace:
   agent-reviewer-workspace:
   agent-qa-workspace:

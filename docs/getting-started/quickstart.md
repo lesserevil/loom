@@ -5,95 +5,50 @@ Get Loom running and your first agents working in under 10 minutes.
 ## Prerequisites
 
 - Docker and Docker Compose
-- A GPU with vLLM **or** an API key for a cloud LLM provider
-- **TokenHub** — Loom's LLM proxy/token manager (see below)
+- An OpenAI-compatible LLM endpoint (see below)
 
-## 1. Start Loom
+## 1. Choose a Provider
 
-Loom requires [TokenHub](https://github.com/jordanhubbard/tokenhub) as its LLM provider proxy. You have two options:
+Loom talks to any OpenAI-compatible LLM endpoint. Point `LOOM_PROVIDER_URL` at whichever you have:
 
-### Option A: Already have TokenHub running?
+| Provider | Example URL |
+|----------|-------------|
+| [OpenAI](https://platform.openai.com) | `https://api.openai.com/v1` |
+| [Ollama](https://ollama.com) (local) | `http://host.docker.internal:11434/v1` |
+| [vLLM](https://docs.vllm.ai) (local GPU) | `http://host.docker.internal:8000/v1` |
+| [LiteLLM](https://docs.litellm.ai) proxy | `http://host.docker.internal:4000/v1` |
+| [TokenHub](https://github.com/jordanhubbard/tokenhub) | `http://host.docker.internal:8090/v1` |
+| Any OpenAI-compatible API | `https://your-provider.example.com/v1` |
 
-If TokenHub is already running on `localhost:8090`, just:
+## 2. Start Loom
 
 ```bash
 git clone https://github.com/jordanhubbard/loom.git
 cd loom
+cp .env.example .env
+# Edit .env and set LOOM_PROVIDER_URL (and LOOM_PROVIDER_API_KEY if needed)
 make start
 ```
 
-Loom will detect it automatically and connect.
-
-### Option B: Build TokenHub from source alongside Loom
-
-Clone both repos as siblings, then start:
-
-```bash
-git clone https://github.com/jordanhubbard/tokenhub.git
-git clone https://github.com/jordanhubbard/loom.git
-cd loom
-make start
-```
-
-This builds and starts TokenHub as part of the Loom stack.
-
----
-
-This builds the containers and starts the full stack (Loom, TokenHub, PostgreSQL).
+This builds the containers and starts the full stack (Loom, PostgreSQL, NATS).
 Wait about 30 seconds for everything to initialize, then open:
 
 - **Loom UI**: http://localhost:8080
 
-## 2. Set Up a Provider
+## 3. Set Up a Provider
 
-Loom needs at least one LLM provider to power its agents. You have two options:
-
-### Option A: Run Your Own vLLM Server (GPU Required)
-
-On any machine with an NVIDIA GPU (24GB+ VRAM recommended):
-
-```bash
-docker run -it --gpus all -p 8000:8000 \
-    --ipc=host --ulimit memlock=-1 --ulimit stack=67108864 \
-    -v ~/.cache/huggingface:/root/.cache/huggingface \
-    nvcr.io/nvidia/vllm:25.12.post1-py3 \
-    --model Qwen/Qwen2.5-Coder-32B-Instruct \
-    --max-model-len 32768 \
-    --tensor-parallel-size 1
-```
-
-Wait for the model to download and load (first run takes a while). Once you see
-`Uvicorn running on http://0.0.0.0:8000`, register it with Loom:
+Loom needs at least one LLM provider registered to power its agents. You can do this
+via the UI (**Providers** tab) or the API:
 
 ```bash
 curl -X POST http://localhost:8080/api/v1/providers \
     -H 'Content-Type: application/json' \
     -d '{
-        "id": "my-gpu",
-        "name": "My vLLM Server",
+        "id": "my-provider",
+        "name": "My LLM",
         "type": "openai",
-        "endpoint": "http://<your-gpu-host>:8000/v1",
-        "model": "Qwen/Qwen2.5-Coder-32B-Instruct"
-    }'
-```
-
-Replace `<your-gpu-host>` with the hostname or IP of the machine running vLLM.
-If it's the same machine as Loom, use `host.docker.internal` (macOS/Windows) or
-the machine's LAN IP (Linux).
-
-### Option B: Use a Cloud Provider (API Key)
-
-Register any OpenAI-compatible endpoint:
-
-```bash
-curl -X POST http://localhost:8080/api/v1/providers \
-    -H 'Content-Type: application/json' \
-    -d '{
-        "id": "cloud-llm",
-        "name": "My Cloud Provider",
-        "type": "openai",
-        "endpoint": "https://api.example.com/v1",
-        "model": "model-name",
+        "endpoint": "https://api.openai.com/v1",
+        "model": "gpt-4o",
         "api_key": "your-api-key-here"
     }'
 ```
@@ -112,7 +67,7 @@ You should see `"healthy"`. If you see `"failed"`, check the error:
 curl -s http://localhost:8080/api/v1/providers | jq '.[].last_heartbeat_error'
 ```
 
-## 3. Add a Project
+## 4. Add a Project
 
 Navigate to **Projects** in the Loom UI and click **Add Project**, or use the API:
 
@@ -142,7 +97,7 @@ Add this key as a **deploy key with write access** in your git hosting service:
 
 Loom will clone the repository on the next dispatch cycle.
 
-## 4. Use the CEO Dashboard
+## 5. Use the CEO Dashboard
 
 Open http://localhost:8080 and click **CEO Dashboard**. This is your command center.
 
@@ -180,7 +135,7 @@ curl -X POST http://localhost:8080/api/v1/beads \
 | P2 | Normal | Standard work queue (default) |
 | P3 | Low | Backlog, picked up when nothing higher exists |
 
-## 5. Watch Agents Work
+## 6. Watch Agents Work
 
 Once you have a healthy provider and open beads, Loom's agents automatically:
 
