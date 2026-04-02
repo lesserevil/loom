@@ -3,10 +3,10 @@ package decision
 // LLMMaker is an AI-backed decision maker that calls the RCC brain API
 // for reasoning about which agent should handle a task.
 //
-// It is used in place of (or chained after) SimpleMaker when
-// LOOM_RCC_BRAIN_URL is set in the environment.  When the brain API is
-// unavailable or times out, it falls back to SimpleMaker so loom is never
-// blocked on RCC availability.
+// It satisfies the Maker interface and is used in place of (or chained
+// after) SimpleMaker when LOOM_RCC_BRAIN_URL is set in the environment.
+// When the brain API is unavailable or times out, it falls back to
+// SimpleMaker so loom is never blocked on RCC availability.
 //
 // RCC Brain API: POST /api/brain/request
 //   Body: { messages: [{role:"user", content: <prompt>}], maxTokens: 512, priority: "normal" }
@@ -30,7 +30,7 @@ import (
 	"github.com/jordanhubbard/loom/pkg/types"
 )
 
-// LLMMaker implements decision-making using the RCC brain API.
+// LLMMaker implements the Maker interface using the RCC brain API.
 type LLMMaker struct {
 	brainURL   string
 	brainToken string
@@ -39,10 +39,13 @@ type LLMMaker struct {
 	httpClient *http.Client
 }
 
+// Ensure LLMMaker satisfies the Maker interface at compile time.
+var _ Maker = (*LLMMaker)(nil)
+
 // NewLLMMaker creates a new LLM-backed decision maker.
 // brainURL is the RCC brain endpoint (e.g. "http://rocky:8789").
 // brainToken is the RCC agent token for authentication.
-// If brainURL is empty, falls back to LOOM_RCC_BRAIN_URL env var.
+// If either is empty, reads from LOOM_RCC_BRAIN_URL / LOOM_RCC_AGENT_TOKEN env vars.
 func NewLLMMaker(brainURL, brainToken string) *LLMMaker {
 	if brainURL == "" {
 		brainURL = os.Getenv("LOOM_RCC_BRAIN_URL")
@@ -65,18 +68,19 @@ func (m *LLMMaker) IsAvailable() bool {
 	return m.brainURL != ""
 }
 
-// DecideAgent selects the most appropriate agent for a task using LLM reasoning.
-// Falls back to SimpleMaker if the brain API is unreachable or times out.
-func (m *LLMMaker) DecideAgent(ctx context.Context, task *types.Task, agents []*types.Agent) (*types.Agent, error) {
+// Decide selects the most appropriate agent for a task using LLM reasoning.
+// Falls back to SimpleMaker if the brain API is unreachable or returns an
+// unusable response.
+func (m *LLMMaker) Decide(ctx context.Context, task *types.Task, agents []*types.Agent) (*types.Agent, error) {
 	if !m.IsAvailable() || len(agents) == 0 {
-		return m.fallback.DecideAgent(ctx, task, agents)
+		return m.fallback.Decide(ctx, task, agents)
 	}
 
 	prompt := m.buildPrompt(task, agents)
 	result, err := m.callBrain(ctx, prompt)
 	if err != nil {
 		// Brain unreachable — fall back silently
-		return m.fallback.DecideAgent(ctx, task, agents)
+		return m.fallback.Decide(ctx, task, agents)
 	}
 
 	// Parse LLM response: look for an agent name in the output
@@ -85,7 +89,7 @@ func (m *LLMMaker) DecideAgent(ctx context.Context, task *types.Task, agents []*
 		return chosen, nil
 	}
 	// LLM gave an unusable response — fall back
-	return m.fallback.DecideAgent(ctx, task, agents)
+	return m.fallback.Decide(ctx, task, agents)
 }
 
 // buildPrompt constructs the LLM prompt for agent selection.
@@ -96,14 +100,17 @@ func (m *LLMMaker) buildPrompt(task *types.Task, agents []*types.Agent) string {
 	if task.Description != "" {
 		sb.WriteString(fmt.Sprintf("  Description: %s\n", task.Description))
 	}
+	if len(task.Labels) > 0 {
+		sb.WriteString(fmt.Sprintf("  Labels:      %s\n", strings.Join(task.Labels, ", ")))
+	}
 	sb.WriteString(fmt.Sprintf("  Priority:    %d\n", task.Priority))
 	sb.WriteString("\nAvailable agents:\n")
 	for _, a := range agents {
-		if a.Status != types.AgentStatusIdle {
+		if a.State != types.AgentStateIdle {
 			continue
 		}
 		sb.WriteString(fmt.Sprintf("  - %s (type: %s, capabilities: %s)\n",
-			a.Name, string(a.Type), strings.Join(a.Capabilities, ", ")))
+			a.Name, string(a.AgentType), strings.Join(a.Capabilities, ", ")))
 	}
 	sb.WriteString("\nRespond with ONLY the name of the most appropriate agent ")
 	sb.WriteString("(exactly as listed above), or 'any' if you have no preference. ")
@@ -161,7 +168,7 @@ func (m *LLMMaker) callBrain(ctx context.Context, prompt string) (string, error)
 }
 
 // parseAgentChoice finds the agent whose name matches the LLM response.
-// Returns nil if no match found.
+// Returns nil if no match found (caller should fall back to SimpleMaker).
 func (m *LLMMaker) parseAgentChoice(result string, agents []*types.Agent) *types.Agent {
 	result = strings.ToLower(strings.TrimSpace(result))
 	if result == "any" {

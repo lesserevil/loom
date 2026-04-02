@@ -17,19 +17,20 @@ func makeAgents(names ...string) []*types.Agent {
 	agents := make([]*types.Agent, len(names))
 	for i, name := range names {
 		agents[i] = &types.Agent{
+			ID:           types.AgentID(name),
 			Name:         name,
-			Type:         types.AgentTypeGeneral,
-			Status:       types.AgentStatusIdle,
+			AgentType:    types.AgentTypeGeneral,
+			State:        types.AgentStateIdle,
 			Capabilities: []string{"code", "planning"},
 		}
 	}
 	return agents
 }
 
-func makeTask(_, desc string) *types.Task {
+func makeTask(desc string) *types.Task {
 	return &types.Task{
 		Description: desc,
-		Priority:    5, // mid priority (1-10 scale)
+		Priority:    5,
 	}
 }
 
@@ -41,7 +42,7 @@ func TestLLMMaker_FallbackWhenUnconfigured(t *testing.T) {
 		t.Error("expected IsAvailable=false when no URL configured")
 	}
 	agents := makeAgents("alice", "bob")
-	chosen, err := m.DecideAgent(context.Background(), makeTask("do something", ""), agents)
+	chosen, err := m.Decide(context.Background(), makeTask("do something"), agents)
 	if err != nil {
 		t.Fatalf("expected no error on fallback, got %v", err)
 	}
@@ -56,7 +57,6 @@ func TestLLMMaker_UsesLLMResponse(t *testing.T) {
 	agents := makeAgents("alice", "bob", "charlie")
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Verify Authorization header
 		if r.Header.Get("Authorization") == "" {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
@@ -75,7 +75,7 @@ func TestLLMMaker_UsesLLMResponse(t *testing.T) {
 		t.Fatal("expected IsAvailable=true with configured URL")
 	}
 
-	chosen, err := m.DecideAgent(context.Background(), makeTask("review code", "PR #42"), agents)
+	chosen, err := m.Decide(context.Background(), makeTask("review code for PR #42"), agents)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -98,7 +98,7 @@ func TestLLMMaker_FallbackOnBrainError(t *testing.T) {
 	defer srv.Close()
 
 	m := NewLLMMaker(srv.URL, "test-token")
-	chosen, err := m.DecideAgent(context.Background(), makeTask("urgent task", ""), agents)
+	chosen, err := m.Decide(context.Background(), makeTask("urgent task"), agents)
 	if err != nil {
 		t.Fatalf("expected no error even on brain 503, got %v", err)
 	}
@@ -119,7 +119,7 @@ func TestLLMMaker_FallbackOnUnknownAgentName(t *testing.T) {
 	defer srv.Close()
 
 	m := NewLLMMaker(srv.URL, "token")
-	chosen, err := m.DecideAgent(context.Background(), makeTask("task", ""), agents)
+	chosen, err := m.Decide(context.Background(), makeTask("task"), agents)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -139,7 +139,7 @@ func TestLLMMaker_AnyResponse(t *testing.T) {
 	defer srv.Close()
 
 	m := NewLLMMaker(srv.URL, "token")
-	chosen, err := m.DecideAgent(context.Background(), makeTask("task", ""), agents)
+	chosen, err := m.Decide(context.Background(), makeTask("task"), agents)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -154,7 +154,6 @@ func TestLLMMaker_TimeoutFallback(t *testing.T) {
 	agents := makeAgents("alice")
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Slow response — should be cut off by LLMMaker's timeout
 		select {
 		case <-r.Context().Done():
 		case <-time.After(5 * time.Second):
@@ -168,7 +167,7 @@ func TestLLMMaker_TimeoutFallback(t *testing.T) {
 	m.httpClient = &http.Client{Timeout: 100 * time.Millisecond}
 
 	start := time.Now()
-	chosen, err := m.DecideAgent(context.Background(), makeTask("urgent", ""), agents)
+	chosen, err := m.Decide(context.Background(), makeTask("urgent"), agents)
 	elapsed := time.Since(start)
 
 	if err != nil {
